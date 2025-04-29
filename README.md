@@ -1,4 +1,3 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
 
@@ -16,21 +15,24 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Instructions
 
-## Learn More
+- Do not create a new tailwind.config.ts or tailwind.config.js or tailwind.config.mjs file. It's no more necessary in Tailwind v4. 
 
-To learn more about Next.js, take a look at the following resources:
+- Please break down globals.css into layers or add specific CSS stylesheet for each page. For example, if you're working on app/dashboard/page.tsx, add the CSS styles corresponding to the dashboard at app/dashboard/styles.modules.css. See more [here](https://nextjs.org/docs/app/getting-started/css) and [here](https://www.reddit.com/r/nextjs/comments/16tvbu9/how_do_you_add_styles_to_your_pages/)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Let's not completely rely on the root layout (app/layout.tsx). If the page or the component that you're building has any unique rerquirement, create a new layout.tsx. See more [here](https://nextjs.org/docs/app/getting-started/layouts-and-pages)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- DO NOT VIBE CODE the logic of the application. Verify any AI Generated code twice. 
 
-## Deploy on Vercel
+- Before opening PR, please run ```pnpm run build```. Only open PR if the build succeeded. Tip: Run the build after commenting your .env. If the build failed after doing so, you're required to add the environment variable to github secrets and load that secret in .github/workflows/build.yml
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- DO NOT PUSH SECRETS TO GITHUB. 
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- As a best practice, do not create sub-directories to name API endpoints like app/api/creator/dashboard instead name it app/api/creator-dashboard. Only do so if you think it's absolutely necessary. 
+
+
+
+
+
