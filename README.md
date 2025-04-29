@@ -32,6 +32,10 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 - As a best practice, do not create sub-directories to name API endpoints like ```app/api/creator/dashboard``` instead name it ```app/api/creator-dashboard```. Only do so if you think it's absolutely necessary. 
 
+- Do not change any root files like: ```eslint.confit.mjs```, ```next.config.mjs```, ```tsconfig.json```, or ```postcss.config.mjs```. If you still feel the need to change these configuration files, do so ONLY after consulting with the team.
+
+- Only variable names of environment secret, not the actual secrects, should be in sync with ```.env.example```. 
+
 
 
 
