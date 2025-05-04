@@ -1,138 +1,137 @@
 .container {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   padding: 24px;
 }
 
-.pastFilingsCard {
-  margin-bottom: 24px;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
+.header {
+  width: 100%;
+}
+
+.accessFilings {
+  display: flex;
+  align-items: center;
   background-color: white;
-  padding: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  cursor: pointer;
 }
 
-.pastFilingsContent {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.pastFilingsIcon {
-  display: flex;
-  height: 40px;
-  width: 40px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background-color: #fff4f0;
+.iconContainer {
+  background-color: rgba(255, 83, 51, 0.1);
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin-right: 1rem;
 }
 
 .fileIcon {
-  height: 20px;
-  width: 20px;
-  color: #e9420c;
+  color: #ff5533;
 }
 
-.pastFilingsTitle {
-  font-size: 14px;
+.filingInfo {
+  flex: 1;
+}
+
+.filingInfo h3 {
   font-weight: 500;
-  color: #111827;
+  margin-bottom: 0.25rem;
+  font-size: 1rem;
 }
 
-.pastFilingsDescription {
-  font-size: 12px;
+.filingInfo p {
   color: #6b7280;
+  font-size: 0.875rem;
+  margin: 0;
 }
 
 .chevronIcon {
-  height: 20px;
-  width: 20px;
   color: #9ca3af;
 }
 
-.documentsHeader {
-  margin-bottom: 16px;
+.documentList {
+  background-color: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.documentHeader {
   display: flex;
-  align-items: center;
   justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
 }
 
-.documentsTitle {
-  font-size: 20px;
-  font-weight: 500;
-  color: #111827;
+.documentHeader h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
 }
 
-.buttonGroup {
+.documentActions {
   display: flex;
-  gap: 8px;
+  gap: 0.75rem;
 }
 
 .newFolderButton {
-  border-color: #d1d5db;
   background-color: white;
-  color: #4b5563;
-}
-
-.newFolderButton:hover {
-  background-color: #f9fafb;
+  border: 1px solid #e5e7eb;
+  color: #111827;
 }
 
 .uploadButton {
-  background-color: #e9420c;
+  background-color: #ff5533;
+  color: white;
 }
 
-.uploadButton:hover {
-  background-color: #d13b0b;
-}
-
-.buttonIcon {
-  margin-right: 4px;
-  height: 16px;
-  width: 16px;
-}
-
-.foldersList {
+.folders {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0.5rem;
 }
 
 .folderItem {
-  border-radius: 6px;
-  border: 1px solid #e5e7eb;
-  background-color: white;
-  padding: 12px;
   display: flex;
-  align-items: center;
   justify-content: space-between;
-}
-
-.folderItem:hover {
-  background-color: #f9fafb;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid #f3f4f6;
 }
 
 .folderInfo {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 0.75rem;
 }
 
 .folderIcon {
-  height: 20px;
-  width: 20px;
-  color: #9ca3af;
+  color: #6b7280;
 }
 
-.folderName {
-  font-size: 14px;
+.emptyFolder {
+  color: #9ca3af;
+  font-size: 0.875rem;
+}
+
+.comingSoonCard {
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background-color: white;
+  padding: 32px;
+  text-align: center;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.title {
+  margin-bottom: 8px;
+  font-size: 24px;
+  font-weight: 500;
   color: #111827;
 }
 
-.folderStatus {
-  font-size: 12px;
-  color: #6b7280;
+.description {
+  color: #4b5563;
 }

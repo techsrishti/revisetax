@@ -40,12 +40,11 @@
 
 .cardHeader {
   margin-bottom: 12px;
-  border-bottom: 1px solid #e9420c;
   padding-bottom: 6px;
 }
 
 .cardTitle {
-  font-family: 'Cabinet Grotesk Variable', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-weight: 700;
   font-size: 20px;
   line-height: 100%;
@@ -54,7 +53,7 @@
 }
 
 .cardDescription {
-  font-family: 'Inter Variable', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-weight: 400;
   font-size: 13px;
   line-height: 20px;
@@ -67,7 +66,7 @@
 }
 
 .sectionTitle {
-  font-family: 'Inter Variable', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-weight: 400;
   font-size: 13px;
   line-height: 100%;
@@ -105,7 +104,7 @@
 }
 
 .checkboxLabel {
-  font-family: 'Inter Variable', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-weight: 400;
   font-size: 14px;
   line-height: 100%;
@@ -115,7 +114,7 @@
 }
 
 .subLabel {
-  font-family: 'Inter Variable', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-weight: 400;
   font-size: 12px;
   line-height: 100%;
@@ -139,7 +138,7 @@
   height: 40px;
   background: hsl(var(--brand-primary));
   border-radius: 4px;
-  font-family: 'Inter Variable', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-weight: 700;
   font-size: 14px;
   line-height: 100%;
@@ -153,7 +152,7 @@
 }
 
 .callTitle {
-  font-family: 'Cabinet Grotesk Variable', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-weight: 700;
   font-size: 20px;
   line-height: 100%;
@@ -162,7 +161,7 @@
 }
 
 .callDescription {
-  font-family: 'Inter Variable', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-weight: 400;
   font-size: 13px;
   line-height: 20px;
@@ -180,7 +179,7 @@
   height: 40px;
   background: hsl(var(--brand-dark));
   border-radius: 4px;
-  font-family: 'Inter Variable', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-weight: 700;
   font-size: 14px;
   line-height: 100%;
