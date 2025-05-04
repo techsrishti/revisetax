@@ -1,0 +1,150 @@
+.container {
+  padding: 24px;
+}
+
+.plansGrid {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.planCard {
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background-color: white;
+  padding: 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.planHeader {
+  margin-bottom: 16px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.planName {
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.planPrice {
+  margin-top: 4px;
+  display: flex;
+  align-items: baseline;
+}
+
+.priceAmount {
+  font-size: 24px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.pricePeriod {
+  margin-left: 4px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.planIcon {
+  text-align: right;
+}
+
+.featuresList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.featureItem {
+  display: flex;
+  align-items: center;
+}
+
+.featureIncluded {
+  margin-right: 8px;
+  height: 16px;
+  width: 16px;
+  color: #10b981;
+}
+
+.featureExcluded {
+  margin-right: 8px;
+  height: 16px;
+  width: 16px;
+  color: #9ca3af;
+}
+
+.featureName {
+  font-size: 14px;
+  color: #4b5563;
+}
+
+.planButton {
+  margin-top: 16px;
+  width: 100%;
+  color: white;
+}
+
+.planButton:hover {
+  opacity: 0.9;
+}
+
+.discountCard {
+  margin-top: 32px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background-color: white;
+  padding: 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.discountHeader {
+  border-bottom: 1px solid #e9420c;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+
+.discountTitle {
+  font-size: 18px;
+  font-weight: 500;
+  color: #111827;
+}
+
+.discountContent {
+  padding-top: 8px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.discountDescription {
+  font-size: 14px;
+  color: #4b5563;
+}
+
+.talkButton {
+  white-space: nowrap;
+  background-color: #e9420c;
+}
+
+.talkButton:hover {
+  background-color: #d13b0b;
+}
+
+@media (max-width: 768px) {
+  .plansGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .discountContent {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .talkButton {
+    width: 100%;
+  }
+}
