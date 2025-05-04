@@ -54,7 +54,7 @@ export default function ChatModule() {
         <div className={styles.card}>
           <h2 className={styles.callTitle}>Schedule a call instead?</h2>
           <p className={styles.callDescription}>
-            For tailored services based on your needs.
+            For people who need tailored services based on your use case, please schedule a call with us.
           </p>
           <Button variant="outline" className={styles.scheduleButton}>
             <ExternalLink className={styles.scheduleIcon} />
