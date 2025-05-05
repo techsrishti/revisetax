@@ -47,7 +47,7 @@ export default function ChatModule() {
             </div>
           </div>
 
-          <Button className={styles.primaryButton}>Start the Chat</Button>
+          <Button className={styles.primaryButton}>Coming Soon</Button>
         </div>
 
         {/* Schedule call */}
