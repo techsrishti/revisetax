@@ -55,7 +55,7 @@ export default function SignIn() {
 
       if (!user) {
         // Redirect to signup if user doesn't exist
-        router.push(`/auth/signup?phone=${encodeURIComponent(formattedPhone)}`);
+        router.push(`/auth/signup?phone=${encodeURIComponent(phoneNumber.replace(/\s+/g, ''))}`);
         return;
       }
 
@@ -86,7 +86,7 @@ export default function SignIn() {
       });
 
       if (error) throw error;
-      router.push('/new-dashboard');
+      router.push('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {

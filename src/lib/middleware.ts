@@ -8,7 +8,7 @@ export const config = {
    
     '/((?!_next/static|_next/image|favicon.ico|public).*)',
     '/auth/:path*',
-    '/new-dashboard/:path*'
+    '/dashboard/:path*'
   ],
 }
 
@@ -21,7 +21,7 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getSession()
 
   // Protected routes
-  const protectedPaths = ['/new-dashboard']
+  const protectedPaths = ['/dashboard']
   const isProtectedPath = protectedPaths.some((path) => 
     request.nextUrl.pathname.startsWith(path)
   )
@@ -33,7 +33,7 @@ export async function middleware(request: NextRequest) {
 
   // If accessing auth pages while authenticated
   if (session && (request.nextUrl.pathname.startsWith('/auth'))) {
-    return NextResponse.redirect(new URL('/new-dashboard', request.url))
+    return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
   return res

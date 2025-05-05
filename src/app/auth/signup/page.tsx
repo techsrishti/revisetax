@@ -92,7 +92,7 @@ export default function SignUp() {
       });
 
       if (error) throw error;
-      router.push('/new-dashboard');
+      router.push('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
