@@ -78,7 +78,7 @@ export default function Sidebar({ activeModule, setActiveModule }: SidebarProps)
           />
           <SidebarItem
             icon={<img src="/plans-icon.svg" alt="Plans" width={16.75} height={16.67} />}
-            label={activeModule === "plans" ? "Services" : "Plans"}
+            label="Plans"
             isActive={activeModule === "plans"}
             onClick={() => setActiveModule("plans")}
           />

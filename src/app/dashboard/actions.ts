@@ -1,3 +1,4 @@
+"use server"
 import { prisma } from "@/lib/prisma";
 import crypto from 'crypto'
 import { v4 as uuidv4 } from 'uuid';
@@ -5,9 +6,10 @@ import { v4 as uuidv4 } from 'uuid';
 const PAYU_KEY = process.env.PAYU_KEY;  
 const PAYU_SALT = process.env.PAYU_SALT_32BIT;
 
-if (!PAYU_KEY || !PAYU_SALT) {
-    throw new Error('PAYU_KEY and PAYU_SALT must be set');
-}
+// if (!PAYU_KEY || !PAYU_SALT) {
+//     console.log('PAYU_KEY and PAYU_SALT must be set');
+//     throw new Error('PAYU_KE and PAYU_SALT must be set');
+// }
 
 
 export interface PlansForFrontend { 
