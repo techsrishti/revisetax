@@ -24,6 +24,8 @@ model Payment {
   planId       String
   txnId        String        @unique
   status       PaymentStatus
+  failedReason String?
+  paymentMode  String?
   amount       Decimal       @db.Decimal(10, 2)
   currency     String        @default("INR")
   hash         String
@@ -57,11 +59,12 @@ model Subscription {
   id        String    @id @default(uuid())
   userId    String    @unique
   planId    String
+  planName  String
   startDate DateTime
   endDate   DateTime
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now())
-  updatedAt DateTime
+  updatedAt DateTime  @updatedAt
   Plan      Plan      @relation(fields: [planId], references: [id])
   User      User      @relation(fields: [userId], references: [id])
 }

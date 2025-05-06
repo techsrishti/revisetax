@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react"
 import styles from "./billing-module.module.css"
-import { getPlans, getUserSubscription, PlansForFrontend,  } from "@/app/dashboard/actions"
-import { type PlansSuccessResponse, type ErrorResponse } from "../app/dashboard/actions"
+import { getPlans, getUserSubscription, initiatePayment, PlansForFrontend } from "@/app/dashboard/actions"
+import { type ErrorResponse } from "../app/dashboard/actions"
 
 export default function BillingModule() {
   const [plans, setPlans] = useState<PlansForFrontend[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<ErrorResponse>()
   const [activeSubscription, setActiveSubscription] = useState<any>(null)
+  const [processingPayment, setProcessingPayment] = useState(false)
 
   useEffect(() => {
     async function fetchData() {
@@ -40,6 +41,57 @@ export default function BillingModule() {
 
     fetchData()
   }, [])
+
+  const handleSubscribe = async (planName: string) => {
+    try {
+      setProcessingPayment(true)
+      const response = await initiatePayment(planName)
+      
+      if (!response.success) {
+        setError(response)
+        return
+      }
+
+      // Create and submit the PayU form
+      const form = document.createElement('form')
+      form.method = 'post'
+      form.action = 'https://test.payu.in/_payment'
+
+      const addInput = (name: string, value: string) => {
+        const input = document.createElement('input')
+        input.type = 'hidden'
+        input.name = name
+        input.value = value
+        form.appendChild(input)
+      }
+
+      // Add all required PayU fields
+      addInput('key', process.env.NEXT_PUBLIC_PAYU_KEY || '')
+      addInput('txnid', response.txnId)
+      addInput('amount', response.amount.toString())
+      addInput('productinfo', response.productInfo)
+      addInput('firstname', response.user.name?.split(' ')[0] || '')
+      addInput('lastname', response.user.name?.split(' ').slice(1).join(' ') || '')
+      addInput('email', response.user.email || '')
+      addInput('phone', response.user.phone)
+      addInput('surl', `https://webhook.site/c7aa0f55-0400-492c-a974-8d9570be313c`)
+      addInput('furl', `https://webhook.site/c7aa0f55-0400-492c-a974-8d9570be313c`)
+      addInput('hash', response.hash)
+
+      // Submit the form
+      document.body.appendChild(form)
+      form.submit()
+    } catch (err) {
+      setError({
+        success: false,
+        error: "Failed to process payment",
+        errorMessage: "Failed to initiate payment. Please try again.",
+        errorCode: null,
+      })
+    } finally {
+      setProcessingPayment(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -86,9 +138,14 @@ export default function BillingModule() {
 
             <button 
               className={styles.subscribeButton}
-              disabled={!!activeSubscription}
+              disabled={!!activeSubscription || processingPayment}
+              onClick={() => handleSubscribe(plan.name)}
             >
-              {activeSubscription ? "Already Subscribed" : "Subscribe Now"}
+              {activeSubscription 
+                ? "Already Subscribed" 
+                : processingPayment 
+                  ? "Processing..." 
+                  : "Subscribe Now"}
             </button>
           </div>
         ))}

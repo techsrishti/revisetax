@@ -195,7 +195,7 @@ export async function initiatePayment(planName: string): Promise<InitiatePayment
 
             //hash for payu 
             const hashString = `${PAYU_KEY}|${txnId}|${plan.price.toNumber()}|ReviseTax ${planName} Plan|${user.name}|${user.email}|||||||||||${PAYU_SALT}`;
-            hash = crypto.createHash('sha256').update(hashString).digest('hex');
+            hash = crypto.createHash('sha512').update(hashString).digest('hex');
             console.log("Hash String: ", hashString)
             await prisma.payment.create({ 
                 data: { 
