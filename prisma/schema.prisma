@@ -1,12 +1,6 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
- }
+}
 
 datasource db {
   provider = "postgresql"
@@ -14,10 +8,69 @@ datasource db {
 }
 
 model User {
-  id          String   @id @default(uuid())
-  name        String?
-  email       String?  @unique
-  phoneNumber String   @unique
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String        @id @default(uuid())
+  email        String?       @unique
+  name         String?
+  phone        String        @unique
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  Payment      Payment[]
+  Subscription Subscription?
+}
+
+model Payment {
+  id           String        @id @default(uuid())
+  userId       String
+  planId       String
+  txnId        String        @unique
+  status       PaymentStatus
+  amount       Decimal       @db.Decimal(10, 2)
+  currency     String        @default("INR")
+  hash         String
+  initiatedAt  DateTime      @default(now())
+  expiresAt    DateTime
+  settledAt    DateTime?
+  refundedAt   DateTime?
+  refundReason String?
+  webhookRaw   Json?
+  notes        String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  Plan         Plan          @relation(fields: [planId], references: [id])
+  User         User          @relation(fields: [userId], references: [id])
+}
+
+model Plan {
+  id           String         @id @default(uuid())
+  name         String         @unique
+  price        Decimal        @db.Decimal(10, 2)
+  currency     String         @default("INR")
+  isActive     Boolean        @default(true)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  features     Json
+  Payment      Payment[]
+  Subscription Subscription[]
+}
+
+model Subscription {
+  id        String    @id @default(uuid())
+  userId    String    @unique
+  planId    String
+  startDate DateTime
+  endDate   DateTime
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime
+  Plan      Plan      @relation(fields: [planId], references: [id])
+  User      User      @relation(fields: [userId], references: [id])
+}
+
+enum PaymentStatus {
+  initiated
+  success
+  failed
+  refunded
+  bounced
+  expired
 }

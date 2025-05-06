@@ -7,7 +7,7 @@ export async function POST(request: Request) {
     
     const user = await prisma.user.findUnique({
       where: {
-        phoneNumber,
+        phone: phoneNumber,
       },
     });
 

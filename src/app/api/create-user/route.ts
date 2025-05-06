@@ -8,7 +8,7 @@ export async function POST(request: Request) {
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
       where: {
-        phoneNumber,
+        phone: phoneNumber,
       },
     });
 
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
       data: {
         name,
         email,
-        phoneNumber,
+        phone: phoneNumber,
       },
     });
 
