@@ -74,8 +74,8 @@ export default function BillingModule() {
       addInput('lastname', response.user.name?.split(' ').slice(1).join(' ') || '')
       addInput('email', response.user.email || '')
       addInput('phone', response.user.phone)
-      addInput('surl', `https://webhook.site/c7aa0f55-0400-492c-a974-8d9570be313c`)
-      addInput('furl', `https://webhook.site/c7aa0f55-0400-492c-a974-8d9570be313c`)
+      addInput('surl', `${process.env.NEXT_PUBLIC_URL}/api/payu-callback`)
+      addInput('furl', `${process.env.NEXT_PUBLIC_URL}/api/payu-callback`)
       addInput('hash', response.hash)
 
       // Submit the form

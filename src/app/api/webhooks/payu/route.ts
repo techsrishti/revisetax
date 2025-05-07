@@ -1,7 +1,6 @@
 "use server"
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
-import getRawBody from "raw-body";
 import crypto from "crypto";
 
 interface PayuWebhookPayload {
@@ -117,15 +116,6 @@ export async function POST(request: NextRequest) {
                 error: "Payment not found",
             }, { status: 200 });
         }
-
-        // if (payload.hash !== payment.hash) {
-        //    TODO: Different hash
-        //     return NextResponse.json({
-        //         success: false,
-        //         error: "Hash mismatch",
-        //         errorMessage: "Evadra nuvvu. Pakkaku vellu aaduko.",
-        //     }, { status: 400 });
-        // }
         
         if (payment.status === "success" ) {
             //TODO send email to admin
@@ -138,6 +128,7 @@ export async function POST(request: NextRequest) {
                 error: "Payment already processed",
             }, { status: 200 });
         }
+
         const hashString = `${process.env.PAYU_SALT_32BIT}|${payload.status}|||||||||||${payload.email}|${payload.firstname}|${payload.productinfo}|${payload.amount}|${payload.txnid}|${process.env.PAYU_KEY}`
         const hash = crypto.createHash('sha512').update(hashString).digest('hex');
         console.log('hash string', hashString)
@@ -155,7 +146,6 @@ export async function POST(request: NextRequest) {
 
         if (payload.status === "success") {
             console.log("Payment success webhook processing", payload.txnid)
-            //TODO atomicity use primsa transac
             const subscription = await prisma.subscription.findMany({
                 where: {
                     userId: payment.userId,
@@ -175,17 +165,7 @@ export async function POST(request: NextRequest) {
             }
             
             console.log("No subscription exists for this user")
-            const updatePayment = await prisma.payment.update({ 
-                where: {
-                    id: payment.id
-                }, 
-                data: {
-                    status: "success",
-                    settledAt: new Date(),                    
-                }
-            })
-
-            console.log("Payment updated as success")
+            
             //end date of subscription is June 1st next year or 12 months from the start date whichever is earlier
            const juneFirstNextYear = new Date(new Date().getFullYear() + 1, 5, 1);
            const twelveMonthsFromStartDate = new Date();
@@ -193,16 +173,29 @@ export async function POST(request: NextRequest) {
 
            const endDate = juneFirstNextYear < twelveMonthsFromStartDate ? juneFirstNextYear : twelveMonthsFromStartDate;
 
-           await prisma.subscription.create({
-            data: {
-                userId: payment.userId, 
-                planId: payment.planId, 
-                planName: payment.Plan.name,
-                startDate: new Date(), 
-                endDate, 
-                isActive: true,
-            }
-           })
+           //Using transaction for both payment update and subscription creation.
+           const [updatePayment, updateSubscription] = await prisma.$transaction([
+                prisma.payment.update({ 
+                    where: {
+                         id: payment.id
+                    }, 
+                    data: {
+                        status: "success",
+                        settledAt: new Date(),                    
+                    }
+                }),
+                prisma.subscription.create({
+                    data: {
+                        userId: payment.userId, 
+                        planId: payment.planId, 
+                        planName: payment.Plan.name,
+                        startDate: new Date(), 
+                        endDate, 
+                        isActive: true,
+                        paymentId: payment.id
+                    }
+                })
+           ])
 
             console.log("Subscription created")
 

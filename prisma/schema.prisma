@@ -41,6 +41,7 @@ model Payment {
   updatedAt    DateTime      @updatedAt
   Plan         Plan          @relation(fields: [planId], references: [id])
   User         User          @relation(fields: [userId], references: [id])
+  Subscription Subscription?
 }
 
 model Plan {
@@ -60,6 +61,7 @@ model Subscription {
   id        String    @id @default(uuid())
   userId    String    @unique
   planId    String
+  paymentId String    @unique
   planName  String
   startDate DateTime
   endDate   DateTime
@@ -68,6 +70,7 @@ model Subscription {
   updatedAt DateTime  @updatedAt
   Plan      Plan      @relation(fields: [planId], references: [id])
   User      User      @relation(fields: [userId], references: [id])
+  Payment   Payment   @relation(fields: [paymentId], references: [id])
 }
 
 enum PaymentStatus {
