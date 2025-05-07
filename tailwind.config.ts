@@ -52,7 +52,11 @@ const config = {
         card: {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
-        },
+        }
+      },
+      fontFamily: {
+        'cabinet-grotesk': ["var(--font-grotesk)"],
+        'inter': ["var(--font-inter)"],
       },
       borderRadius: {
         lg: "var(--radius)",

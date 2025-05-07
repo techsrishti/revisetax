@@ -85,6 +85,21 @@ export async function POST(request: NextRequest) {
         }
 
         const payload: PayuWebhookPayload = payloadRaw;
+        //Untested: moved hash up 
+        const hashString = `${process.env.PAYU_SALT_32BIT}|${payload.status}|||||||||||${payload.email}|${payload.firstname}|${payload.productinfo}|${payload.amount}|${payload.txnid}|${process.env.PAYU_KEY}`
+        const hash = crypto.createHash('sha512').update(hashString).digest('hex');
+        console.log('hash string', hashString)
+        console.log('payload.hash', payload.hash)
+
+        if (payload.hash !== hash) {
+            console.log("Hash mismatch")
+                return NextResponse.json({
+                    success: false,
+                    error: "Hash mismatch",
+                    errorMessage: "Evadra nuvvu. Pakkaku vellu aaduko.",
+                }, { status: 200 });
+        }
+        console.log('hash matched')
 
         const payment = await prisma.payment.findUnique({
             where: {
@@ -129,20 +144,7 @@ export async function POST(request: NextRequest) {
             }, { status: 200 });
         }
 
-        const hashString = `${process.env.PAYU_SALT_32BIT}|${payload.status}|||||||||||${payload.email}|${payload.firstname}|${payload.productinfo}|${payload.amount}|${payload.txnid}|${process.env.PAYU_KEY}`
-        const hash = crypto.createHash('sha512').update(hashString).digest('hex');
-        console.log('hash string', hashString)
-        console.log('payload.hash', payload.hash)
-
-        if (payload.hash !== hash) {
-            console.log("Hash mismatch")
-                return NextResponse.json({
-                    success: false,
-                    error: "Hash mismatch",
-                    errorMessage: "Evadra nuvvu. Pakkaku vellu aaduko.",
-                }, { status: 200 });
-        }
-        console.log('hash matched')
+        
 
         if (payload.status === "success") {
             console.log("Payment success webhook processing", payload.txnid)
@@ -156,6 +158,7 @@ export async function POST(request: NextRequest) {
             if (subscription.length > 0) {
                 //TODO send email to admin
                 //Won't come into this block. subscription only added if payment.status === success. This is already checked above
+                //Will only come if some other txn added the subscription before this txn
                 //Subscription already exists for this user
                 console.log("Subscription already exists", subscription)
                 return NextResponse.json({

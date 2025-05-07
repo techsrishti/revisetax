@@ -108,6 +108,7 @@
   font-size: 24px;
   font-weight: 600;
   color: #111827;
+  font-family: var(--font-inter);
 }
 
 .planPrice {
@@ -115,6 +116,7 @@
   font-weight: 700;
   color: #059669;
   margin-bottom: 24px;
+  font-family: var(--font-inter);
 }
 
 .features {
@@ -127,6 +129,7 @@
   align-items: center;
   margin-bottom: 12px;
   color: #4b5563;
+  font-family: var(--font-inter);
 }
 
 .included {
@@ -151,6 +154,7 @@
   font-weight: 500;
   cursor: pointer;
   transition: background-color 0.2s;
+  font-family: var(--font-inter);
 }
 
 .subscribeButton:hover:not(:disabled) {

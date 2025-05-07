@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
                 status: 302
             });
             response.cookies.set('showPopup', '1');
-            response.cookies.set('paymentError', 'Invalid PayU callback payload');
+            response.cookies.set('paymentError', payloadRaw.error_Message || 'Payment failed');
             return response;
         }
 

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import styles from "./billing-module.module.css"
 import { getPlans, getUserSubscription, initiatePayment, PlansForFrontend } from "@/app/dashboard/actions"
 import { type ErrorResponse } from "../app/dashboard/actions"
+import { grotesk } from "@/lib/fonts"
 
 export default function BillingModule() {
   const [plans, setPlans] = useState<PlansForFrontend[]>([])

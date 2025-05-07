@@ -171,9 +171,9 @@ export async function initiatePayment(planName: string): Promise<InitiatePayment
                 userId: dummyUserId,
                 status: "initiated", 
                 planId: plan.id,
-                expiresAt: { 
-                    gt: currentTime,
-                }
+                // expiresAt: { 
+                //     gt: currentTime,
+                // }
             },
             select: { 
                 txnId: true, 
@@ -190,7 +190,8 @@ export async function initiatePayment(planName: string): Promise<InitiatePayment
             hash = previousPayments[0].hash;
         } else {
             console.log("No previous payment found. Starting a new payment.")
-            //start a new payment 
+            //start a new payment /
+            //TODO UUIDv4
             txnId = "txn_" + uuidv4();
 
             //hash for payu 
