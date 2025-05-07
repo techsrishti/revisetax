@@ -1,6 +1,8 @@
 .sidebar {
-  width: 300px;
-  height: 100vh; /* Changed from fixed 1024px to 100% viewport height */
+  width: 20vw; /* Changed from fixed 300px to 20% of viewport width */
+  min-width: 250px; /* Minimum width to ensure content doesn't get too cramped */
+  max-width: 400px; /* Maximum width to prevent sidebar from getting too wide */
+  height: 100vh;
   border-right: 1px solid hsl(var(--sidebar-border));
   background-color: hsl(var(--sidebar-background));
   position: relative;
@@ -12,7 +14,7 @@
   align-items: center;
   gap: 12px; /* Updated gap to 12px as specified */
   border-bottom: 1px solid #E4E4E7; /* Updated border color */
-  width: 300px;
+  width: 100%; /* Changed from fixed 300px to 100% */
   height: 72px;
   padding: 20px 24px; /* Top/bottom 20px, left/right 24px as specified */
 }
@@ -52,8 +54,8 @@
 
 .nav {
   padding: 24px;
-  height: 860px;
-  width: 300px;
+  height: calc(100vh - 164px); /* Adjusted to be dynamic based on viewport height minus header and footer */
+  width: 100%; /* Changed from fixed 300px to 100% */
 }
 
 .navList {
@@ -64,7 +66,7 @@
 
 .navItem {
   display: flex;
-  width: 252px;
+  width: 100%; /* Changed from fixed 252px to 100% */
   height: 44px;
   align-items: center;
   gap: 16px;
@@ -245,5 +247,45 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+.mobileMenuToggle {
+  display: none;
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 1001;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 4px;
+  background-color: hsl(var(--sidebar-background));
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.mobileMenuToggle:hover {
+  background-color: hsl(var(--sidebar-accent));
+}
+
+/* Add media query for smaller screens */
+@media screen and (max-width: 768px) {
+  .mobileMenuToggle {
+    display: block;
+  }
+  
+  .sidebar {
+    width: 100%;
+    min-width: 100%;
+    max-width: 100%;
+    position: fixed;
+    z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease-in-out;
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
   }
 }
