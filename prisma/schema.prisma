@@ -35,6 +35,7 @@ model Payment {
   refundedAt   DateTime?
   refundReason String?
   webhookRaw   Json?
+  invoiceUrl   String?
   notes        String?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt

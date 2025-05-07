@@ -1,6 +1,8 @@
+"use server"
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import getRawBody from "raw-body";
+import crypto from "crypto";
 
 interface PayuWebhookPayload {
     mihpayid: string;
@@ -98,6 +100,7 @@ export async function POST(request: NextRequest) {
                 amount: true, 
                 hash: true, 
                 expiresAt: true,
+                //TODO: Maybe add plan name to the payment table itself. Memory vs compute tradeoff
                 Plan: { 
                     select: { 
                         name: true,
@@ -112,7 +115,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({
                 success: false,
                 error: "Payment not found",
-            }, { status: 404 });
+            }, { status: 200 });
         }
 
         // if (payload.hash !== payment.hash) {
@@ -127,16 +130,32 @@ export async function POST(request: NextRequest) {
         if (payment.status === "success" ) {
             //TODO send email to admin
             //Very edge case where the payment is already success but payu still processed it
+            //TESTED Edge case: Two PayU PG portals opened. Succeded one portal and then after this was succeeded, again succeded another one. PayU sends webhook but won't process
             //Could be the case of double webhook
             console.log("Payment already processed", payment.txnId)
             return NextResponse.json({
                 success: false,
                 error: "Payment already processed",
-            }, { status: 400 });
+            }, { status: 200 });
         }
+        const hashString = `${process.env.PAYU_SALT_32BIT}|${payload.status}|||||||||||${payload.email}|${payload.firstname}|${payload.productinfo}|${payload.amount}|${payload.txnid}|${process.env.PAYU_KEY}`
+        const hash = crypto.createHash('sha512').update(hashString).digest('hex');
+        console.log('hash string', hashString)
+        console.log('payload.hash', payload.hash)
+
+        if (payload.hash !== hash) {
+            console.log("Hash mismatch")
+                return NextResponse.json({
+                    success: false,
+                    error: "Hash mismatch",
+                    errorMessage: "Evadra nuvvu. Pakkaku vellu aaduko.",
+                }, { status: 200 });
+        }
+        console.log('hash matched')
 
         if (payload.status === "success") {
             console.log("Payment success webhook processing", payload.txnid)
+            //TODO atomicity use primsa transac
             const subscription = await prisma.subscription.findMany({
                 where: {
                     userId: payment.userId,
@@ -146,12 +165,13 @@ export async function POST(request: NextRequest) {
 
             if (subscription.length > 0) {
                 //TODO send email to admin
+                //Won't come into this block. subscription only added if payment.status === success. This is already checked above
                 //Subscription already exists for this user
                 console.log("Subscription already exists", subscription)
                 return NextResponse.json({
                     success: false,
                     error: "Subscription already exists",
-                }, { status: 400 });
+                }, { status: 200 });
             }
             
             console.log("No subscription exists for this user")
@@ -193,6 +213,7 @@ export async function POST(request: NextRequest) {
         }
 
         if (payload.status === "failure" && payload.unmappedstatus === "Bounced") {
+            //TODO No webhook was coming for bouced. So raised ticket. 
             console.log("Payment bounced")
             const updatePayment = await prisma.payment.update({ 
                 where: {
@@ -211,10 +232,11 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({
                 success: false,
                 error: "Payment bounced",
-            }, { status: 400 });
+            }, { status: 200 });
         }
 
         if (payload.status === "failure") {
+            //INFO: The edge case of failure after succcess is already handled above. payment.status === success is checked above
             console.log("Payment failed webhook processing")
             const updatePayment = await prisma.payment.update({ 
                 where: {
@@ -236,6 +258,7 @@ export async function POST(request: NextRequest) {
             }, { status: 200 });
         }
 
+        console.log("Unknown webhook status", payload.status)
         const endDate = new Date();
         console.log("Time taken", endDate.getTime() - startDate.getTime(), "ms")
         return NextResponse.json({
