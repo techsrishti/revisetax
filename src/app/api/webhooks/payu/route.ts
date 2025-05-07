@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
         })
 
         if (!payment) {
-            console.log("Payment not found")
+            console.log("Txn id not found in database")
             //TODO send email to admin
             return NextResponse.json({
                 success: false,
@@ -124,10 +124,11 @@ export async function POST(request: NextRequest) {
         //     }, { status: 400 });
         // }
         
-        if (payment.status !== "initiated") {
+        if (payment.status === "success" ) {
             //TODO send email to admin
-            //Very edge case where the payment is already processed (bounced, succeded or failed) but payu still processed it
-            console.log("Payment already processed", payment)
+            //Very edge case where the payment is already success but payu still processed it
+            //Could be the case of double webhook
+            console.log("Payment already processed", payment.txnId)
             return NextResponse.json({
                 success: false,
                 error: "Payment already processed",
@@ -135,6 +136,7 @@ export async function POST(request: NextRequest) {
         }
 
         if (payload.status === "success") {
+            console.log("Payment success webhook processing", payload.txnid)
             const subscription = await prisma.subscription.findMany({
                 where: {
                     userId: payment.userId,
@@ -152,6 +154,7 @@ export async function POST(request: NextRequest) {
                 }, { status: 400 });
             }
             
+            console.log("No subscription exists for this user")
             const updatePayment = await prisma.payment.update({ 
                 where: {
                     id: payment.id
@@ -162,6 +165,7 @@ export async function POST(request: NextRequest) {
                 }
             })
 
+            console.log("Payment updated as success")
             //end date of subscription is June 1st next year or 12 months from the start date whichever is earlier
            const juneFirstNextYear = new Date(new Date().getFullYear() + 1, 5, 1);
            const twelveMonthsFromStartDate = new Date();
@@ -180,8 +184,7 @@ export async function POST(request: NextRequest) {
             }
            })
 
-            console.log("Payment updated", updatePayment)
-            console.log("Subscription created", subscription)
+            console.log("Subscription created")
 
             return NextResponse.json({
                 success: true,
@@ -189,8 +192,30 @@ export async function POST(request: NextRequest) {
             }, { status: 200 });
         }
 
-        if (payload.status === "failed") {
-            console.log("Payment failed")
+        if (payload.status === "failure" && payload.unmappedstatus === "Bounced") {
+            console.log("Payment bounced")
+            const updatePayment = await prisma.payment.update({ 
+                where: {
+                    id: payment.id
+                }, 
+                data: {
+                    status: "bounced",
+                    failedReason: "You payment has bounced.",
+                    paymentMode: payload.payment_source,
+                    settledAt: new Date(),
+                }
+            })
+            
+            console.log("Payment updated")
+
+            return NextResponse.json({
+                success: false,
+                error: "Payment bounced",
+            }, { status: 400 });
+        }
+
+        if (payload.status === "failure") {
+            console.log("Payment failed webhook processing")
             const updatePayment = await prisma.payment.update({ 
                 where: {
                     id: payment.id
@@ -203,34 +228,12 @@ export async function POST(request: NextRequest) {
                 }
             })
 
-            console.log("Payment updated", updatePayment)
+            console.log("Payment updated as failed. But could be a success later.")
 
             return NextResponse.json({
                 success: false,
                 error: "Payment failed",
-            }, { status: 400 });
-        }
-
-        if (payload.status === "bounced") {
-            console.log("Payment bounced")
-            const updatePayment = await prisma.payment.update({ 
-                where: {
-                    id: payment.id
-                }, 
-                data: {
-                    status: "bounced",
-                    failedReason: payload.error_Message,
-                    paymentMode: payload.payment_source,
-                    settledAt: new Date(),
-                }
-            })
-            
-            console.log("Payment updated", updatePayment)
-
-            return NextResponse.json({
-                success: false,
-                error: "Payment bounced",
-            }, { status: 400 });
+            }, { status: 200 });
         }
 
         const endDate = new Date();
