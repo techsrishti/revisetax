@@ -1,9 +1,10 @@
 .container {
   display: flex;
+  width: 100%;
   min-height: 100vh;
   flex-direction: column;
   align-items: center;
-  padding: 24px;
+  padding: 2rem;
   background-color: #f9fafb;
 }
 
@@ -43,10 +44,11 @@
 
 .plansGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 0px;
   width: 100%;
-  max-width: 1200px;
+  padding: 0;
+  justify-content: center;
 }
 
 .planCard {
@@ -57,13 +59,13 @@
   border-radius: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   transition: transform 0.2s, box-shadow 0.2s;
+  width: 22vw;
+  height: 60vh;
+  margin: 0 auto;
 }
 
 /* First plan card specific styles */
 .planCard:first-child {
-  width: 332px;
-  height: 556px;
-  padding: 32px;
   border-radius: 4px;
   gap: 40px;
   box-shadow: 
@@ -75,9 +77,17 @@
 
 /* Second plan card specific styles */
 .planCard:nth-child(2) {
-  width: 332px;
-  height: 556px;
-  padding: 32px;
+  border-radius: 4px;
+  gap: 40px;
+  background: #FFFFFF;
+  box-shadow: 
+    0px 0px 0px 1px rgba(0, 0, 0, 0.06),
+    0px 2px 4px 0px rgba(0, 0, 0, 0.08),
+    0px 4px 8px 0px rgba(0, 0, 0, 0.06),
+    0px 8px 16px 0px rgba(0, 0, 0, 0.08);
+}
+
+.planCard:nth-child(3) {
   border-radius: 4px;
   gap: 40px;
   background: #FFFFFF;
