@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -9,8 +9,9 @@ import OTPInput from '../../../components/OTPInput';
 import { supabase } from '@/utils/supabase/supabase';
 import { useToast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
+import styles from '../styles.module.css';
 
-export default function SignUp() {
+function SignUpContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -227,108 +228,107 @@ export default function SignUp() {
   };
 
   return (
-    <>
-      <AuthLayout>
-        <div className="bg-white rounded-[8px] shadow-xl w-[472px] p-1 font-inter -mt-20">
+    <AuthLayout>
+      <div className="bg-white rounded-lg shadow-xl overflow-hidden">
+        {/* Logo and Welcome Section */}
+        {!showOTP && (
+          <div className="bg-[#F3F4F6] px-6 pt-6 pb-8">
+            <Image
+              src="/logo-dark-login.svg"
+              alt="ReviseTax"
+              width={92}
+              height={24}
+              priority
+              className="mb-6"
+            />
+            <h1 className="text-[#111827] mb-2" style={{
+              fontFamily: 'Cabinet Grotesk Variable',
+              fontWeight: 700,
+              fontSize: '24px',
+              lineHeight: '100%',
+              letterSpacing: '0%',
+              fontVariantNumeric: 'lining-nums tabular-nums'
+            }}>
+              Create Account
+            </h1>
+            <p className={styles.description}>
+              Seems like you don't have an account with us yet. We just need your name and email.
+            </p>
+          </div>
+        )}
+
+        {/* Form Section */}
+        <div className={showOTP ? '' : 'p-6'}>
           {!showOTP ? (
             <>
-              <div className="w-[464px] h-[188px] p-[24px] space-y-[24px] bg-[#F3F4F6] rounded-t-[4px]">
-                <div>
-                  <Image
-                    src="/logo-dark-login.svg"
-                    alt="ReviseTax Logo"
-                    width={91.734}
-                    height={24}
-                    priority
-                    className="w-[91.734px] h-6"
+              {/* Full Name Input */}
+              <div className="mb-6">
+                <label htmlFor="fullName" className="block text-[#111827] text-base mb-2">
+                  Full Name
+                </label>
+                <input
+                  id="fullName"
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="w-full h-12 px-4 bg-[#F9FAFB] border border-[#D1D5DB] rounded text-[#111827] placeholder-[#6B7280] focus:ring-2 focus:ring-[#FF4400] focus:border-[#FF4400] outline-none"
+                  placeholder="Enter your full name"
+                />
+              </div>
+
+              {/* Email Input */}
+              <div className="mb-6">
+                <label htmlFor="email" className="block text-[#111827] text-base mb-2">
+                  Email
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full h-12 px-4 bg-[#F9FAFB] border border-[#D1D5DB] rounded text-[#111827] placeholder-[#6B7280] focus:ring-2 focus:ring-[#FF4400] focus:border-[#FF4400] outline-none"
+                  placeholder="Enter your email"
+                />
+              </div>
+
+              {/* Phone Input */}
+              <div className="mb-6">
+                <label htmlFor="phone" className="block text-[#111827] text-base mb-2">
+                  Phone Number
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#6B7280]">
+                    +91
+                  </span>
+                  <input
+                    id="phone"
+                    type="tel"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(formatPhoneNumber(e.target.value))}
+                    className="w-full h-12 pl-12 pr-4 bg-[#F9FAFB] border border-[#D1D5DB] rounded text-[#111827] placeholder-[#6B7280] focus:ring-2 focus:ring-[#FF4400] focus:border-[#FF4400] outline-none"
+                    placeholder="Enter your 10-digit number"
+                    maxLength={10}
                   />
-                </div>
-                <h1 className="font-cabinet-grotesk-variable font-bold text-2xl leading-none tracking-normal tabular-nums text-[#111827] mb-4">
-                  Create Account
-                </h1>
-                <div className="w-[400px] h-[56px]">
-                  <p className="font-inter-variable text-[16px] leading-[28px] font-normal">
-                    Seems like you don't have an account with us yet. We just need your name and email.
-                  </p>
                 </div>
               </div>
 
-              <div className="space-y-6 px-6">
-                <div className="flex justify-center mt-4 mb-8">
-                  <div className="w-[450px] space-y-2">
-                    <label htmlFor="fullName" className="block font-inter-variable text-base leading-none text-[#111827]">
-                      Full Name
-                    </label>
-                    <input
-                      id="fullName"
-                      type="text"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      className="w-full h-[48px] px-4 rounded-lg border border-[#D9D9D9] bg-[#FAFAFA] focus:ring-2 focus:ring-[#FF4400] focus:border-[#FF4400] focus:outline-none font-inter-variable text-base leading-none text-black placeholder:text-[#5B6976] placeholder:font-inter-variable placeholder:text-base placeholder:leading-none"
-                      placeholder="Enter your full name"
-                      disabled={loading}
-                    />
-                  </div>
-                </div>
+              {/* Create Account Button */}
+              <button
+                onClick={handleCreateAccount}
+                disabled={loading || !fullName || !email || !validatePhoneNumber(phoneNumber)}
+                className="w-full h-12 bg-[#FF4400] text-white font-semibold rounded hover:bg-[#E63D00] transition-colors duration-200 disabled:opacity-50 mb-6"
+              >
+                {loading ? 'Processing...' : 'Create Account'}
+              </button>
 
-                <div className="flex justify-center mb-8">
-                  <div className="w-[450px] space-y-2">
-                    <label htmlFor="email" className="block font-inter-variable text-base leading-none text-[#111827]">
-                      Email
-                    </label>
-                    <input
-                      id="email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full h-[48px] px-4 rounded-lg border border-[#D9D9D9] bg-[#FAFAFA] focus:ring-2 focus:ring-[#FF4400] focus:border-[#FF4400] focus:outline-none font-inter-variable text-base leading-none text-black placeholder:text-[#5B6976] placeholder:font-inter-variable placeholder:text-base placeholder:leading-none"
-                      placeholder="Enter your email"
-                      disabled={loading}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-center mb-8">
-                  <div className="w-[450px] h-[75px] space-y-2">
-                    <label htmlFor="phone" className="block font-inter-variable text-base leading-none text-[#111827]">
-                      Phone Number
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 font-inter-variable text-base leading-none text-[#5B6976]">
-                        +91
-                      </span>
-                      <input
-                        id="phone"
-                        type="tel"
-                        value={phoneNumber}
-                        onChange={(e) => setPhoneNumber(formatPhoneNumber(e.target.value))}
-                        className="w-full h-[48px] pl-12 pr-4 rounded-lg border border-[#D9D9D9] bg-[#FAFAFA] focus:ring-2 focus:ring-[#FF4400] focus:border-[#FF4400] focus:outline-none font-inter-variable text-base leading-none text-black placeholder:text-[#5B6976] placeholder:font-inter-variable placeholder:text-base placeholder:leading-none"
-                        placeholder="Enter your 10-digit number"
-                        disabled={loading}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-col items-center gap-4">
-                  <button
-                    onClick={handleCreateAccount}
-                    disabled={loading || !fullName || !email || !phoneNumber}
-                    className="w-[410px] h-[48px] px-8 py-3 rounded-md bg-[#E9420C] text-white hover:bg-[#E63D00] transition-colors duration-200 font-bold disabled:opacity-50 cursor-pointer"
-                  >
-                    {loading ? 'Processing...' : 'Create Account'}
-                  </button>
-
-                  <div className="text-center mt-6">
-                    <Link
-                      href={`/auth/signin?fromSocial=true${socialProvider ? `&email=${encodeURIComponent(email)}&provider=${encodeURIComponent(socialProvider)}&providerId=${encodeURIComponent(socialProviderId)}` : ''}`}
-                      className="font-inter-variable"
-                    >
-                      <span className="text-black">Already have an account? </span>
-                      <span className="text-[#FF4400] hover:text-[#E63D00] transition-colors duration-200">Sign in</span>
-                    </Link>
-                  </div>
-                </div>
+              {/* Sign In Link */}
+              <div className="text-center">
+                <p className="text-[#111827]">
+                  Already have an account?{' '}
+                  <Link href="/auth/signin" className="text-[#FF4400] hover:text-[#E63D00] transition-colors duration-200">
+                    Sign in
+                  </Link>
+                </p>
               </div>
             </>
           ) : (
@@ -337,21 +337,23 @@ export default function SignUp() {
               onChange={handleOtpChange}
               onKeyDown={handleKeyDown}
               phoneNumber={phoneNumber}
-              onResendOTP={handleResendOTP}
               onVerify={handleVerifyOTP}
               onCancel={() => setShowOTP(false)}
+              onResendOTP={handleResendOTP}
               isVerifying={loading}
             />
           )}
-
-          {error && (
-            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
-              <div className="text-red-500 text-sm">{error}</div>
-            </div>
-          )}
         </div>
-      </AuthLayout>
+      </div>
       <Toaster />
-    </>
+    </AuthLayout>
+  );
+}
+
+export default function SignUp() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <SignUpContent />
+    </Suspense>
   );
 }

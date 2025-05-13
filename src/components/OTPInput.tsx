@@ -24,13 +24,13 @@ export default function OTPInput({
   const isComplete = otpValues.every(value => value !== '');
 
   return (
-    <div className="w-[472px] h-[498px] bg-white p-1">
+    <div className="w-full max-w-[472px] min-h-[380px] bg-white p-2 md:p-4 mx-auto">
       {/* First Section - Back and Info */}
-      <div className="w-[464px] h-[192px] p-6 flex flex-col">
+      <div className="w-full max-w-[404px] mx-auto mb-4">
         {/* Back Button */}
         <button 
           onClick={onCancel}
-          className="flex items-center gap-2 text-gray-900 hover:text-gray-700 mb-8"
+          className="flex items-center gap-2 text-gray-900 hover:text-gray-700 mb-4 md:mb-6"
         >
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
             <path d="M15.8337 10H4.16699M4.16699 10L10.0003 15.8333M4.16699 10L10.0003 4.16667" 
@@ -40,11 +40,11 @@ export default function OTPInput({
         </button>
 
         {/* OTP Info */}
-        <div className="space-y-1">
-          <h2 className="font-cabinet-grotesk-variable font-bold text-2xl leading-none tracking-normal tabular-nums text-gray-900">
+        <div className="space-y-5">
+          <h2 className="font-cabinet-grotesk-variable font-bold text-xl md:text-2xl leading-tight tracking-normal tabular-nums text-gray-900">
             OTP Sent to +91 {phoneNumber}
           </h2>
-          <p className="font-inter-variable font-normal text-base leading-[28px] text-gray-600 tabular-nums">
+          <p className="font-inter-variable font-normal text-sm md:text-base leading-relaxed md:leading-[28px] text-gray-600 tabular-nums">
             Please enter the 6-digit code we sent to your mobile number. 
             {onResendOTP && (
               <button 
@@ -59,12 +59,12 @@ export default function OTPInput({
       </div>
 
       {/* Second Section - OTP Input */}
-      <div className="w-[464px] h-[154px] px-6 pb-6">
-        <div className="flex flex-col gap-4">
+      <div className="w-full max-w-[404px] mx-auto mb-4 mt-10">
+        <div className="flex flex-col gap-2">
           <label className="block text-sm font-medium text-gray-900">
             Enter OTP
           </label>
-          <div className="flex gap-2 justify-between">
+          <div className="grid grid-cols-6 gap-[8px]">
             {otpValues.map((value, index) => (
               <input
                 key={index}
@@ -75,7 +75,8 @@ export default function OTPInput({
                 value={value}
                 onChange={(e) => onChange(index, e.target.value)}
                 onKeyDown={(e) => onKeyDown(index, e)}
-                className="w-[64px] h-[64px] text-center text-xl font-medium bg-white border border-gray-300 focus:ring-2 focus:ring-[#FF4400] focus:border-[#FF4400] outline-none"
+                className="w-[64px] h-[64px] px-[8px] py-[2px] text-center text-lg md:text-xl font-medium bg-white border border-gray-300 rounded-[8px] focus:ring-2 focus:ring-[#FF4400] focus:border-[#FF4400] outline-none"
+                placeholder="-"
               />
             ))}
           </div>
@@ -83,17 +84,17 @@ export default function OTPInput({
       </div>
 
       {/* Third Section - Action Buttons */}
-      <div className="w-[464px] h-[144px] pt-2 px-6 pb-6 flex flex-col gap-4">
+      <div className="w-full max-w-[404px] mx-auto space-y-2 pb-2">
         <button 
           onClick={onVerify}
           disabled={!isComplete || isVerifying}
-          className="w-full h-12 bg-[#FF4400] text-white font-medium hover:bg-[#E63D00] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full h-9 md:h-10 bg-[#FF4400] text-white font-medium rounded hover:bg-[#E63D00] transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base"
         >
           {isVerifying ? 'Verifying...' : 'Verify OTP and Continue'}
         </button>
         <button 
           onClick={onCancel}
-          className="w-full h-12 bg-white text-gray-900 border border-gray-300 font-medium hover:bg-gray-50 transition-colors"
+          className="w-full h-9 md:h-10 bg-white text-gray-900 border border-gray-300 rounded font-medium hover:bg-gray-50 transition-colors text-sm md:text-base"
         >
           Cancel
         </button>
