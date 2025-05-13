@@ -46,7 +46,7 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
                   className="w-5 h-5 opacity-80"
                 />
                 <span className="font-inter text-[14px] leading-[20px] font-normal tracking-[0%]">
-                  Call directly at +919555394443
+                  Call directly at <span className="font-bold">+919555394443</span>
                 </span>
               </a>
               <a 
