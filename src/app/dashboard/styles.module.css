@@ -7,10 +7,11 @@
 
 .content {
   flex: 1;
-  overflow: hidden;
+  overflow-y: auto;
   display: flex;
   justify-content: center;
   align-items: flex-start;
+  -webkit-overflow-scrolling: touch; /* For smooth scrolling on iOS */
 }
 
 /* Move global layout styles to globals.css or theme.css instead of using :global in CSS modules */

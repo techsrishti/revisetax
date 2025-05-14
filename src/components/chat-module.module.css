@@ -1,22 +1,33 @@
 .container {
   display: flex;
+  padding-top: 48px;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
+  gap: 24px;
+  flex: 1 0 auto;
+  align-self: stretch;
   background: #FFFFFF;
-  overflow: hidden;
-  padding: 0;
+  min-height: 100%;
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  .container {
+    padding-top: 72px;
+    gap: 40px;
+  }
 }
 
 .content {
   align-items: center;
   width: 100%;
-  max-width: 400px;
+  padding: 0 16px;
+  padding-bottom: 24px; /* Add bottom padding for better scrolling experience */
+  max-width: 500px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-height: min-content; /* Ensure content can grow */
 }
 
 .card {
@@ -24,39 +35,64 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  padding: 25px;
-  gap: 16px;
-  width: 500px;
-  background: #FFFFFF;
-  border-top: 3px solid hsl(var(--brand-primary));
-  box-shadow: 0px 8px 24px rgba(0, 0, 0, 0.1), 
-              0px 4px 8px rgba(0, 0, 0, 0.05);
-  border-radius: 0px 0px 6px 6px;
+  padding: 20px;
+  gap: 12px;
+  width: 100%;
+  border-radius: 0px 0px 8px 8px;
+  border-top: 4px solid var(--Brand, #E9420C);
+  background: var(--Default-white, #FFF);
+  box-shadow: 0px 12px 40px 0px rgba(0, 0, 0, 0.12),
+              0px 8px 16px 0px rgba(0, 0, 0, 0.08),
+              0px 4px 8px 0px rgba(0, 0, 0, 0.06),
+              0px 2px 4px 0px rgba(0, 0, 0, 0.08),
+              0px 0px 0px 1px rgba(0, 0, 0, 0.06);
   margin-bottom: 16px;
+}
+
+@media (min-width: 768px) {
+  .card {
+    padding: 25px;
+    gap: 16px;
+  }
 }
 
 .card:nth-child(2) {
   border-top: 4px solid hsl(var(--brand-dark));
 }
 
-
 .cardTitle {
-  font-family: 'Inter Variable';
-  font-weight: 500;
-  font-size: 24px;
+  font-family: "Cabinet Grotesk Variable";
+  font-size: 20px;
+  font-style: normal;
+  font-weight: 700;
   line-height: 100%;
-  color: hsl(var(--brand-dark));
+  color: var(--Extended-gray-900, #18181B);
+  font-variant-numeric: lining-nums tabular-nums;
   margin: 0px;
 }
 
+@media (min-width: 768px) {
+  .cardTitle {
+    font-size: 24px;
+  }
+}
+
 .cardDescription {
-  font-family: 'Inter Variable';
+  font-family: "Inter Variable";
+  font-size: 13px;
+  font-style: normal;
   font-weight: 400;
-  font-size: 14px;
-  line-height: 24px;
-  color: hsl(var(--brand-text-dark));
+  line-height: 20px;
+  color: var(--Extended-gray-700, #3F3F46);
+  font-feature-settings: 'ss01' on, 'cv05' on, 'cv08' on, 'cv11' on;
   margin: 0px;
-  letter-spacing: 0%;
+}
+
+@media (min-width: 768px) {
+  .cardDescription {
+    font-size: 14px;
+    line-height: 24px;
+  }
 }
 
 .section {
@@ -64,87 +100,104 @@
 }
 
 .sectionTitle {
-  font-family: 'Inter Variable';
+  font-family: "Inter Variable";
+  font-size: 14px;
+  font-style: normal;
   font-weight: 400;
-  font-size: 13px;
-  line-height: 100%;
-  color: hsl(var(--brand-text-dark));
+  line-height: 24px;
+  color: var(--Extended-gray-700, #3F3F46);
+  font-feature-settings: 'ss01' on, 'cv05' on, 'cv08' on, 'cv11' on;
   margin: 0 0 12px 0;
 }
 
 .checkboxItem {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 12px;
 }
 
 .checkboxContent {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .checkbox {
   box-sizing: border-box;
-  width: 18px;
-  height: 18px;
-  border: 1.5px solid hsl(var(--brand-dark));
-  border-radius: 2px;
+  display: flex;
+  width: 24px;
+  height: 24px;
+  justify-content: center;
+  align-items: center;
+  border: 2px solid #18181B;
+  border-radius: 0;
   flex-shrink: 0;
   cursor: pointer;
+  background: #FFFFFF;
+  transition: all 0.2s ease;
 }
 
 .checkbox[data-state="checked"] {
-  background: hsl(var(--brand-dark));
+  background: #18181B;
   display: flex;
-  align-items: center;
+  width: 24px;
+  height: 24px;
+   align-items: center;
   justify-content: center;
 }
 
 .checkboxLabel {
-  font-family: 'Inter Variable';
+  font-family: "Inter Variable";
+  font-size: 16px;
+  font-style: normal;
   font-weight: 400;
-  font-size: 14px;
   line-height: 100%;
-  color: hsl(var(--brand-dark));
+  color: var(--Extended-gray-900, #18181B);
+  font-feature-settings: 'ss01' on, 'cv05' on, 'cv08' on, 'cv11' on;
   margin: 0;
   cursor: pointer;
 }
 
 .subLabel {
-  font-family: 'Inter Variable';
+  font-family: "Inter Variable";
   font-weight: 400;
   font-size: 12px;
   line-height: 100%;
   color: hsl(var(--brand-text-gray));
   margin: 6px 0 0 24px;
 }
-
+ 
 .checkboxGroup {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 24px;
 }
 
 .primaryButton {
   display: flex;
-  flex-direction: row;
+  height: 40px;
+  padding: 10px 24px;
   justify-content: center;
   align-items: center;
-  padding: 10px 24px;
-  width: 100%;
-  height: 40px;
-  background: hsl(var(--brand-primary));
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  gap: 12px;
+  align-self: stretch;
+  background: var(--Extended-gray-900,#E9420C);
   border-radius: 4px;
   font-family: 'Inter Variable';
   font-weight: 700;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 100%;
   color: #FFFFFF;
   border: none;
   cursor: pointer;
+}
+
+@media (min-width: 768px) {
+  .primaryButton {
+    height: 48px;
+    padding: 12px 32px;
+    font-size: 14px;
+  }
 }
 
 .primaryButton:hover {
@@ -152,8 +205,8 @@
 }
 
 .callTitle {
-  font-family: 'Inter Variable';
-  font-weight: 500;
+  font-family: "Cabinet Grotesk Variable";
+  font-weight: 700;
   font-size: 24px;
   line-height: 100%;
   color: hsl(var(--brand-dark));
@@ -161,7 +214,7 @@
 }
 
 .callDescription {
-  font-family: 'Inter Variable';
+  font-family: "Inter Variable";
   font-weight: 400;
   font-size: 13px;
   line-height: 20px;
@@ -171,22 +224,31 @@
 
 .scheduleButton {
   display: flex;
-  flex-direction: row;
+  height: 40px;
+  padding: 10px 24px;
   justify-content: center;
   align-items: center;
-  padding: 10px 24px;
-  width: 100%;
-  height: 40px;
-  background: hsl(var(--brand-dark));
+  gap: 12px;
+  align-self: stretch;
+  background: var(--Extended-gray-900,#0e0e0e);
   border-radius: 4px;
-  font-family: 'Inter Variable';
-  font-weight: 700;
+  font-family: "Inter Variable";
   font-size: 14px;
+  font-style: normal;
+  font-weight: 700;
   line-height: 100%;
-  color: #FFFFFF;
+  color: var(--Default-white, #FFF);
+  font-feature-settings: 'ss01' on, 'cv05' on, 'cv08' on, 'cv11' on;
   border: none;
   cursor: pointer;
-  gap: 8px;
+}
+
+@media (min-width: 768px) {
+  .scheduleButton {
+    height: 48px;
+    padding: 12px 32px;
+    font-size: 16px;
+  }
 }
 
 .scheduleButton:hover {

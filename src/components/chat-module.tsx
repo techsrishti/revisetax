@@ -26,7 +26,7 @@ export default function ChatModule() {
                 </label>
               </div>
             </div>
-            <p className={styles.subLabel}>Income Tax Returns 2023 - 2024</p>
+            <p className={styles.subLabel}>Income Tax Returns 2024 - 2025</p>
           </div>
 
           <div className={styles.section}>

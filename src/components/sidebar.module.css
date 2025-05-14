@@ -5,6 +5,38 @@
   background-color: hsl(var(--sidebar-background));
   position: relative;
   overflow: hidden; /* Prevent any scroll bars from appearing */
+  transition: transform 0.3s ease;
+}
+
+.mobileSidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+}
+
+.mobileToggle {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 1001;
+  background-color: hsl(var(--sidebar-background));
+  border: 1px solid hsl(var(--sidebar-border));
+  border-radius: 4px;
+  padding: 0.5rem;
+  font-size: 1.5rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  color: hsl(var(--sidebar-foreground));
+}
+
+.mobileToggle:hover {
+  background-color: hsl(var(--sidebar-accent));
 }
 
 .userProfile {
@@ -72,15 +104,19 @@
   padding: 12px;
   text-align: left;
   color: #27272A;
+  transition: background-color 0.2s ease;
 }
 
 .navItem:hover {
-  background-color: hsl(var(--sidebar-accent));
+  background-color: #F4F4F5;
 }
 
 .navItem.active {
-  background-color: hsl(var(--sidebar-accent));
-  color: hsl(var(--sidebar-foreground));
+  background-color: #F4F4F5;
+}
+
+.navItem.active .navIcon img {
+  filter: invert(42%) sepia(96%) saturate(1470%) hue-rotate(346deg) brightness(103%) contrast(101%);
 }
 
 .navIcon {
@@ -94,6 +130,7 @@
 .navIcon img {
   width: 16.75px;
   height: 16.67px;
+  transition: filter 0.2s ease;
 }
 
 .navLabel {
