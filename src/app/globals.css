@@ -6,15 +6,7 @@
   font-family: 'Cabinet Grotesk Variable';
   src: url('/fonts/CabinetGrotesk-Variable.woff2') format('woff2');
   font-weight: 100 900;
-  font-display: block;
-  font-style: normal;
-}
-
-@font-face {
-  font-family: 'Inter Variable';
-  src: url('/fonts/InterVariable.woff2') format('woff2');
-  font-display: block;
-  font-style: normal;
+  font-display: swap;
 }
  
 
@@ -40,7 +32,7 @@
   
   body {
     @apply bg-background text-foreground;
-    font-family: 'Inter Variable';
+    font-family: 'Inter Variable', Arial, sans-serif;
   }
   
   #__next, main {

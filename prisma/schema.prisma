@@ -17,7 +17,7 @@ model User {
   id          String   @id @default(uuid())
   name        String?
   email       String?  @unique
-  phoneNumber String?  @unique
+  phoneNumber String   @unique
   provider    String?  // The auth provider (google, linkedin, etc)
   providerId  String?  // The provider's user ID
   createdAt   DateTime @default(now())

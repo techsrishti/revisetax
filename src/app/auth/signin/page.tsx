@@ -5,11 +5,11 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import AuthLayout from '../../../components/AuthLayout';
-import OTPInput from '../../../components/OTPInput';
-import { supabase } from '@/utils/supabase/supabase';
+import OTPInput from '@/components/OTPInput';
+import { createClient } from '@/utils/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
- 
+  
 function SignInContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -83,6 +83,7 @@ function SignInContent() {
         return;
       }
 
+      const supabase = createClient();
       // If user exists, continue with OTP flow
       const { error } = await supabase.auth.signInWithOtp({
         phone: formattedPhone,
@@ -114,6 +115,7 @@ function SignInContent() {
       setLoading(true);
       const formattedPhone = '+91' + phoneNumber.replace(/\s+/g, '');
       
+      const supabase = createClient();
       const { error: verifyError } = await supabase.auth.verifyOtp({
         phone: formattedPhone,
         token: otp,
@@ -194,6 +196,7 @@ function SignInContent() {
   const handleGoogleSignIn = async () => {
     try {
       setLoading(true);
+      const supabase = createClient();
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -222,8 +225,9 @@ function SignInContent() {
   const handleLinkedInSignIn = async () => {
     try {
       setLoading(true);
+      const supabase = createClient();
       const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'linkedin_oidc',
+        provider: 'linkedin',
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
           queryParams: {
@@ -252,6 +256,7 @@ function SignInContent() {
       setLoading(true);
       const formattedPhone = '+91' + phoneNumber.replace(/\s+/g, '');
       
+      const supabase = createClient();
       const { error } = await supabase.auth.signInWithOtp({
         phone: formattedPhone,
       });
@@ -275,6 +280,7 @@ function SignInContent() {
       setLoading(false);
     }
   };
+
 
   return (
     <AuthLayout>

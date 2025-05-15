@@ -1,18 +1,25 @@
-import type { Metadata } from "next";
- 
-export const metadata: Metadata = {
-  title: "ReviseTax - Authentication",
-  description: "Authenticate with ReviseTax - Your tax filing partner",
-};
+import type React from "react"
+import type { Metadata } from "next"
+import { Inter } from "next/font/google"
+import "./globals.css"
+import "../styles/theme.css"
 
-export default function AuthLayout({
+const inter = Inter({ subsets: ["latin"] })
+
+export const metadata: Metadata = {
+  title: "Revise Tax",
+  description: "Tax revision and filing platform",
+    generator: 'v0.dev'
+}
+
+export default function RootLayout({
   children,
-}: {
-  children: React.ReactNode;
-}) {
+}: Readonly<{
+  children: React.ReactNode
+}>) {
   return (
-    <div className="min-h-screen bg-gray-50">
-      {children}
-    </div>
-  );
+    <html lang="en">
+      <body className={inter.className}>{children}</body>
+    </html>
+  )
 }

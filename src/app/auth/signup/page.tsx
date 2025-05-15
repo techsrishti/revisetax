@@ -4,12 +4,12 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import AuthLayout from '../../../components/AuthLayout';
-import OTPInput from '../../../components/OTPInput';
-import { supabase } from '@/utils/supabase/supabase';
+import AuthLayout from '@/components/AuthLayout';
+import OTPInput from '@/components/OTPInput';
+import { createClient } from '@/utils/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
-import styles from '../styles.module.css';
+import styles from '@/app/auth/styles.module.css';
 
 function SignUpContent() {
   const router = useRouter();
@@ -93,6 +93,7 @@ function SignUpContent() {
         return;
       }
 
+      const supabase = createClient();
       // Always verify phone number with OTP, even for social logins
       const { error: otpError } = await supabase.auth.signInWithOtp({
         phone: formattedPhone,
@@ -124,6 +125,7 @@ function SignUpContent() {
       setLoading(true);
       const formattedPhone = '+91' + phoneNumber.replace(/\s+/g, '');
       
+      const supabase = createClient();
       const { error: verifyError } = await supabase.auth.verifyOtp({
         phone: formattedPhone,
         token: otp,
@@ -203,6 +205,7 @@ function SignUpContent() {
       setLoading(true);
       const formattedPhone = '+91' + phoneNumber.replace(/\s+/g, '');
       
+      const supabase = createClient();
       const { error } = await supabase.auth.signInWithOtp({
         phone: formattedPhone,
       });
@@ -226,27 +229,36 @@ function SignUpContent() {
       setLoading(false);
     }
   };
-
   return (
     <AuthLayout>
-      <div className="bg-white rounded-lg shadow-xl overflow-hidden">
+      <div style={{
+        backgroundColor: 'white',
+        borderRadius: '0.5rem',
+        boxShadow: '0 10px 15px rgba(0,0,0,0.1)',
+        overflow: 'hidden',
+      }}>
         {/* Logo and Welcome Section */}
         {!showOTP && (
-          <div className="bg-[#F3F4F6] px-6 pt-6 pb-8">
+          <div style={{
+            backgroundColor: '#F3F4F6',
+            padding: '1.5rem 1.5rem 2rem',
+          }}>
             <Image
               src="/logo-dark-login.svg"
               alt="ReviseTax"
               width={92}
               height={24}
               priority
-              className="mb-6"
+              style={{ marginBottom: '1.5rem' }}
             />
-            <h1 className="text-[#111827] mb-2" style={{
-              fontFamily: 'Cabinet Grotesk Variable',
+            <h1 style={{
+              color: '#111827',
+              marginBottom: '0.5rem',
+              fontFamily: 'Cabinet Grotesk Variable, sans-serif',
               fontWeight: 700,
               fontSize: '24px',
               lineHeight: '100%',
-              letterSpacing: '0%',
+              letterSpacing: '0',
               fontVariantNumeric: 'lining-nums tabular-nums'
             }}>
               Create Account
@@ -258,12 +270,21 @@ function SignUpContent() {
         )}
 
         {/* Form Section */}
-        <div className={showOTP ? '' : 'p-6'}>
+        <div style={showOTP ? {} : { padding: '1.5rem' }}>
           {!showOTP ? (
             <>
               {/* Full Name Input */}
-              <div className="mb-6">
-                <label htmlFor="fullName" className="block text-[#111827] text-base mb-2">
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label
+                  htmlFor="fullName"
+                  style={{
+                    display: 'block',
+                    color: '#111827',
+                    fontSize: '1rem',
+                    marginBottom: '0.5rem',
+                    fontWeight: 500
+                  }}
+                >
                   Full Name
                 </label>
                 <input
@@ -271,14 +292,36 @@ function SignUpContent() {
                   type="text"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  className="w-full h-12 px-4 bg-[#F9FAFB] border border-[#D1D5DB] rounded text-[#111827] placeholder-[#6B7280] focus:ring-2 focus:ring-[#FF4400] focus:border-[#FF4400] outline-none"
                   placeholder="Enter your full name"
+                  style={{
+                    width: '100%',
+                    height: '3rem',
+                    padding: '0 1rem',
+                    backgroundColor: '#F9FAFB',
+                    border: '1px solid #D1D5DB',
+                    borderRadius: '0.375rem',
+                    color: '#111827',
+                    fontSize: '1rem',
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                  onFocus={e => e.currentTarget.style.borderColor = '#FF4400'}
+                  onBlur={e => e.currentTarget.style.borderColor = '#D1D5DB'}
                 />
               </div>
 
               {/* Email Input */}
-              <div className="mb-6">
-                <label htmlFor="email" className="block text-[#111827] text-base mb-2">
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label
+                  htmlFor="email"
+                  style={{
+                    display: 'block',
+                    color: '#111827',
+                    fontSize: '1rem',
+                    marginBottom: '0.5rem',
+                    fontWeight: 500
+                  }}
+                >
                   Email
                 </label>
                 <input
@@ -286,18 +329,48 @@ function SignUpContent() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full h-12 px-4 bg-[#F9FAFB] border border-[#D1D5DB] rounded text-[#111827] placeholder-[#6B7280] focus:ring-2 focus:ring-[#FF4400] focus:border-[#FF4400] outline-none"
                   placeholder="Enter your email"
+                  style={{
+                    width: '100%',
+                    height: '3rem',
+                    padding: '0 1rem',
+                    backgroundColor: '#F9FAFB',
+                    border: '1px solid #D1D5DB',
+                    borderRadius: '0.375rem',
+                    color: '#111827',
+                    fontSize: '1rem',
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                  onFocus={e => e.currentTarget.style.borderColor = '#FF4400'}
+                  onBlur={e => e.currentTarget.style.borderColor = '#D1D5DB'}
                 />
               </div>
 
               {/* Phone Input */}
-              <div className="mb-6">
-                <label htmlFor="phone" className="block text-[#111827] text-base mb-2">
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label
+                  htmlFor="phone"
+                  style={{
+                    display: 'block',
+                    color: '#111827',
+                    fontSize: '1rem',
+                    marginBottom: '0.5rem',
+                    fontWeight: 500
+                  }}
+                >
                   Phone Number
                 </label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#6B7280]">
+                <div style={{ position: 'relative' }}>
+                  <span style={{
+                    position: 'absolute',
+                    left: '1rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: '#6B7280',
+                    pointerEvents: 'none',
+                    userSelect: 'none'
+                  }}>
                     +91
                   </span>
                   <input
@@ -305,9 +378,23 @@ function SignUpContent() {
                     type="tel"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(formatPhoneNumber(e.target.value))}
-                    className="w-full h-12 pl-12 pr-4 bg-[#F9FAFB] border border-[#D1D5DB] rounded text-[#111827] placeholder-[#6B7280] focus:ring-2 focus:ring-[#FF4400] focus:border-[#FF4400] outline-none"
                     placeholder="Enter your 10-digit number"
                     maxLength={10}
+                    style={{
+                      width: '100%',
+                      height: '3rem',
+                      paddingLeft: '3rem',
+                      paddingRight: '1rem',
+                      backgroundColor: '#F9FAFB',
+                      border: '1px solid #D1D5DB',
+                      borderRadius: '0.375rem',
+                      color: '#111827',
+                      fontSize: '1rem',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                    onFocus={e => e.currentTarget.style.borderColor = '#FF4400'}
+                    onBlur={e => e.currentTarget.style.borderColor = '#D1D5DB'}
                   />
                 </div>
               </div>
@@ -316,16 +403,40 @@ function SignUpContent() {
               <button
                 onClick={handleCreateAccount}
                 disabled={loading || !fullName || !email || !validatePhoneNumber(phoneNumber)}
-                className="w-full h-12 bg-[#FF4400] text-white font-semibold rounded hover:bg-[#E63D00] transition-colors duration-200 disabled:opacity-50 mb-6"
+                style={{
+                  width: '100%',
+                  height: '3rem',
+                  backgroundColor: loading || !fullName || !email || !validatePhoneNumber(phoneNumber) ? '#FF440080' : '#FF4400',
+                  color: 'white',
+                  fontWeight: '600',
+                  borderRadius: '0.375rem',
+                  border: 'none',
+                  cursor: loading || !fullName || !email || !validatePhoneNumber(phoneNumber) ? 'not-allowed' : 'pointer',
+                  transition: 'background-color 0.2s ease',
+                  marginBottom: '1.5rem'
+                }}
+                onMouseOver={e => {
+                  if (!(loading || !fullName || !email || !validatePhoneNumber(phoneNumber))) {
+                    (e.currentTarget as HTMLElement).style.backgroundColor = '#E63D00';
+                  }
+                }}
+                onMouseOut={e => {
+                  if (!(loading || !fullName || !email || !validatePhoneNumber(phoneNumber))) {
+                    (e.currentTarget as HTMLElement).style.backgroundColor = '#FF4400';
+                  }
+                }}
               >
                 {loading ? 'Processing...' : 'Create Account'}
               </button>
 
               {/* Sign In Link */}
-              <div className="text-center">
-                <p className="text-[#111827]">
+              <div style={{ textAlign: 'center' }}>
+                <p style={{ color: '#111827' }}>
                   Already have an account?{' '}
-                  <Link href="/auth/signin" className="text-[#FF4400] hover:text-[#E63D00] transition-colors duration-200">
+                  <Link href="/auth/signin" style={{ color: '#FF4400', textDecoration: 'none' }}
+                    onMouseOver={e => (e.currentTarget.style.color = '#E63D00')}
+                    onMouseOut={e => (e.currentTarget.style.color = '#FF4400')}
+                  >
                     Sign in
                   </Link>
                 </p>

@@ -11,9 +11,9 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
       {/* Background Elements */}
       <div className="fixed inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-br from-[#0F172A] to-[#1E293B]" />
-        <div className={styles['hero-bg']} />
-        <div className={styles['hero-rectangle-1']} />
-        <div className={styles['hero-rectangle-2']} />
+        <div className={styles.heroBg} />
+        <div className={styles.heroRectangle1} />
+        <div className={styles.heroRectangle2} />
       </div>
 
       <main className="relative z-10 min-h-screen flex flex-col">
@@ -46,7 +46,7 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
                   className="w-5 h-5 opacity-80"
                 />
                 <span className="font-inter text-[14px] leading-[20px] font-normal tracking-[0%]">
-                  Call directly at <span className="font-bold">+919555394443</span>
+                  Call directly at <strong>+919555394443</strong>
                 </span>
               </a>
               <a 

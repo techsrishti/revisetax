@@ -1,4 +1,4 @@
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ExternalLink } from "lucide-react"
 import styles from "./chat-module.module.css"
@@ -56,7 +56,7 @@ export default function ChatModule() {
           <p className={styles.callDescription}>
             For people who need tailored services based on your use case, please schedule a call with us.
           </p>
-          <Button variant="outline" className={styles.scheduleButton}>
+            <Button className={`${buttonVariants({ variant: "outline" })} ${styles.scheduleButton}`}>
             <ExternalLink className={styles.scheduleIcon} />
             Schedule a Call
           </Button>

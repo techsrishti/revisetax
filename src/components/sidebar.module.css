@@ -5,38 +5,7 @@
   background-color: hsl(var(--sidebar-background));
   position: relative;
   overflow: hidden; /* Prevent any scroll bars from appearing */
-  transition: transform 0.3s ease;
-}
-
-.mobileSidebar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 1000;
-  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
-}
-
-.mobileToggle {
-  position: fixed;
-  top: 1rem;
-  left: 1rem;
-  z-index: 1001;
-  background-color: hsl(var(--sidebar-background));
-  border: 1px solid hsl(var(--sidebar-border));
-  border-radius: 4px;
-  padding: 0.5rem;
-  font-size: 1.5rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  color: hsl(var(--sidebar-foreground));
-}
-
-.mobileToggle:hover {
-  background-color: hsl(var(--sidebar-accent));
+  transition: width 0.3s ease;
 }
 
 .userProfile {
@@ -104,19 +73,24 @@
   padding: 12px;
   text-align: left;
   color: #27272A;
-  transition: background-color 0.2s ease;
+  transition: all 0.2s ease-in-out;
 }
 
 .navItem:hover {
-  background-color: #F4F4F5;
+  background-color: rgba(228, 228, 231, 0.5);
 }
 
 .navItem.active {
-  background-color: #F4F4F5;
+  background-color: rgba(228, 228, 231, 1);
 }
 
 .navItem.active .navIcon img {
-  filter: invert(42%) sepia(96%) saturate(1470%) hue-rotate(346deg) brightness(103%) contrast(101%);
+  filter: invert(65%) sepia(85%) saturate(1741%) hue-rotate(339deg) brightness(101%) contrast(96%);
+}
+
+.navItem.active .navLabel {
+  color: #000000;
+  font-weight: 600;
 }
 
 .navIcon {
@@ -128,9 +102,8 @@
 }
 
 .navIcon img {
-  width: 16.75px;
-  height: 16.67px;
-  transition: filter 0.2s ease;
+  width: 14px;
+  height: 80px;
 }
 
 .navLabel {
@@ -142,6 +115,7 @@
   line-height: 100%;
   letter-spacing: 0%;
   color: #27272A;
+  transition: color 0.2s ease-in-out;
 }
 
 .footer {
@@ -273,7 +247,20 @@
   letter-spacing: 0%;
   color: #B91C1C;
 }
+@font-face {
+  font-family: 'Cabinet Grotesk Variable';
+  src: url('/fonts/CabinetGrotesk-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: block;
+  font-style: normal;
+}
 
+@font-face {
+  font-family: 'Inter Variable';
+  src: url('/fonts/InterVariable.woff2') format('woff2');
+  font-display: block;
+  font-style: normal;
+}
 @keyframes moveInBottom {
   from {
     opacity: 0;
@@ -282,5 +269,132 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* Responsive styles */
+@media screen and (max-width: 1024px) {
+  .sidebar {
+    width: 250px;
+  }
+
+  .userProfile {
+    width: 250px;
+  }
+
+  .navItem {
+    width: 202px;
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .sidebar {
+    width: 200px;
+  }
+
+  .userProfile {
+    width: 200px;
+    padding: 16px;
+  }
+
+  .navItem {
+    width: 152px;
+  }
+
+  .navLabel {
+    font-size: 14px;
+  }
+
+  .userName {
+    font-size: 13px;
+  }
+}
+
+@media screen and (max-width: 640px) {
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    width: 250px;
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  .userProfile {
+    width: 250px;
+  }
+
+  .navItem {
+    width: 202px;
+  }
+
+  .overlay {
+    margin-left: 0;
+  }
+
+  .overlayContent {
+    margin-left: 12px;
+  }
+}
+
+/* Mobile menu toggle button */
+.mobileMenuButton {
+  display: none;
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 1001;
+  background: white;
+  border: 1px solid #E4E4E7;
+  border-radius: 8px;
+  padding: 8px;
+  cursor: pointer;
+  box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1);
+  transition: background-color 0.2s ease;
+}
+
+.mobileMenuButton:hover {
+  background-color: #F4F4F5;
+}
+
+.mobileMenuButton:active {
+  background-color: #E4E4E7;
+}
+
+@media screen and (max-width: 640px) {
+  .mobileMenuButton {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+  }
+
+  .mobileMenuButton img {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+/* Backdrop for mobile menu */
+.backdrop {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+}
+
+@media screen and (max-width: 640px) {
+  .backdrop.show {
+    display: block;
   }
 }

@@ -24,13 +24,13 @@ export default function OTPInput({
   const isComplete = otpValues.every(value => value !== '');
 
   return (
-    <div className="w-full max-w-[472px] min-h-[380px] bg-white p-2 md:p-4 mx-auto">
+    <div className="w-full max-w-[472px] min-h-[320px] bg-white p-2 md:p-3 mx-auto">
       {/* First Section - Back and Info */}
-      <div className="w-full max-w-[404px] mx-auto mb-4">
+      <div className="w-full max-w-[404px] mx-auto mb-3">
         {/* Back Button */}
         <button 
           onClick={onCancel}
-          className="flex items-center gap-2 text-gray-900 hover:text-gray-700 mb-4 md:mb-6"
+          className="flex items-center gap-2 text-gray-900 hover:text-gray-700 mb-3 md:mb-4"
         >
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
             <path d="M15.8337 10H4.16699M4.16699 10L10.0003 15.8333M4.16699 10L10.0003 4.16667" 
@@ -40,11 +40,11 @@ export default function OTPInput({
         </button>
 
         {/* OTP Info */}
-        <div className="space-y-5">
+        <div className="space-y-3">
           <h2 className="font-cabinet-grotesk-variable font-bold text-xl md:text-2xl leading-tight tracking-normal tabular-nums text-gray-900">
             OTP Sent to +91 {phoneNumber}
           </h2>
-          <p className="font-inter-variable font-normal text-sm md:text-base leading-relaxed md:leading-[28px] text-gray-600 tabular-nums">
+          <p className="font-inter-variable font-normal text-sm md:text-base leading-relaxed md:leading-[24px] text-gray-600 tabular-nums">
             Please enter the 6-digit code we sent to your mobile number. 
             {onResendOTP && (
               <button 
@@ -59,12 +59,12 @@ export default function OTPInput({
       </div>
 
       {/* Second Section - OTP Input */}
-      <div className="w-full max-w-[404px] mx-auto mb-4 mt-10">
+      <div className="w-full max-w-[404px] mx-auto mb-3 mt-6">
         <div className="flex flex-col gap-2">
           <label className="block text-sm font-medium text-gray-900">
             Enter OTP
           </label>
-          <div className="grid grid-cols-6 gap-[8px]">
+          <div className="grid grid-cols-6 gap-[6px]">
             {otpValues.map((value, index) => (
               <input
                 key={index}
@@ -75,7 +75,7 @@ export default function OTPInput({
                 value={value}
                 onChange={(e) => onChange(index, e.target.value)}
                 onKeyDown={(e) => onKeyDown(index, e)}
-                className="w-[64px] h-[64px] px-[8px] py-[2px] text-center text-lg md:text-xl font-medium bg-white border border-gray-300 rounded-[8px] focus:ring-2 focus:ring-[#FF4400] focus:border-[#FF4400] outline-none"
+                className="w-[56px] h-[56px] px-[6px] py-[2px] text-center text-lg md:text-xl font-medium bg-white border border-gray-300 rounded-[8px] focus:ring-2 focus:ring-[#FF4400] focus:border-[#FF4400] outline-none"
                 placeholder="-"
               />
             ))}
@@ -84,7 +84,7 @@ export default function OTPInput({
       </div>
 
       {/* Third Section - Action Buttons */}
-      <div className="w-full max-w-[404px] mx-auto space-y-2 pb-2">
+      <div className="w-full max-w-[404px] mx-auto space-y-2 pb-1">
         <button 
           onClick={onVerify}
           disabled={!isComplete || isVerifying}
