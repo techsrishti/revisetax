@@ -254,12 +254,11 @@ packages:
     cpu: [arm64]
     os: [darwin]
 
-  '@esbuild/darwin-x64@0.25.3':
-    resolution: {integrity: sha512-Qyb8D11CxYZe7PvlD0dHeeWF2TkwExYujZpQ7tBmBU8vJdOSfIP5o7y0IvQB3HArvSMjI2S1lUIuR2g2+kJ3Qg==}
-    resolution: {integrity: sha512-Kd8glo7sIZtwOLcPbW0yLpKmBNWMANZhrC1r6K++uDR2zyzb6AeOYtI6udbtabmQpFaxJ8uduXMAo1gs5ozz8A==}
-    engines: {node: '>=18'}
-    cpu: [x64]
-    os: [darwin]
+    '@esbuild/darwin-x64@0.25.3':
+      resolution: {integrity: sha512-Qyb8D11CxYZe7PvlD0dHeeWF2TkwExYujZpQ7tBmBU8vJdOSfIP5o7y0IvQB3HArvSMjI2S1lUIuR2g2+kJ3Qg==}
+      engines: {node: '>=18'}
+      cpu: [x64]
+      os: [darwin]
 
   '@esbuild/freebsd-arm64@0.25.3':
     resolution: {integrity: sha512-EJiyS70BYybOBpJth3M0KLOus0n+RRMKTYzhYhFeMwp7e/RaajXvP+BWlmEXNk6uk+KAu46j/kaQzr6au+JcIw==}
