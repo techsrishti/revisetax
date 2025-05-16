@@ -161,6 +161,7 @@
   align-items: baseline;
   gap: 12px;
   width: 100%;
+  font-family: 'Inter', sans-serif;
 }
 
 .feature {
@@ -207,11 +208,11 @@
 
 .planHeading {
   font-feature-settings: 'salt' on;
-  font-family: Inter;
+  font-family: 'Inter', sans-serif;
   font-size: 20px;
   font-style: normal;
   font-weight: 500;
-  line-height: 24px; /* 120% */
+  line-height: 24px;
 }
 .text {
     font-family: 'Inter Variable';

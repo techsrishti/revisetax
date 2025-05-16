@@ -191,7 +191,9 @@ export default function BillingModule() {
           return (
             <div 
               key={plan.id} 
-              className={`relative flex flex-col items-start p-8 gap-10 flex-1`}
+              className={`relative flex flex-col items-start p-8 gap-10 flex-1 rounded-md bg-white font-inter
+                shadow-[0px_8px_16px_0px_rgba(0,0,0,0.08),0px_4px_8px_0px_rgba(0,0,0,0.06),0px_2px_4px_0px_rgba(0,0,0,0.08),0px_0px_0px_1px_rgba(0,0,0,0.06)]
+                ${isBusinessPlan ? 'transform scale-105' : ''}`}
             >
               {isBusinessPlan && (
                 <div className="absolute -top-4 left-0 right-0 flex justify-center">
