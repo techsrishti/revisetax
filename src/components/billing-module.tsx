@@ -2,7 +2,6 @@ import { useEffect, useState } from "react"
 import styles from "./billing-module.module.css"
 import { getPlans, getUserSubscription, initiatePayment, PlansForFrontend } from "@/app/dashboard/actions"
 import { type ErrorResponse } from "../app/dashboard/actions"
-import { grotesk } from "@/lib/fonts"
 import Image from 'next/image'
 
 export default function BillingModule() {
@@ -15,13 +14,11 @@ export default function BillingModule() {
   useEffect(() => {
     async function fetchData() {
       try {
-        // Fetch subscription status
         const subscriptionResponse = await getUserSubscription()
         if (subscriptionResponse.success) {
           setActiveSubscription(subscriptionResponse.subscription)
         }
 
-        // Fetch available plans
         const plansResponse = await getPlans() 
         if (plansResponse.success) {
           setPlans(plansResponse.plans)
@@ -29,13 +26,12 @@ export default function BillingModule() {
           setError(plansResponse)
         }
       } catch (err) {
-        const errorResponse: ErrorResponse = {
+        setError({
           success: false,
           error: "Failed to load subscription information",
           errorMessage: "Failed to load subscription information",
           errorCode: null,
-        }
-        setError(errorResponse)
+        })
       } finally {
         setLoading(false)
       }
@@ -54,7 +50,6 @@ export default function BillingModule() {
         return
       }
 
-      // Create and submit the PayU form
       const form = document.createElement('form')
       form.method = 'post'
       form.action = 'https://test.payu.in/_payment'
@@ -67,7 +62,6 @@ export default function BillingModule() {
         form.appendChild(input)
       }
 
-      // Add all required PayU fields
       addInput('key', process.env.NEXT_PUBLIC_PAYU_KEY || '')
       addInput('txnid', response.txnId)
       addInput('amount', response.amount.toString())
@@ -80,7 +74,6 @@ export default function BillingModule() {
       addInput('furl', `${process.env.NEXT_PUBLIC_URL}/api/payu-callback`)
       addInput('hash', response.hash)
 
-      // Submit the form
       document.body.appendChild(form)
       form.submit()
     } catch (err) {
@@ -95,6 +88,27 @@ export default function BillingModule() {
     }
   }
 
+  const CheckIcon = ({ color }: { color: string }) => (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path 
+        d="M7.5 13.5L4 10L5 9L7.5 11.5L13.5 5.5L14.5 6.5L7.5 13.5Z"
+        fill={color}
+      />
+    </svg>
+  )
+
+  const CrossIcon = () => (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path 
+        d="M13 7L7 13M7 7L13 13" 
+        stroke="#98A2B3" 
+        strokeWidth="1.5" 
+        strokeLinecap="round" 
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+
   const getPlanColor = (planName: string) => {
     switch(planName.toLowerCase()) {
       case 'professional':
@@ -108,151 +122,77 @@ export default function BillingModule() {
     }
   }
 
-  const getPlanFeatures = (planName: string) => {
-    const baseFeatures = [
-      'Form 16',
-      'Other income',
-      'Tax optimisation',
-    ]
-    
-    const businessFeatures = [
-      ...baseFeatures,
-      'Multi Form 16\'s',
-      'Capital Gains',
-    ]
-    
-    const advancedFeatures = [
-      ...businessFeatures,
-      'Futures and Options (F&O)',
-      'Annual income above 50L',
-    ]
-
-    switch(planName.toLowerCase()) {
-      case 'professional':
-        return {
-          included: baseFeatures,
-          notIncluded: [
-            'Multi Form 16\'s',
-            'Capital Gains',
-            'Futures and Options (F&O)',
-            'Annual income above 50L',
-          ]
-        }
-      case 'business':
-        return {
-          included: businessFeatures,
-          notIncluded: [
-            'Futures and Options (F&O)',
-            'Annual income above 50L',
-          ]
-        }
-      case 'advanced':
-        return {
-          included: advancedFeatures,
-          notIncluded: []
-        }
-      default:
-        return { included: [], notIncluded: [] }
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className={styles.container}>
-        <div className={styles.loadingSpinner}>Loading...</div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className={styles.container}>
-        <div className={styles.errorMessage}>{error.errorMessage}</div>
-      </div>
-    )
-  }
+  if (loading) return <div className={styles.loadingSpinner}>Loading...</div>
+  if (error) return <div className={styles.errorMessage}>{error.errorMessage}</div>
 
   return (
     <div className={styles.container}>
-      {activeSubscription && (
-        <div className={styles.activeSubscription}>
-          <h2 className={styles.planHeading}>Current Subscription</h2>
-          <p>Plan: {activeSubscription.plan.name}</p>
-          <p>Valid until: {new Date(activeSubscription.endDate).toLocaleDateString()}</p>
-        </div>
-      )}
-      
       <div className={styles.plansGrid}>
         {plans.map((plan) => {
           const planColor = getPlanColor(plan.name)
-          const { included, notIncluded } = getPlanFeatures(plan.name)
-          const isBusinessPlan = plan.name.toLowerCase() === 'business'
+          const features = [
+            { name: 'Form 16', included: true },
+            { name: 'Other income', included: true },
+            { name: 'Tax optimisation', included: true },
+            { name: 'Multi Form 16\'s', included: plan.name !== 'Professional' },
+            { name: 'Capital Gains', included: plan.name !== 'Professional' },
+            { name: 'Futures and Options (F&O)', included: plan.name === 'Advanced' },
+            { name: 'Annual income above 50L', included: plan.name === 'Advanced' },
+          ]
 
           return (
-            <div 
-              key={plan.id} 
-              className={`relative flex flex-col items-start p-8 gap-10 flex-1 rounded-md bg-white font-inter
-                shadow-[0px_8px_16px_0px_rgba(0,0,0,0.08),0px_4px_8px_0px_rgba(0,0,0,0.06),0px_2px_4px_0px_rgba(0,0,0,0.08),0px_0px_0px_1px_rgba(0,0,0,0.06)]
-                ${isBusinessPlan ? 'transform scale-105' : ''}`}
-            >
-              {isBusinessPlan && (
-                <div className="absolute -top-4 left-0 right-0 flex justify-center">
-                  <span className={`bg-[#00A807] text-white ${styles.planHeading} px-4 py-1 rounded-full text-sm`}>Most Popular</span>
-                </div>
-              )}
-              <div className={`border-t-4 border-[${planColor}] rounded-t-lg absolute top-0 left-0 right-0`}></div>
-              
-              <div className="flex flex-col gap-4 w-full">
-                <div className="flex items-center space-x-3">
-                  <h3 className={`${styles.planName}`} style={{ color: planColor }}>{plan.name}</h3>
+            <div key={plan.id} className={styles.planCard}>
+              <div className={styles.headerSection}>
+                <div className={styles.headerContent}>
+                  <h3 className={styles.planName} style={{ color: planColor }}>{plan.name}</h3>
                   <Image 
                     src={`/${plan.name === 'Professional' ? '1' : plan.name === 'Business' ? '2' : '3'}.png`}
                     alt={`${plan.name} plan`}
-                    width={90.88}
-                    height={64}
-                    className="w-[90.88px] h-16 object-contain"
+                    width={100}
+                    height={70}
+                    className={styles.planIcon}
                   />
                 </div>
-                
-                <div className={styles.costWrapper}>
-                  <span className={styles.planCost}>₹{plan.price}</span>
-                  <span className={styles.perYear}>per year</span>
+
+                <div className={styles.pricingSection}>
+                  <div className={styles.costWrapper}>
+                    <span className={styles.planCost}>₹{plan.price}</span>
+                    <span className={styles.perYear}>per year</span>
+                  </div>
                 </div>
               </div>
 
-              <ul className="flex flex-col gap-4 w-full">
-                {included.map((feature) => (
-                  <li key={feature} className="flex items-center text-gray-700">
-                    <svg className={`w-5 h-5 text-[${planColor}] mr-3 flex-shrink-0`} viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-                    </svg>
-                    <span className="text-sm">{feature}</span>
-                  </li>
-                ))}
-                {notIncluded.map((feature) => (
-                  <li key={feature} className="flex items-center text-gray-400">
-                    <svg className="w-5 h-5 text-gray-400 mr-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/>
-                    </svg>
-                    <span className="text-sm">{feature}</span>
+              <ul className={styles.featureList}>
+                {features.map((feature) => (
+                  <li key={feature.name} className={`${styles.featureItem} ${feature.included ? styles.included : styles.notIncluded}`}>
+                    {feature.included ? <CheckIcon color={planColor} /> : <CrossIcon />}
+                    <span>{feature.name}</span>
                   </li>
                 ))}
               </ul>
 
               <button 
-                className={`w-full bg-[${planColor}] text-white rounded-lg px-8 py-4 font-medium hover:bg-opacity-90 transition-all duration-200 hover:shadow-lg`}
+                className={styles.chooseButton}
+                style={{ backgroundColor: planColor }}
+                
                 disabled={!!activeSubscription || processingPayment}
                 onClick={() => handleSubscribe(plan.name)}
               >
-                {activeSubscription 
-                  ? "Already Subscribed" 
-                  : processingPayment 
-                    ? "Processing..." 
-                    : "Choose Plan"}
+                Choose Plan
               </button>
             </div>
           )
         })}
+      </div>
+      
+      <div className={styles.bulkDiscountSection}>
+        <div>
+          <h4 className={styles.bulkDiscountTitle}>Want to get bulk discount?</h4>
+          <p className={styles.bulkDiscountDescription}>
+            We offer discounts in bulk when you invite your friends or family to file taxes via us
+          </p>
+        </div>
+        <button className={styles.letsTalkButton}>Let's Talk</button>
       </div>
     </div>
   )

@@ -56,10 +56,13 @@ export default function ChatModule() {
           <p className={styles.callDescription}>
             For people who need tailored services based on your use case, please schedule a call with us.
           </p>
-            <Button className={`${buttonVariants({ variant: "outline" })} ${styles.scheduleButton}`}>
-            <ExternalLink className={styles.scheduleIcon} />
-            Schedule a Call
-          </Button>
+            <Button 
+              className={`${buttonVariants({ variant: "outline" })} ${styles.scheduleButton}`}
+              onClick={() => window.open('https://book.revisetax.com/team/tax-experts/book-a-call', '_blank')}
+            >
+              <ExternalLink className={styles.scheduleIcon} />
+              Schedule a Call
+            </Button>
         </div>
       </div>
     </div>
