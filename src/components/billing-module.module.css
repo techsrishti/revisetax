@@ -1,28 +1,221 @@
 .container {
   display: flex;
-  height: 100%;
+  width: 100%;
+  min-height: 100vh;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 24px;
+  padding: 2rem;
+  background-color: #f9fafb;
 }
 
-.comingSoonCard {
+.loadingSpinner {
+  margin: 48px 0;
+  font-size: 18px;
+  color: #4b5563;
+}
+
+.errorMessage {
+  margin: 48px 0;
+  padding: 16px 24px;
+  background-color: #fee2e2;
   border-radius: 8px;
-  border: 1px solid #e5e7eb;
-  background-color: white;
-  padding: 32px;
-  text-align: center;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  color: #dc2626;
 }
 
-.title {
-  margin-bottom: 8px;
-  font-size: 24px;
-  font-weight: 500;
+.activeSubscription {
+  width: 100%;
+  max-width: 1200px;
+  margin-bottom: 32px;
+  padding: 24px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.activeSubscription h2 {
+  margin: 0 0 16px;
   color: #111827;
 }
 
-.description {
+.activeSubscription p {
+  margin: 8px 0;
   color: #4b5563;
 }
+
+.plansGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 2rem;
+  width: 100%;
+  max-width: 1200px;
+  padding: 0;
+  justify-content: center;
+  margin: 2rem auto;
+}
+
+@media (min-width: 1024px) {
+  .plansGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.planCard {
+  display: flex;
+  padding: 32px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 40px;
+  flex: 1 0 0;
+  position: relative;
+  background: #FFFFFF;
+  border-radius: 4px;
+  box-shadow: 
+    0px 0px 0px 1px rgba(0, 0, 0, 0.06),
+    0px 2px 4px 0px rgba(0, 0, 0, 0.08),
+    0px 4px 8px 0px rgba(0, 0, 0, 0.06),
+    0px 8px 16px 0px rgba(0, 0, 0, 0.08);
+}
+
+.planCard:hover {
+  transform: translateY(-4px);
+}
+
+.features {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* First plan card specific styles */
+.planCard:first-child {
+  border-radius: 4px;
+  gap: 40px;
+  box-shadow: 
+    0px 0px 0px 1px rgba(0, 0, 0, 0.06),
+    0px 2px 4px 0px rgba(0, 0, 0, 0.08),
+    0px 4px 8px 0px rgba(0, 0, 0, 0.06),
+    0px 8px 16px 0px rgba(0, 0, 0, 0.08);
+}
+
+/* Second plan card specific styles */
+.planCard:nth-child(2) {
+  border-radius: 4px;
+  gap: 40px;
+  background: #FFFFFF;
+  box-shadow: 
+    0px 0px 0px 1px rgba(0, 0, 0, 0.06),
+    0px 2px 4px 0px rgba(0, 0, 0, 0.08),
+    0px 4px 8px 0px rgba(0, 0, 0, 0.06),
+    0px 8px 16px 0px rgba(0, 0, 0, 0.08);
+}
+
+.planCard:nth-child(3) {
+  border-radius: 4px;
+  gap: 40px;
+  background: #FFFFFF;
+  box-shadow: 
+    0px 0px 0px 1px rgba(0, 0, 0, 0.06),
+    0px 2px 4px 0px rgba(0, 0, 0, 0.08),
+    0px 4px 8px 0px rgba(0, 0, 0, 0.06),
+    0px 8px 16px 0px rgba(0, 0, 0, 0.08);
+}
+
+.planName {
+  font-feature-settings: 'salt' on;
+  font-family: 'Inter', sans-serif;
+  font-size: 20px;
+  font-style: normal;
+  font-weight: 500;
+  line-height: 24px;
+}
+
+.planCost {
+  color: #18181B;
+  font-feature-settings: 'ss01' on;
+  font-family: 'Inter', sans-serif;
+  font-size: 32px;
+  font-style: normal;
+  font-weight: 500;
+  line-height: 32px;
+}
+
+.perYear {
+  color: #52525B;
+  font-feature-settings: 'salt' on;
+  font-family: 'Inter', sans-serif;
+  font-size: 16px;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 20px;
+}
+
+.pricingSection {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.costWrapper {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  width: 100%;
+}
+
+.feature {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+  color: #4b5563;
+  font-family: var(--font-inter);
+}
+
+.included {
+  color: #050505;
+  margin-right: 12px;
+  font-weight: bold;
+}
+
+.notIncluded {
+  color: #dc2626;
+  margin-right: 12px;
+  font-weight: bold;
+}
+
+.subscribeButton {
+  padding: 12px 24px;
+  background-color: #222222;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-family: var(--font-inter);
+}
+
+.subscribeButton:hover:not(:disabled) {
+  background-color: #047857;
+}
+
+.subscribeButton:disabled {
+  background-color: #9ca3af;
+  cursor: not-allowed;
+}
+
+.planHeading {
+  font-feature-settings: 'salt' on;
+  font-family: Inter;
+  font-size: 20px;
+  font-style: normal;
+  font-weight: 500;
+  line-height: 24px; /* 120% */
+}
+.text {
+    font-family: 'Inter Variable';
+    font-weight: 400;
+    font-size: 16px
+  }
+  

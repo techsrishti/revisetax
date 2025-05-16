@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import type React from "react"
 import styles from "./sidebar.module.css"
 
@@ -14,6 +14,18 @@ export default function Sidebar({ activeModule, setActiveModule }: SidebarProps)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
+  // Handle window resize
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth > 768) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const handleProfileClick = () => {
     setIsOverlayOpen(true);
   };
@@ -137,14 +149,14 @@ export default function Sidebar({ activeModule, setActiveModule }: SidebarProps)
         </div>
       </div>
     </>
-  )
+  );
 }
 
 interface SidebarItemProps {
-  icon: React.ReactNode
-  label: string
-  isActive: boolean
-  onClick: () => void
+  icon: React.ReactNode;
+  label: string;
+  isActive: boolean;
+  onClick: () => void;
 }
 
 function SidebarItem({ icon, label, isActive, onClick }: SidebarItemProps) {
@@ -155,5 +167,5 @@ function SidebarItem({ icon, label, isActive, onClick }: SidebarItemProps) {
         <span className={styles.navLabel}>{label}</span>
       </button>
     </li>
-  )
+  );
 }

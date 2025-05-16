@@ -14,7 +14,7 @@ export async function POST(request: Request) {
           { phoneNumber: phoneNumber || undefined },
           { email: email || undefined }
         ]
-      },
+       },
     });
 
     console.log('User Check Result:', { 

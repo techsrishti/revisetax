@@ -51,10 +51,11 @@ export async function POST(request: Request) {
         },
         data: updateData,
       });
+      
       return NextResponse.json(updatedUser);
     }
 
-    // Create new user with all provided information
+    // Prepare data for new user
     const userData: any = {
       name,
       phoneNumber,
@@ -71,9 +72,11 @@ export async function POST(request: Request) {
       userData.providerId = providerId;
     }
 
+    // Create new user
     const user = await prisma.user.create({
       data: userData,
     });
+
     return NextResponse.json(user);
   } catch (error) {
     console.error('Error creating/updating user:', error);
