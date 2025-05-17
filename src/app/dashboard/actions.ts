@@ -2,6 +2,7 @@
 import { prisma } from "@/lib/prisma";
 import crypto from 'crypto'
 import { v4 as uuidv4 } from 'uuid';
+import { createClient } from '@/utils/supabase/server';
 
 const PAYU_KEY = process.env.PAYU_KEY;  
 const PAYU_SALT = process.env.PAYU_SALT_32BIT;
@@ -91,6 +92,23 @@ export async function initiatePayment(planName: string): Promise<InitiatePayment
     try {
         //verify the user first TODO-PENDING-AUTH
         const dummyUserId = "1234";
+        const supabase = await createClient()
+        const { data: { user: supabaseUser } } = await supabase.auth.getUser()
+
+        console.log("Supabase user: ", supabaseUser)
+
+        if (!supabaseUser) {
+            console.log("User not found.")
+            return {
+                success: false,
+                error: 'User not found',
+                errorMessage: 'The user you are trying to pay for does not exist',
+                errorCode: 'USER_NOT_FOUND',
+            }
+        }
+
+        console.log("User found: ", supabaseUser)
+        
 
         console.log('Initiating payment for plan: ', planName, 'for user: ', dummyUserId);
 
@@ -231,7 +249,7 @@ export async function initiatePayment(planName: string): Promise<InitiatePayment
             return {
                 success: false,
                 error: 'Failed to initiate payment',
-                errorMessage: error.message,
+                errorMessage: "An unknown error occurred. Please try again later or contact support at https://support.revisetax.com",
                 errorCode: 'FAILED_TO_INITIATE_PAYMENT',
             }
         }
@@ -317,7 +335,7 @@ export async function getUserSubscription(): Promise<UserSubscriptionSuccessResp
             return {
                 success: false,
                 error: 'Failed to get user subscription',
-                errorMessage: error.message,
+                errorMessage: "An unknown error occurred. Please try again later or contact support at https://support.revisetax.com",
                 errorCode: 'FAILED_TO_GET_USER_SUBSCRIPTION',
             }
         }

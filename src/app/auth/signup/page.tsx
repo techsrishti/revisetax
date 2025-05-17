@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { redirect, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import AuthLayout from '@/components/AuthLayout';
@@ -11,10 +11,11 @@ import { useToast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 import styles from '@/app/auth/styles.module.css';
 
-function SignUpContent() {
+ function SignUpContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
+  const supabase = createClient();
   
   // Get social login params if they exist
   const socialEmail = searchParams.get('email') || '';
@@ -30,10 +31,29 @@ function SignUpContent() {
   const [otp, setOTP] = useState('');
   const [error, setError] = useState('');
   const [otpValues, setOtpValues] = useState(['', '', '', '', '', '']);
+  const [isSocialLogin, setIsSocialLogin] = useState(false);
 
+
+  
   useEffect(() => {
-    document.body.style.overflow = 'hidden';
+
     // Show notification if user came from social login
+
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      console.log("user", user);
+      
+      if (user) {
+        console.log("User is already logged in. Here for phone verification", user);
+        setIsSocialLogin(true);
+      } else {
+        console.log("User is not logged in");
+        setIsSocialLogin(false);
+      }
+    };
+
+    checkUser();
+
     if (socialProvider) {
       toast({
         title: "Phone Verification Required",
@@ -41,9 +61,7 @@ function SignUpContent() {
         duration: 6000,
       });
     }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
+
   }, [socialProvider, toast]);
 
   const formatPhoneNumber = (value: string) => {
@@ -93,13 +111,32 @@ function SignUpContent() {
         return;
       }
 
-      const supabase = createClient();
-      // Always verify phone number with OTP, even for social logins
-      const { error: otpError } = await supabase.auth.signInWithOtp({
-        phone: formattedPhone,
-      });
+      if (isSocialLogin) {
+        console.log("Updating phone number for existing user")
+        
+        const { error: updateError } = await supabase.auth.updateUser({ phone: formattedPhone });
+        if (updateError) { 
+          console.log(updateError); 
+          throw updateError;
+        }
 
-      if (otpError) throw otpError;
+      }
+
+      else {
+        console.log("normal phone and email singup")
+
+        const { error: otpError } = await supabase.auth.signInWithOtp({
+          phone: formattedPhone,
+        });
+
+        if (otpError) {
+          console.log("otpError", otpError)
+          throw otpError;
+        }
+        
+        console.log("email link generated")
+      }
+
       setShowOTP(true);
       
       toast({
@@ -125,23 +162,51 @@ function SignUpContent() {
       setLoading(true);
       const formattedPhone = '+91' + phoneNumber.replace(/\s+/g, '');
       
-      const supabase = createClient();
-      const { error: verifyError } = await supabase.auth.verifyOtp({
-        phone: formattedPhone,
-        token: otp,
-        type: 'sms'
-      });
+        // User has existing session - update phone and verify
+       
+        if (isSocialLogin){ 
+          //User already signedup with social login.
+          const { error: verifyError } = await supabase.auth.verifyOtp({
+            phone: formattedPhone,
+            token: otp,
+            type: 'phone_change' //Have to use phone_change since the opt is sent using `updateUser`
+          });
 
-      if (verifyError) throw verifyError;
+          if (verifyError) {
+            console.log("verifyError", verifyError)
+            throw verifyError;
+          }
 
-      try {
+          console.log("phone updated")
+
+        }
+        else {
+          //User is signing up for the first time.
+          const { error: verifyError } = await supabase.auth.verifyOtp({
+            phone: formattedPhone,
+            token: otp,
+            type: 'sms'
+          });
+
+          if (verifyError) {
+            console.log("verifyError", verifyError)
+            throw verifyError;
+          }
+
+          console.log("phone updated")
+
+      }
+
         // Create user with all available information
+        const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+        console.log("supabaseUser", supabaseUser)
         const createResponse = await fetch('/api/create-user', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
+            supabaseUserId: supabaseUser?.id || '',
             name: fullName,
             email,
             phoneNumber: formattedPhone,
@@ -157,15 +222,13 @@ function SignUpContent() {
 
         toast({
           title: "Success",
-          description: "Your account has been created successfully!",
+          description: "Your phone number has been linked successfully!",
           duration: 2000,
         });
 
-        // Redirect to dashboard on successful account creation
         router.push('/dashboard');
-      } catch (createError) {
-        throw new Error(createError instanceof Error ? createError.message : 'Failed to create account');
-      }
+        return;
+
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to verify OTP. Please try again.';
       toast({
@@ -205,8 +268,9 @@ function SignUpContent() {
       setLoading(true);
       const formattedPhone = '+91' + phoneNumber.replace(/\s+/g, '');
       
-      const supabase = createClient();
-      const { error } = await supabase.auth.signInWithOtp({
+
+      const { error } = await supabase.auth.resend({
+        type: 'sms',
         phone: formattedPhone,
       });
 
@@ -461,7 +525,7 @@ function SignUpContent() {
   );
 }
 
-export default function SignUp() {
+export default  function SignUp() {
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <SignUpContent />

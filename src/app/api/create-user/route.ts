@@ -1,14 +1,36 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { createClient } from '@/utils/supabase/server';
 
 export async function POST(request: Request) {
   try {
-    const { name, email, phoneNumber, provider, providerId } = await request.json();
+    const { supabaseUserId, name, email, phoneNumber, provider, providerId } = await request.json();
+
+    console.log("Supabase user ID: ", supabaseUserId)
 
     // Validate required fields
     if (!phoneNumber) {
       return NextResponse.json(
         { message: 'Phone number is required' },
+        { status: 400 }
+      );
+    }
+
+    const supabase = await createClient()
+    const { data: { user: supabaseUser } } = await supabase.auth.getUser()
+    if (!supabaseUser) {
+      return NextResponse.json(
+        { message: 'User not found' },
+        { status: 400 }
+      );
+    }
+
+    console.log("Supabase user: ", supabaseUser)
+
+    if (supabaseUser.id !== supabaseUserId) {
+      console.log("Supabase user ID does not match the one provided in the request.")
+      return NextResponse.json(
+        { message: 'User not found' },
         { status: 400 }
       );
     }
@@ -57,6 +79,7 @@ export async function POST(request: Request) {
 
     // Prepare data for new user
     const userData: any = {
+      supabaseUserId,
       name,
       phoneNumber,
     };
