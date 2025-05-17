@@ -123,42 +123,7 @@ function SignInContent() {
       });
 
       if (verifyError) throw verifyError;
-
-      try {
-        // Update last login time
-        const updateResponse = await fetch('/api/update-last-login', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            phoneNumber: formattedPhone,
-          }),
-        });
-
-        if (!updateResponse.ok) {
-          const errorData = await updateResponse.json();
-          throw new Error(errorData.message || 'Failed to update last login time');
-        }
-
-        toast({
-          title: "Success",
-          description: "Successfully logged in!",
-          duration: 2000,
-        });
-
-        // Redirect to dashboard on successful verification
-        router.push('/dashboard');
-      } catch (updateError) {
-        // Log the error but don't prevent login
-        console.error('Failed to update last login time:', updateError);
-        toast({
-          title: "Warning",
-          description: "Logged in successfully, but failed to update last login time.",
-          duration: 4000,
-        });
-        router.push('/dashboard');
-      }
+      router.push('/dashboard');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to verify OTP. Please try again.';
       toast({
