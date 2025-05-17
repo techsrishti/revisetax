@@ -127,6 +127,11 @@ import styles from '@/app/auth/styles.module.css';
 
         const { error: otpError } = await supabase.auth.signInWithOtp({
           phone: formattedPhone,
+          options: {
+            data: {
+              full_name: fullName || undefined
+            }
+          }
         });
 
         if (otpError) {
@@ -162,72 +167,79 @@ import styles from '@/app/auth/styles.module.css';
       setLoading(true);
       const formattedPhone = '+91' + phoneNumber.replace(/\s+/g, '');
       
-        // User has existing session - update phone and verify
-       
-        if (isSocialLogin){ 
-          //User already signedup with social login.
-          const { error: verifyError } = await supabase.auth.verifyOtp({
-            phone: formattedPhone,
-            token: otp,
-            type: 'phone_change' //Have to use phone_change since the opt is sent using `updateUser`
-          });
+      if (isSocialLogin){ 
+        //User already signedup with social login.
+        const { error: verifyError } = await supabase.auth.verifyOtp({
+          phone: formattedPhone,
+          token: otp,
+          type: 'phone_change' //Have to use phone_change since the opt is sent using `updateUser`
+        });
 
-          if (verifyError) {
-            console.log("verifyError", verifyError)
-            throw verifyError;
-          }
-
-          console.log("phone updated")
-
+        if (verifyError) {
+          console.log("verifyError", verifyError)
+          throw verifyError;
         }
-        else {
-          //User is signing up for the first time.
-          const { error: verifyError } = await supabase.auth.verifyOtp({
-            phone: formattedPhone,
-            token: otp,
-            type: 'sms'
-          });
 
-          if (verifyError) {
-            console.log("verifyError", verifyError)
-            throw verifyError;
-          }
+        console.log("phone updated")
 
-          console.log("phone updated")
+      } else {
+        //User is signing up for the first time.
+        const { error: verifyError } = await supabase.auth.verifyOtp({
+          phone: formattedPhone,
+          token: otp,
+          type: 'sms'
+        });
 
+        if (verifyError) {
+          console.log("verifyError", verifyError)
+          throw verifyError;
+        }
+
+        // Update user metadata with full name and email immediately after OTP verification
+        const { error: updateError } = await supabase.auth.updateUser({
+           data: { full_name: fullName }
+        });
+
+        if (updateError) {
+          console.error("Error updating user metadata:", updateError);
+          throw updateError;
+        }
+
+        console.log("phone, email, and name updated")
       }
 
-        // Create user with all available information
-        const { data: { user: supabaseUser } } = await supabase.auth.getUser();
-        console.log("supabaseUser", supabaseUser)
-        const createResponse = await fetch('/api/create-user', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            supabaseUserId: supabaseUser?.id || '',
-            name: fullName,
-            email,
-            phoneNumber: formattedPhone,
-            provider: socialProvider,
-            providerId: socialProviderId
-          }),
-        });
+      // Create user with all available information
+      const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+      console.log("supabaseUser", supabaseUser)
 
-        if (!createResponse.ok) {
-          const errorData = await createResponse.json();
-          throw new Error(errorData.message || 'Failed to create account');
-        }
+      const createResponse = await fetch('/api/create-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          supabaseUserId: supabaseUser?.id || '',
+          name: fullName,
+          email,
+          phoneNumber: formattedPhone,
+          provider: socialProvider,
+          providerId: socialProviderId
+        }),
+      });
 
-        toast({
-          title: "Success",
-          description: "Your phone number has been linked successfully!",
-          duration: 2000,
-        });
+      if (!createResponse.ok) {
+        const errorData = await createResponse.json();
+        throw new Error(errorData.message || 'Failed to create account');
+      }
 
-        router.push('/dashboard');
-        return;
+      toast({
+        title: "Success",
+        description: "Your account has been created successfully!",
+        duration: 2000,
+      });
+
+      router.push('/dashboard');
+      return;
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to verify OTP. Please try again.';

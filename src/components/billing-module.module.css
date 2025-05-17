@@ -267,10 +267,10 @@
 
 .bulkDiscountSection {
   width: 100%;
-  max-width: 1170px;
+  max-width: 1190px;
   height: auto;
   min-height: 116px;
-  padding: 32px;
+  padding: 30 px;
   display: flex;
   justify-content: space-between;
   align-items: center;
