@@ -192,7 +192,7 @@ function SignInContent() {
       setLoading(true);
       const supabase = createClient();
       const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'linkedin',
+        provider: 'linkedin_oidc',
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
           queryParams: {
