@@ -95,8 +95,6 @@ export async function initiatePayment(planName: string): Promise<InitiatePayment
         const supabase = await createClient()
         const { data: { user: supabaseUser } } = await supabase.auth.getUser()
 
-        console.log("Supabase user: ", supabaseUser)
-
         if (!supabaseUser) {
             console.log("User not found.")
             return {
@@ -114,7 +112,7 @@ export async function initiatePayment(planName: string): Promise<InitiatePayment
 
         const user = await prisma.user.findUnique({
             where: {
-                id: dummyUserId,
+                supabaseUserId: supabaseUser.id,
             },
             select: {
                 id: true, 
@@ -161,7 +159,7 @@ export async function initiatePayment(planName: string): Promise<InitiatePayment
         //check if active subscription or not
         const activeSubscription = await prisma.subscription.findFirst({
             where: {
-                userId: dummyUserId,
+                userId: user.id,
                 isActive: true
             },
             select: { 
@@ -186,7 +184,7 @@ export async function initiatePayment(planName: string): Promise<InitiatePayment
         const currentTime = new Date();
         const previousPayments = await prisma.payment.findMany({ 
             where: { 
-                userId: dummyUserId,
+                userId: user.id,
                 status: "initiated", 
                 planId: plan.id,
                 // expiresAt: { 
@@ -218,7 +216,7 @@ export async function initiatePayment(planName: string): Promise<InitiatePayment
             console.log("Hash String: ", hashString)
             await prisma.payment.create({ 
                 data: { 
-                    userId: dummyUserId,
+                    userId: user.id,
                     planId: plan.id,
                     txnId,
                     status: 'initiated',
@@ -281,13 +279,42 @@ export interface UserSubscriptionSuccessResponse {
 export async function getUserSubscription(): Promise<UserSubscriptionSuccessResponse | ErrorResponse> { 
     try { 
         //verify the user first TODO-PENDING-AUTH
-        const dummyUserId = "1234";
+        const supabase = await createClient()
+        const { data: { user: supabaseUser } } = await supabase.auth.getUser()
 
-        console.log("Getting user subscription for user: ", dummyUserId);
+        if (!supabaseUser) {
+            console.log("User not found.")
+            return {
+                success: false,
+                error: 'User not found',
+                errorMessage: 'The user you are trying to pay for does not exist',
+                errorCode: 'USER_NOT_FOUND',
+            }
+        }
+
+
+        console.log("User found: ", supabaseUser)
+
+        const user = await prisma.user.findUnique({
+
+            where: {
+                supabaseUserId: supabaseUser.id,
+            },
+        });
+
+        if (!user) {
+            console.log("User not found.")
+            return {
+                success: false,
+                error: 'User not found',
+                errorMessage: 'The user you are trying to pay for does not exist',
+                errorCode: 'USER_NOT_FOUND',
+            }
+        }
 
         const subscription = await prisma.subscription.findFirst({
             where: {
-                userId: dummyUserId,
+                userId: user.id,
                 isActive: true
             },
             select: {
