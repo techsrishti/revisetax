@@ -17,8 +17,8 @@ export default function Dashboard() {
       <div className={styles.content}>
         {activeModule === "chat" && <ChatModule />}
         {activeModule === "documents" && <DocumentsModule />}
-        {activeModule === "plans" && <PlansModule />}
-        {activeModule === "billing" && <BillingModule />}
+        {activeModule === "plans" && <BillingModule />}
+        {activeModule === "billing" && <PlansModule />}
       </div>
     </div>
   )

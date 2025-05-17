@@ -10,6 +10,7 @@ export default function BillingModule() {
   const [error, setError] = useState<ErrorResponse>()
   const [activeSubscription, setActiveSubscription] = useState<any>(null)
   const [processingPayment, setProcessingPayment] = useState(false)
+  const [selectedPlan, setSelectedPlan] = useState<string | null>(null)
 
   useEffect(() => {
     async function fetchData() {
@@ -41,12 +42,17 @@ export default function BillingModule() {
   }, [])
 
   const handleSubscribe = async (planName: string) => {
+    if (activeSubscription) return; // Prevent subscription if already subscribed
+    
     try {
       setProcessingPayment(true)
+      setSelectedPlan(planName)
       const response = await initiatePayment(planName)
       
       if (!response.success) {
         setError(response)
+        setProcessingPayment(false)
+        setSelectedPlan(null)
         return
       }
 
@@ -82,8 +88,8 @@ export default function BillingModule() {
         errorMessage: "Failed to initiate payment. Please try again.",
         errorCode: null,
       })
-    } finally {
       setProcessingPayment(false)
+      setSelectedPlan(null)
     }
   }
 
@@ -121,11 +127,50 @@ export default function BillingModule() {
     }
   }
 
-  if (loading) return <div className={styles.loadingSpinner}>Loading...</div>
+  const PaymentProcessingOverlay = () => (
+    <div className={styles.paymentProcessingOverlay}>
+      <div className={styles.paymentProcessingContent}>
+        <div className={styles.paymentProcessingSpinner} />
+        <h3 className={styles.paymentProcessingTitle}>Processing Payment</h3>
+        <p className={styles.paymentProcessingMessage}>
+          Please wait while we redirect you to the payment gateway...
+        </p>
+      </div>
+    </div>
+  )
+
+  if (loading) return (
+    <div className={styles.container}>
+      <div className={styles.skeletonLoading}>
+        {[1, 2, 3].map((index) => (
+          <div key={index} className={styles.skeletonCard}>
+            <div className={styles.skeletonHeader}>
+              <div className={styles.skeletonTitle} />
+              <div className={styles.skeletonIcon} />
+            </div>
+            <div className={styles.skeletonPrice} />
+            <div className={styles.skeletonFeatures}>
+              {[1, 2, 3, 4, 5, 6, 7].map((featureIndex) => (
+                <div key={featureIndex} className={styles.skeletonFeature} />
+              ))}
+            </div>
+            <div className={styles.skeletonButton} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
   if (error) return <div className={styles.errorMessage}>{error.errorMessage}</div>
 
   return (
     <div className={styles.container}>
+      {processingPayment && <PaymentProcessingOverlay />}
+      {activeSubscription && (
+        <div className={styles.activeSubscriptionBanner}>
+          <h3>Active Subscription</h3>
+          <p>You currently have an active subscription to the {activeSubscription.planName} plan.</p>
+        </div>
+      )}
       <div className={styles.plansGrid}>
         {plans.map((plan) => {
           const planColor = getPlanColor(plan.name)
@@ -138,6 +183,8 @@ export default function BillingModule() {
             { name: 'Futures and Options (F&O)', included: plan.name === 'Advanced' },
             { name: 'Annual income above 50L', included: plan.name === 'Advanced' },
           ]
+
+          const isCurrentPlan = activeSubscription?.planName === plan.name
 
           return (
             <div key={plan.id} className={styles.planCard}>
@@ -171,13 +218,12 @@ export default function BillingModule() {
               </ul>
 
               <button 
-                className={styles.chooseButton}
-                style={{ backgroundColor: planColor }}
-                
+                className={`${styles.chooseButton} ${isCurrentPlan ? styles.currentPlanButton : ''}`}
+                style={{ backgroundColor: isCurrentPlan ? '#E5E7EB' : planColor }}
                 disabled={!!activeSubscription || processingPayment}
                 onClick={() => handleSubscribe(plan.name)}
               >
-                Choose Plan
+                {isCurrentPlan ? 'Current Plan' : 'Choose Plan'}
               </button>
             </div>
           )

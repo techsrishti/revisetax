@@ -1,8 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import type React from "react"
 import styles from "./sidebar.module.css"
+import { createClient } from "@/utils/supabase/client"
+import { useRouter } from "next/navigation"
 
 interface SidebarProps {
   activeModule: string
@@ -14,7 +16,26 @@ export default function Sidebar({ activeModule, setActiveModule, children }: Sid
   const [isOverlayOpen, setIsOverlayOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<any>(null);
+  const router = useRouter();
   
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        setUser(user);
+      } catch (error) {
+        console.error('Error fetching user:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUser();
+  }, []);
+
   const handleProfileClick = () => {
     setIsOverlayOpen(true);
   };
@@ -22,6 +43,16 @@ export default function Sidebar({ activeModule, setActiveModule, children }: Sid
   const handleEditProfileClick = () => {
     setIsModalOpen(true);
     // This would typically open a modal with animation
+  };
+
+  const handleLogout = async () => {
+    try {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      router.push('/auth/signin');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   };
 
   const toggleMobileMenu = () => {
@@ -61,10 +92,19 @@ export default function Sidebar({ activeModule, setActiveModule, children }: Sid
         <div className={`${styles.sidebar} ${isMobileMenuOpen ? styles.open : ''}`}>
           <div className={styles.userProfile} onClick={handleProfileClick}>
             <div className={styles.avatar}>
-              <img src="/Alborz.svg" alt="User" className={styles.avatarImage} />
+              <img 
+                src={user?.user_metadata?.avatar_url || "/Alborz.svg"} 
+                className={styles.avatarImage} 
+              />
             </div>
             <div className={styles.userInfo}>
-              <p className={styles.userName}>Kiran Shah</p>
+              {isLoading ? (
+                <div className={styles.loadingSpinner} />
+              ) : (
+                <p className={styles.userName}>
+                  {user?.user_metadata?.full_name || user?.email || 'User'}
+                </p>
+              )}
               <img src="/chevron-down-icon.svg" alt="Expand" className={styles.chevron} width={8} height={8} />
             </div>
           </div>
@@ -81,7 +121,7 @@ export default function Sidebar({ activeModule, setActiveModule, children }: Sid
                   </div>
                   <span className={styles.itemText}>Edit Profile</span>
                 </button>
-                <button className={styles.overlayItem} onClick={() => console.log("Logout clicked")}>
+                <button className={styles.overlayItem} onClick={handleLogout}>
                   <div className={styles.itemStartIcon}>
                     <img src="/logout-icon.svg" alt="Logout" width={20} height={20} />
                   </div>
@@ -115,7 +155,7 @@ export default function Sidebar({ activeModule, setActiveModule, children }: Sid
               />
               <SidebarItem
                 icon={<img src="/plans-icon.svg" alt="Plans" width={16.75} height={16.67} />}
-                label={activeModule === "plans" ? "Services" : "Plans"}
+                label={ "Plans"}
                 isActive={activeModule === "plans"}
                 onClick={() => {
                   setActiveModule("plans");
