@@ -13,33 +13,52 @@ export default function BillingModule() {
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null)
 
   useEffect(() => {
-    async function fetchData() {
+    // Fetch plans immediately
+    const fetchPlans = async () => {
       try {
-        const subscriptionResponse = await getUserSubscription()
-        if (subscriptionResponse.success) {
-          setActiveSubscription(subscriptionResponse.subscription)
-        }
-
-        const plansResponse = await getPlans() 
+        const startTime = Date.now();
+        const plansResponse = await getPlans();
+        const endTime = Date.now();
+        console.log("Time taken to fetch plans: ", endTime - startTime, "ms");
+    
         if (plansResponse.success) {
-          setPlans(plansResponse.plans)
+          setPlans(plansResponse.plans);
         } else {
-          setError(plansResponse)
+          setError(plansResponse);
         }
       } catch (err) {
         setError({
           success: false,
-          error: "Failed to load subscription information",
-          errorMessage: "Failed to load subscription information",
+          error: "Failed to load plans",
+          errorMessage: "Could not load plans",
           errorCode: null,
-        })
+        });
       } finally {
-        setLoading(false)
+        setLoading(false); // Only here — after plan state is updated
       }
-    }
-
-    fetchData()
-  }, [])
+    };
+    
+  
+    // Fetch subscription independently
+    const fetchSubscription = async () => {
+      try {
+        const startTime = Date.now();
+        const subscriptionResponse = await getUserSubscription();
+        const endTime = Date.now();
+        console.log("Time taken to fetch subscription: ", endTime - startTime, "ms");
+  
+        if (subscriptionResponse.success) {
+          setActiveSubscription(subscriptionResponse.subscription);
+        }
+      } catch {
+        // Silent fail or you can log
+      }
+    };
+  
+    fetchPlans();         // Trigger immediately
+    fetchSubscription();  // Trigger in parallel
+  }, []);
+  
 
   const handleSubscribe = async (planName: string) => {
     if (activeSubscription) return; // Prevent subscription if already subscribed
