@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import crypto from 'crypto'
 import { v4 as uuidv4 } from 'uuid';
 import { createClient } from '@/utils/supabase/server';
+import Redis from 'ioredis';
 
 const PAYU_KEY = process.env.PAYU_KEY;  
 const PAYU_SALT = process.env.PAYU_SALT_32BIT;
@@ -11,6 +12,8 @@ const PAYU_SALT = process.env.PAYU_SALT_32BIT;
 //     console.log('PAYU_KEY and PAYU_SALT must be set');
 //     throw new Error('PAYU_KE and PAYU_SALT must be set');
 // }
+
+const redis = new Redis();
 
 
 export interface PlansForFrontend { 
@@ -35,6 +38,22 @@ export interface PlansSuccessResponse {
 export async function getPlans(): Promise<PlansSuccessResponse | ErrorResponse> {
     try {
         //verify the user first TODO-PENDING-AUTH
+        const startTime = Date.now();
+        const cached = await redis.get('plans:all');
+        const cachedPlans = cached ? JSON.parse(cached) : null;
+
+        if (cachedPlans) {
+            console.log("Plans found in cache.")
+            const endTime = Date.now();
+            console.log("endTime: ", endTime)
+            console.log("startTime: ", startTime)
+            console.log("Time taken to fetch plans from cache: ", endTime - startTime, "ms")
+            return {
+                success: true,
+                plans: cachedPlans,
+            };
+        }
+
         console.log("Fetching all plans...")
         const plans = await prisma.plan.findMany({
             select: { 
@@ -44,6 +63,10 @@ export async function getPlans(): Promise<PlansSuccessResponse | ErrorResponse> 
                 features: true
             }
         });
+
+        await redis.set('plans:all', JSON.stringify(plans));
+        const endTime = Date.now();
+        console.log("Time taken to fetch plans from database: ", endTime - startTime, "ms")
         return {
             success: true,
             plans: plans.map((plan) => ({
@@ -279,11 +302,12 @@ export interface UserSubscriptionSuccessResponse {
 export async function getUserSubscription(): Promise<UserSubscriptionSuccessResponse | ErrorResponse> { 
     try { 
         //verify the user first TODO-PENDING-AUTH
+        const startTime = Date.now();
         const supabase = await createClient()
         const { data: { user: supabaseUser } } = await supabase.auth.getUser()
 
         if (!supabaseUser) {
-            console.log("User not found.")
+            console.log("getUserSubscription: User not found.")
             return {
                 success: false,
                 error: 'User not found',
@@ -291,9 +315,6 @@ export async function getUserSubscription(): Promise<UserSubscriptionSuccessResp
                 errorCode: 'USER_NOT_FOUND',
             }
         }
-
-
-        console.log("User found: ", supabaseUser)
 
         const user = await prisma.user.findUnique({
 
@@ -303,7 +324,7 @@ export async function getUserSubscription(): Promise<UserSubscriptionSuccessResp
         });
 
         if (!user) {
-            console.log("User not found.")
+            console.log("getUserSubscription: User not found in the db")
             return {
                 success: false,
                 error: 'User not found',
@@ -333,15 +354,16 @@ export async function getUserSubscription(): Promise<UserSubscriptionSuccessResp
         });
 
         if (!subscription) {
-            console.log("No active subscription found.")
+            console.log("getUserSubscription: No active subscription found.")
             return {    
                 success: true,
                 subscription: null,
             }
         }
 
-        console.log("Active subscription found: ", subscription)
-        
+        console.log("getUserSubscription: Active subscription found: ", subscription)
+        const endTime = Date.now();
+        console.log("Time taken to get user subscription: ", endTime - startTime, "ms")
         return {
             success: true,
             subscription: {
@@ -357,7 +379,7 @@ export async function getUserSubscription(): Promise<UserSubscriptionSuccessResp
             }   
         }
     } catch (error) {
-        console.log("Error getting user subscription: ", error)
+        console.log("getUserSubscription: Error getting user subscription: ", error)
         if (error instanceof Error) {
             return {
                 success: false,

@@ -3,54 +3,108 @@ import styles from "./billing-module.module.css"
 import { getPlans, getUserSubscription, initiatePayment, PlansForFrontend } from "@/app/dashboard/actions"
 import { type ErrorResponse } from "../app/dashboard/actions"
 import Image from 'next/image'
+import { useToast } from "@/hooks/use-toast"
+import { Toaster } from "@/components/ui/toaster"
 
 export default function BillingModule() {
+  const { toast } = useToast()
   const [plans, setPlans] = useState<PlansForFrontend[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<ErrorResponse>()
   const [activeSubscription, setActiveSubscription] = useState<any>(null)
   const [processingPayment, setProcessingPayment] = useState(false)
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null)
+  const [paymentError, setPaymentError] = useState<string | null>(null)
 
   useEffect(() => {
-    async function fetchData() {
+    // Fetch plans immediately
+    const fetchPlans = async () => {
       try {
-        const subscriptionResponse = await getUserSubscription()
-        if (subscriptionResponse.success) {
-          setActiveSubscription(subscriptionResponse.subscription)
-        }
-
-        const plansResponse = await getPlans() 
+        const startTime = Date.now();
+        const plansResponse = await getPlans();
+        const endTime = Date.now();
+        console.log("Time taken to fetch plans: ", endTime - startTime, "ms");
+    
         if (plansResponse.success) {
-          setPlans(plansResponse.plans)
+          setPlans(plansResponse.plans);
         } else {
-          setError(plansResponse)
+          setError(plansResponse);
+          toast({
+            title: "Error Loading Plans",
+            description: plansResponse.errorMessage || "Failed to load subscription plans",
+            variant: "destructive",
+            duration: 4000,
+          });
         }
       } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Failed to load plans";
         setError({
           success: false,
-          error: "Failed to load subscription information",
-          errorMessage: "Failed to load subscription information",
+          error: "Failed to load plans",
+          errorMessage: errorMessage,
           errorCode: null,
-        })
+        });
+        toast({
+          title: "Error Loading Plans",
+          description: errorMessage,
+          variant: "destructive",
+          duration: 4000,
+        });
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
-
-    fetchData()
-  }, [])
+    };
+    
+    // Fetch subscription independently
+    const fetchSubscription = async () => {
+      try {
+        const startTime = Date.now();
+        const subscriptionResponse = await getUserSubscription();
+        const endTime = Date.now();
+        console.log("Time taken to fetch subscription: ", endTime - startTime, "ms");
+  
+        if (subscriptionResponse.success) {
+          setActiveSubscription(subscriptionResponse.subscription);
+        } else {
+          toast({
+            title: "Error Loading Subscription",
+            description: subscriptionResponse.errorMessage || "Failed to load subscription details",
+            variant: "destructive",
+            duration: 4000,
+          });
+        }
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Failed to load subscription";
+        toast({
+          title: "Error Loading Subscription",
+          description: errorMessage,
+          variant: "destructive",
+          duration: 4000,
+        });
+      }
+    };
+  
+    fetchPlans();
+    fetchSubscription();
+  }, [toast]);
 
   const handleSubscribe = async (planName: string) => {
-    if (activeSubscription) return; // Prevent subscription if already subscribed
+    if (activeSubscription) return;
     
     try {
       setProcessingPayment(true)
       setSelectedPlan(planName)
+      setPaymentError(null) // Clear any previous payment errors
       const response = await initiatePayment(planName)
       
       if (!response.success) {
-        setError(response)
+        setPaymentError(response.errorMessage || "Failed to initiate payment")
+        toast({
+          title: "Payment Initiation Failed",
+          description: response.errorMessage || "Failed to initiate payment",
+          variant: "destructive",
+          duration: 4000,
+        });
         setProcessingPayment(false)
         setSelectedPlan(null)
         return
@@ -82,12 +136,14 @@ export default function BillingModule() {
       document.body.appendChild(form)
       form.submit()
     } catch (err) {
-      setError({
-        success: false,
-        error: "Failed to process payment",
-        errorMessage: "Failed to initiate payment. Please try again.",
-        errorCode: null,
-      })
+      const errorMessage = err instanceof Error ? err.message : "Failed to process payment";
+      setPaymentError(errorMessage)
+      toast({
+        title: "Payment Error",
+        description: errorMessage,
+        variant: "destructive",
+        duration: 4000,
+      });
       setProcessingPayment(false)
       setSelectedPlan(null)
     }
@@ -160,11 +216,34 @@ export default function BillingModule() {
       </div>
     </div>
   )
-  if (error) return <div className={styles.errorMessage}>{error.errorMessage}</div>
+
+  if (error) return (
+    <div className={styles.container}>
+      <div className={styles.errorMessage}>{error.errorMessage}</div>
+    </div>
+  )
 
   return (
     <div className={styles.container}>
       {processingPayment && <PaymentProcessingOverlay />}
+      {paymentError && (
+        <div className={styles.paymentErrorBanner}>
+          <div className={styles.paymentErrorContent}>
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className={styles.errorIcon}>
+              <path d="M10 6.66667V10M10 13.3333H10.0083M18.3333 10C18.3333 14.6024 14.6024 18.3333 10 18.3333C5.39763 18.3333 1.66667 14.6024 1.66667 10C1.66667 5.39763 5.39763 1.66667 10 1.66667C14.6024 1.66667 18.3333 5.39763 18.3333 10Z" stroke="#DC2626" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <p className={styles.paymentErrorMessage}>{paymentError}</p>
+            <button 
+              onClick={() => setPaymentError(null)} 
+              className={styles.closeErrorButton}
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M15 5L5 15M5 5L15 15" stroke="#6B7280" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
       {activeSubscription && (
         <div className={styles.activeSubscriptionBanner}>
           <h3>Active Subscription</h3>
@@ -239,6 +318,7 @@ export default function BillingModule() {
         </div>
         <button className={styles.letsTalkButton}>Let's Talk</button>
       </div>
+      <Toaster />
     </div>
   )
 }
