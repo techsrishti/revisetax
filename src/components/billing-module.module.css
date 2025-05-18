@@ -89,18 +89,18 @@
   grid-template-columns: repeat(3, 1fr);
   gap: 24px;
   width: 100%;
-  max-width: 1200px;
+  max-width: 1060px;
   margin: 0 auto;
 }
 
 .planCard {
   display: flex;
-  width: 370px;
-  height: 570px;
+  width: 337px;
+  height: 556px;
   padding: 32px;
   flex-direction: column;
   align-items: flex-start;
-  gap: 40px;
+  gap: 32px;
   border-radius: 4px;
   background: var(--Default-white, #FFF);
   box-shadow: 0px 8px 16px 0px rgba(0, 0, 0, 0.08),
@@ -129,7 +129,7 @@
   justify-content: space-between;
   align-items: flex-start;
   width: 100%;
-  gap: 100px;
+  gap: 70px;
 }
 
 .planIcon {
@@ -208,7 +208,7 @@
 }
 
 .chooseButton {
-  width: 300px;
+  width: 268px;
   height: 48px;
   border-radius: 4px;
   gap: 12px;
@@ -221,6 +221,9 @@
   cursor: pointer;
   color: white;
   transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .chooseButton:hover {
@@ -267,10 +270,10 @@
 
 .bulkDiscountSection {
   width: 100%;
-  max-width: 1190px;
+  max-width: 1060px;
   height: auto;
   min-height: 116px;
-  padding: 30 px;
+  padding: 30px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -306,26 +309,6 @@
   line-height: 24px;
   margin: 0;
 }
-
-.letsTalkButton {
-  width: 123px;
-  height: 36px;
-  border-radius: 4px;
-  gap: 12px;
-  padding: 12px 24px;
-  background: #F04E23;
-  color: #FFF;
-  font-family: 'Inter', sans-serif;
-  font-size: 16px;
-  font-weight: 500;
-  line-height: 24px;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
 .text {
     font-family: 'Inter Variable';
     font-weight: 400;
@@ -476,11 +459,10 @@
     margin: 0 auto;
   }
 
-  .bulkDiscountSection {
+   .bulkDiscountSection {
     padding: 24px;
     gap: 24px;
   }
-
   .skeletonLoading {
     grid-template-columns: repeat(2, 1fr);
     justify-content: center;
@@ -502,6 +484,7 @@
   .plansGrid {
     grid-template-columns: 1fr;
     gap: 16px;
+    margin-top: 30px;
   }
 
   .planCard {
@@ -548,12 +531,6 @@
     font-size: 14px;
   }
 
-  .letsTalkButton {
-    width: 100%;
-    max-width: 200px;
-    margin: 0 auto;
-  }
-
   .skeletonLoading {
     grid-template-columns: 1fr;
     gap: 16px;
@@ -568,6 +545,12 @@
 
   .skeletonButton {
     width: 100%;
+  }
+
+  .letsTalkButton {
+    width: 100%;
+    max-width: 2000px;
+    margin: 0 auto;
   }
 }
 
@@ -689,4 +672,30 @@
     transform: scale(0.85);
     opacity: 0.5;
   }
+}
+
+.letsTalkButton {
+  width: 123px;
+  height: 36px;
+  border-radius: 4px;
+  gap: 12px;
+  padding: 12px 24px;
+  background: #F04E23;
+  color: #FFF;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.letsTalkButton span {
+  width: 75px;
+  height: 16px;
+  font-family: 'Inter Variable', sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 100%;
+  letter-spacing: 0%;
+  display: block;
 }
