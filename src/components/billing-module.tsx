@@ -3,8 +3,11 @@ import styles from "./billing-module.module.css"
 import { getPlans, getUserSubscription, initiatePayment, PlansForFrontend } from "@/app/dashboard/actions"
 import { type ErrorResponse } from "../app/dashboard/actions"
 import Image from 'next/image'
+import { useToast } from "@/hooks/use-toast"
+import { Toaster } from "@/components/ui/toaster"
 
 export default function BillingModule() {
+  const { toast } = useToast()
   const [plans, setPlans] = useState<PlansForFrontend[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<ErrorResponse>()
@@ -25,20 +28,32 @@ export default function BillingModule() {
           setPlans(plansResponse.plans);
         } else {
           setError(plansResponse);
+          toast({
+            title: "Error Loading Plans",
+            description: plansResponse.errorMessage || "Failed to load subscription plans",
+            variant: "destructive",
+            duration: 4000,
+          });
         }
       } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Failed to load plans";
         setError({
           success: false,
           error: "Failed to load plans",
-          errorMessage: "Could not load plans",
+          errorMessage: errorMessage,
           errorCode: null,
         });
+        toast({
+          title: "Error Loading Plans",
+          description: errorMessage,
+          variant: "destructive",
+          duration: 4000,
+        });
       } finally {
-        setLoading(false); // Only here — after plan state is updated
+        setLoading(false);
       }
     };
     
-  
     // Fetch subscription independently
     const fetchSubscription = async () => {
       try {
@@ -49,19 +64,31 @@ export default function BillingModule() {
   
         if (subscriptionResponse.success) {
           setActiveSubscription(subscriptionResponse.subscription);
+        } else {
+          toast({
+            title: "Error Loading Subscription",
+            description: subscriptionResponse.errorMessage || "Failed to load subscription details",
+            variant: "destructive",
+            duration: 4000,
+          });
         }
-      } catch {
-        // Silent fail or you can log
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Failed to load subscription";
+        toast({
+          title: "Error Loading Subscription",
+          description: errorMessage,
+          variant: "destructive",
+          duration: 4000,
+        });
       }
     };
   
-    fetchPlans();         // Trigger immediately
-    fetchSubscription();  // Trigger in parallel
-  }, []);
-  
+    fetchPlans();
+    fetchSubscription();
+  }, [toast]);
 
   const handleSubscribe = async (planName: string) => {
-    if (activeSubscription) return; // Prevent subscription if already subscribed
+    if (activeSubscription) return;
     
     try {
       setProcessingPayment(true)
@@ -70,6 +97,12 @@ export default function BillingModule() {
       
       if (!response.success) {
         setError(response)
+        toast({
+          title: "Payment Initiation Failed",
+          description: response.errorMessage || "Failed to initiate payment",
+          variant: "destructive",
+          duration: 4000,
+        });
         setProcessingPayment(false)
         setSelectedPlan(null)
         return
@@ -101,12 +134,19 @@ export default function BillingModule() {
       document.body.appendChild(form)
       form.submit()
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to process payment";
       setError({
         success: false,
         error: "Failed to process payment",
-        errorMessage: "Failed to initiate payment. Please try again.",
+        errorMessage: errorMessage,
         errorCode: null,
       })
+      toast({
+        title: "Payment Error",
+        description: errorMessage,
+        variant: "destructive",
+        duration: 4000,
+      });
       setProcessingPayment(false)
       setSelectedPlan(null)
     }
@@ -258,6 +298,7 @@ export default function BillingModule() {
         </div>
         <button className={styles.letsTalkButton}>Let's Talk</button>
       </div>
+      <Toaster />
     </div>
   )
 }
