@@ -14,6 +14,7 @@ export default function BillingModule() {
   const [activeSubscription, setActiveSubscription] = useState<any>(null)
   const [processingPayment, setProcessingPayment] = useState(false)
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null)
+  const [paymentError, setPaymentError] = useState<string | null>(null)
 
   useEffect(() => {
     // Fetch plans immediately
@@ -93,10 +94,11 @@ export default function BillingModule() {
     try {
       setProcessingPayment(true)
       setSelectedPlan(planName)
+      setPaymentError(null) // Clear any previous payment errors
       const response = await initiatePayment(planName)
       
       if (!response.success) {
-        setError(response)
+        setPaymentError(response.errorMessage || "Failed to initiate payment")
         toast({
           title: "Payment Initiation Failed",
           description: response.errorMessage || "Failed to initiate payment",
@@ -135,12 +137,7 @@ export default function BillingModule() {
       form.submit()
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to process payment";
-      setError({
-        success: false,
-        error: "Failed to process payment",
-        errorMessage: errorMessage,
-        errorCode: null,
-      })
+      setPaymentError(errorMessage)
       toast({
         title: "Payment Error",
         description: errorMessage,
@@ -219,11 +216,34 @@ export default function BillingModule() {
       </div>
     </div>
   )
-  if (error) return <div className={styles.errorMessage}>{error.errorMessage}</div>
+
+  if (error) return (
+    <div className={styles.container}>
+      <div className={styles.errorMessage}>{error.errorMessage}</div>
+    </div>
+  )
 
   return (
     <div className={styles.container}>
       {processingPayment && <PaymentProcessingOverlay />}
+      {paymentError && (
+        <div className={styles.paymentErrorBanner}>
+          <div className={styles.paymentErrorContent}>
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className={styles.errorIcon}>
+              <path d="M10 6.66667V10M10 13.3333H10.0083M18.3333 10C18.3333 14.6024 14.6024 18.3333 10 18.3333C5.39763 18.3333 1.66667 14.6024 1.66667 10C1.66667 5.39763 5.39763 1.66667 10 1.66667C14.6024 1.66667 18.3333 5.39763 18.3333 10Z" stroke="#DC2626" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <p className={styles.paymentErrorMessage}>{paymentError}</p>
+            <button 
+              onClick={() => setPaymentError(null)} 
+              className={styles.closeErrorButton}
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M15 5L5 15M5 5L15 15" stroke="#6B7280" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
       {activeSubscription && (
         <div className={styles.activeSubscriptionBanner}>
           <h3>Active Subscription</h3>
