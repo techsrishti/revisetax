@@ -30,7 +30,6 @@ import styles from '@/app/auth/styles.module.css';
   const [showOTP, setShowOTP] = useState(false);
   const [otp, setOTP] = useState('');
   const [error, setError] = useState('');
-  const [otpValues, setOtpValues] = useState(['', '', '', '', '', '']);
   const [isSocialLogin, setIsSocialLogin] = useState(false);
   const [resendOTPTimer, setResendOTPTimer] = useState(0);
   const [resendOTPDisabled, setResendOTPDisabled] = useState(false);
@@ -256,41 +255,39 @@ import styles from '@/app/auth/styles.module.css';
     }
   };
 
-  const handleOtpChange = (index: number, value: string) => {
-    if (isNaN(Number(value))) return;
-    
-    const newOtpValues = [...otpValues];
-    newOtpValues[index] = value;
-    setOtpValues(newOtpValues);
-    setOTP(newOtpValues.join(''));
-
-    if (value !== '' && index < 5) {
-      const nextInput = document.getElementById(`otp-${index + 1}`);
-      nextInput?.focus();
-    }
-  };
-
-  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && index > 0 && otpValues[index] === '') {
-      const prevInput = document.getElementById(`otp-${index - 1}`);
-      prevInput?.focus();
-    }
-  };
-
   const handleResendOTP = async () => {
     try {
       setLoading(true);
-      setResendOTPDisabled(true);
-      setResendOTPTimer(30); // Set timer to 30 seconds
-      setOTP(''); // Clear OTP input
       const formattedPhone = '+91' + phoneNumber.replace(/\s+/g, '');
+      console.log('Attempting to resend OTP to:', formattedPhone);
 
-      const { error } = await supabase.auth.resend({
-        type: 'sms',
-        phone: formattedPhone,
-      });
+      if (isSocialLogin) {
+        // For social login, we need to update phone number again
+        const { error: updateError } = await supabase.auth.updateUser({ phone: formattedPhone });
+        if (updateError) {
+          console.error('Supabase update phone error:', updateError);
+          throw updateError;
+        }
+      } else {
+        // For regular signup, use signInWithOtp
+        const { error: otpError } = await supabase.auth.signInWithOtp({
+          phone: formattedPhone,
+          options: {
+            data: {
+              full_name: fullName || undefined
+            }
+          }
+        });
+        if (otpError) {
+          console.error('Supabase OTP error:', otpError);
+          throw otpError;
+        }
+      }
 
-      if (error) throw error;
+      // Only start the timer and disable resend after successful OTP send
+      setResendOTPDisabled(true);
+      setResendOTPTimer(30);
+      setOTP('');
       
       toast({
         title: "OTP Resent",
@@ -298,6 +295,7 @@ import styles from '@/app/auth/styles.module.css';
         duration: 4000,
       });
     } catch (err) {
+      console.error('Full error details:', err);
       const errorMessage = err instanceof Error ? err.message : 'An error occurred';
       toast({
         title: "Failed to Resend OTP",

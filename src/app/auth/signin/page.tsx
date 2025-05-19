@@ -137,27 +137,6 @@ function SignInContent() {
     }
   };
 
-  const handleOtpChange = (index: number, value: string) => {
-    if (isNaN(Number(value))) return;
-    
-    const newOtpValues = [...otpValues];
-    newOtpValues[index] = value;
-    setOtpValues(newOtpValues);
-    setOTP(newOtpValues.join(''));
-
-    if (value !== '' && index < 5) {
-      const nextInput = document.getElementById(`otp-${index + 1}`);
-      nextInput?.focus();
-    }
-  };
-
-  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && index > 0 && otpValues[index] === '') {
-      const prevInput = document.getElementById(`otp-${index - 1}`);
-      prevInput?.focus();
-    }
-  };
-
   const handleGoogleSignIn = async () => {
     try {
       setLoading(true);
@@ -241,8 +220,6 @@ function SignInContent() {
         variant: "destructive",
         duration: 4000,
       });
-      setResendOTPDisabled(false);
-      setResendOTPTimer(0);
     } finally {
       setLoading(false);
     }

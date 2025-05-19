@@ -1,4 +1,5 @@
 import { KeyboardEvent } from 'react';
+import Image from 'next/image';
 
 interface OTPInputProps {
   otpValue: string;
@@ -86,7 +87,12 @@ export default function OTPInput({
           disabled={!isComplete || isVerifying}
           className="w-full h-9 md:h-10 bg-[#FF4400] text-white font-medium rounded hover:bg-[#E63D00] transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base"
         >
-          {isVerifying ? 'Verifying...' : 'Verify OTP and Continue'}
+          {isVerifying ? (
+            <span className="flex items-center justify-center gap-2">
+              <Image src="/Loading3Quarters%20(1).svg" alt="Loading" width={20} height={20} className="animate-spin" />
+              Verifying...
+            </span>
+          ) : 'Verify OTP and Continue'}
         </button>
         <button 
           onClick={onCancel}
