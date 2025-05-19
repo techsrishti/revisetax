@@ -1,27 +1,29 @@
 import { KeyboardEvent } from 'react';
 
 interface OTPInputProps {
-  otpValues: string[];
-  onChange: (index: number, value: string) => void;
-  onKeyDown: (index: number, e: KeyboardEvent<HTMLInputElement>) => void;
+  otpValue: string;
+  onChange: (value: string) => void;
   phoneNumber: string;
   onResendOTP?: () => void;
   onVerify: () => void;
   onCancel: () => void;
   isVerifying?: boolean;
+  resendOTPTimer?: number; // seconds left for resend
+  resendOTPDisabled?: boolean;
 }
 
 export default function OTPInput({ 
-  otpValues, 
+  otpValue, 
   onChange, 
-  onKeyDown, 
   phoneNumber, 
   onResendOTP,
   onVerify,
   onCancel,
-  isVerifying = false 
+  isVerifying = false,
+  resendOTPTimer = 0,
+  resendOTPDisabled = false
 }: OTPInputProps) {
-  const isComplete = otpValues.every(value => value !== '');
+  const isComplete = otpValue.length === 6;
 
   return (
     <div className="w-full max-w-[472px] min-h-[320px] bg-white p-2 md:p-3 mx-auto">
@@ -49,9 +51,10 @@ export default function OTPInput({
             {onResendOTP && (
               <button 
                 onClick={onResendOTP}
-                className="text-[#FF4400] hover:text-[#E63D00] ml-1 font-medium"
+                className="text-[#FF4400] hover:text-[#E63D00] ml-1 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={resendOTPDisabled}
               >
-                Resend OTP
+                {resendOTPDisabled && resendOTPTimer > 0 ? `Resend OTP (${resendOTPTimer}s)` : 'Resend OTP'}
               </button>
             )}
           </p>
@@ -64,22 +67,15 @@ export default function OTPInput({
           <label className="block text-sm font-medium text-gray-900">
             Enter OTP
           </label>
-          <div className="grid grid-cols-6 gap-[6px]">
-            {otpValues.map((value, index) => (
-              <input
-                key={index}
-                id={`otp-${index}`}
-                type="text"
-                inputMode="numeric"
-                maxLength={1}
-                value={value}
-                onChange={(e) => onChange(index, e.target.value)}
-                onKeyDown={(e) => onKeyDown(index, e)}
-                className="w-[56px] h-[56px] px-[6px] py-[2px] text-center text-lg md:text-xl font-medium bg-white border border-gray-300 rounded-[8px] focus:ring-2 focus:ring-[#FF4400] focus:border-[#FF4400] outline-none"
-                placeholder="-"
-              />
-            ))}
-          </div>
+          <input
+            id="otp-input"
+            type="text"
+            inputMode="numeric"
+            maxLength={6}
+            value={otpValue}
+            onChange={(e) => onChange(e.target.value.replace(/\D/g, ''))}
+            className="w-full h-[56px] px-[6px] py-[2px] text-center text-lg md:text-xl font-medium bg-white border border-gray-300 rounded-[8px] focus:ring-2 focus:ring-[#FF4400] focus:border-[#FF4400] outline-none"
+           />
         </div>
       </div>
 

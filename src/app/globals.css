@@ -21,8 +21,7 @@
   html, body {
     height: 100%;
     width: 100%;
-    overflow: hidden;
-    margin: 0;
+     margin: 0;
     padding: 0;
   }
   
@@ -32,12 +31,14 @@
   
   body {
     @apply bg-background text-foreground;
-    font-family: 'Inter Variable', Arial, sans-serif;
+    font-family: 'Inter Variable',
   }
   
   #__next, main {
     height: 100%;
     width: 100%;
-    overflow: hidden;
-  }
+    
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+   }
 }

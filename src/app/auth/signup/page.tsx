@@ -32,6 +32,8 @@ import styles from '@/app/auth/styles.module.css';
   const [error, setError] = useState('');
   const [otpValues, setOtpValues] = useState(['', '', '', '', '', '']);
   const [isSocialLogin, setIsSocialLogin] = useState(false);
+  const [resendOTPTimer, setResendOTPTimer] = useState(0);
+  const [resendOTPDisabled, setResendOTPDisabled] = useState(false);
 
 
   
@@ -278,8 +280,10 @@ import styles from '@/app/auth/styles.module.css';
   const handleResendOTP = async () => {
     try {
       setLoading(true);
+      setResendOTPDisabled(true);
+      setResendOTPTimer(30); // Set timer to 30 seconds
+      setOTP(''); // Clear OTP input
       const formattedPhone = '+91' + phoneNumber.replace(/\s+/g, '');
-      
 
       const { error } = await supabase.auth.resend({
         type: 'sms',
@@ -301,10 +305,33 @@ import styles from '@/app/auth/styles.module.css';
         variant: "destructive",
         duration: 4000,
       });
+      // Reset timer and disabled state on error
+      setResendOTPDisabled(false);
+      setResendOTPTimer(0);
     } finally {
       setLoading(false);
     }
   };
+
+  // Timer effect for resend OTP
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (resendOTPDisabled && resendOTPTimer > 0) {
+      timer = setInterval(() => {
+        setResendOTPTimer((prev) => {
+          if (prev <= 1) {
+            setResendOTPDisabled(false);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [resendOTPDisabled, resendOTPTimer]);
+
   return (
     <AuthLayout>
       <div style={{
@@ -520,14 +547,15 @@ import styles from '@/app/auth/styles.module.css';
             </>
           ) : (
             <OTPInput
-              otpValues={otpValues}
-              onChange={handleOtpChange}
-              onKeyDown={handleKeyDown}
+              otpValue={otp}
+              onChange={setOTP}
               phoneNumber={phoneNumber}
               onVerify={handleVerifyOTP}
-              onCancel={() => setShowOTP(false)}
+              onCancel={() => { setShowOTP(false); setOTP(''); }}
               onResendOTP={handleResendOTP}
               isVerifying={loading}
+              resendOTPTimer={resendOTPTimer}
+              resendOTPDisabled={resendOTPDisabled}
             />
           )}
         </div>

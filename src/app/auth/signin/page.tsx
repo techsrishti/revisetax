@@ -19,10 +19,11 @@ function SignInContent() {
   const [showOTP, setShowOTP] = useState(false);
   const [otp, setOTP] = useState('');
   const [otpValues, setOtpValues] = useState(['', '', '', '', '', '']);
+  const [resendOTPTimer, setResendOTPTimer] = useState(0);
+  const [resendOTPDisabled, setResendOTPDisabled] = useState(false);
 
   useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    // Show error from URL params if exists
+     // Show error from URL params if exists
     const errorParam = searchParams.get('error');
     if (errorParam) {
       toast({
@@ -33,8 +34,7 @@ function SignInContent() {
       });
     }
     return () => {
-      document.body.style.overflow = 'unset';
-    };
+     };
   }, [searchParams, toast]);
 
   const formatPhoneNumber = (value: string) => {
@@ -219,15 +219,15 @@ function SignInContent() {
   const handleResendOTP = async () => {
     try {
       setLoading(true);
+      setResendOTPDisabled(true);
+      setResendOTPTimer(30);
+      setOTP('');
       const formattedPhone = '+91' + phoneNumber.replace(/\s+/g, '');
-      
       const supabase = createClient();
       const { error } = await supabase.auth.signInWithOtp({
         phone: formattedPhone,
       });
-
       if (error) throw error;
-      
       toast({
         title: "OTP Resent",
         description: "A new verification code has been sent to your phone number.",
@@ -241,16 +241,36 @@ function SignInContent() {
         variant: "destructive",
         duration: 4000,
       });
+      setResendOTPDisabled(false);
+      setResendOTPTimer(0);
     } finally {
       setLoading(false);
     }
   };
 
+  // Timer effect for resend OTP
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (resendOTPDisabled && resendOTPTimer > 0) {
+      timer = setInterval(() => {
+        setResendOTPTimer((prev) => {
+          if (prev <= 1) {
+            setResendOTPDisabled(false);
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [resendOTPDisabled, resendOTPTimer]);
 
   return (
     <AuthLayout>
-      <div className="bg-white rounded-lg shadow-xl overflow-hidden">
-        {/* Logo and Welcome Section */}
+            <div className="bg-white rounded-lg shadow-xl overflow-hidden">
+
+         {/* Logo and Welcome Section */}
         {!showOTP && (
         <div className="bg-[#F3F4F6] px-6 pt-6 pb-8">
           <Image
@@ -308,7 +328,12 @@ function SignInContent() {
                 disabled={loading}
                 className="w-full h-12 bg-[#FF4400] text-white font-semibold rounded hover:bg-[#E63D00] transition-colors duration-200 disabled:opacity-50 mb-4"
               >
-                {loading ? 'Processing...' : 'Send OTP'}
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Image src="/Loading3Quarters%20(1).svg" alt="Loading" width={20} height={20} className="animate-spin" />
+                    Processing...
+                  </span>
+                ) : 'Send OTP'}
               </button>
 
               {/* Divider */}
@@ -354,14 +379,15 @@ function SignInContent() {
           ) : (
             <>
                 <OTPInput
-                otpValues={otpValues}
-                  onChange={handleOtpChange}
-                  onKeyDown={handleKeyDown}
+                otpValue={otp}
+                onChange={setOTP}
                 phoneNumber={phoneNumber}
                 onVerify={handleVerifyOTP}
-                onCancel={() => setShowOTP(false)}
+                onCancel={() => { setShowOTP(false); setOTP(''); }}
                 onResendOTP={handleResendOTP}
                 isVerifying={loading}
+                resendOTPTimer={resendOTPTimer}
+                resendOTPDisabled={resendOTPDisabled}
               />
             </>
           )}
