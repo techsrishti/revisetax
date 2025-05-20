@@ -11,7 +11,6 @@ interface PayuWebhookPayload {
     key: string;
     txnid: string;
     amount: string;
-    cardCategory: string;
     discount: string;
     net_amount_debit: string;
     addedon: string;
@@ -47,13 +46,11 @@ interface PayuWebhookPayload {
     field8: string;
     field9: string;
     payment_source: string;
-    pa_name: string;
     PG_TYPE: string;
     bank_ref_num: string;
     bankcode: string;
     error: string;
     error_Message: string;
-    cardnum: string;
 }
 
 function isPayuWebhookPayload(obj: any): obj is PayuWebhookPayload {
@@ -65,7 +62,7 @@ function isPayuWebhookPayload(obj: any): obj is PayuWebhookPayload {
       "address1", "address2", "city", "state", "country", "zipcode", "email", "phone",
       "udf1", "udf2", "udf3", "udf4", "udf5", "udf6", "udf7", "udf8", "udf9", "udf10",
       "hash", "field1", "field2", "field3", "field4", "field5", "field6", "field7", "field8", "field9",
-      "payment_source", "pa_name", "PG_TYPE", "bank_ref_num", "bankcode", "error", "error_Message"
+      "payment_source", "PG_TYPE", "bank_ref_num", "bankcode", "error", "error_Message"
     ];
   
     return requiredKeys.every((key) => typeof obj[key] === "string");
