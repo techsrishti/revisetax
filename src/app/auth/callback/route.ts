@@ -41,28 +41,28 @@ export async function GET(request: Request) {
             return NextResponse.redirect(`${origin}/dashboard`)
           }
 
-          // If user doesn't exist, redirect to signup with social info
+          // If user doesn't exist, redirect directly to details page with social info
           const params: Record<string, string> = {
             email: user.email || '',
             name: user.user_metadata.full_name || '',
             provider: user.app_metadata.provider || '',
             providerId: user.id
           }
-          const signupParams = new URLSearchParams(params)
-          return NextResponse.redirect(`${origin}/auth/signup?${signupParams.toString()}`)
+          const detailsParams = new URLSearchParams(params)
+          return NextResponse.redirect(`${origin}/auth/details?${detailsParams.toString()}`)
         } catch (dbError) {
           console.error('Database error:', dbError)
-          return NextResponse.redirect(`${origin}/auth/signin?error=Database error occurred`)
+          return NextResponse.redirect(`${origin}/auth?error=Database error occurred`)
         }
       }
       
       console.error('Auth error:', error)
-      return NextResponse.redirect(`${origin}/auth/signin?error=${encodeURIComponent(error?.message || 'Authentication failed')}`)
+      return NextResponse.redirect(`${origin}/auth?error=${encodeURIComponent(error?.message || 'Authentication failed')}`)
     } catch (error) {
       console.error('Callback error:', error)
-      return NextResponse.redirect(`${origin}/auth/signin?error=An unexpected error occurred`)
+      return NextResponse.redirect(`${origin}/auth?error=An unexpected error occurred`)
     }
   }
 
-  return NextResponse.redirect(`${origin}/auth/signin?error=No code provided`)
+  return NextResponse.redirect(`${origin}/auth?error=No code provided`)
 }

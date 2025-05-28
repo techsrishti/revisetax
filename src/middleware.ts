@@ -1,6 +1,6 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { createClient } from './utils/supabase/server'
+import { createClient } from '@/utils/supabase/server'
 // Add matcher configuration
 export const config = {
   matcher: [
@@ -30,17 +30,21 @@ export async function middleware(request: NextRequest) {
   )
   // If trying to access a protected route without being authenticated
   if (isProtectedPath && !user ) {
-    return NextResponse.redirect(new URL('/auth/signin', request.url))
+    return NextResponse.redirect(new URL('/auth', request.url))
   }
   
   if (isProtectedPath && !user?.phone) {
     console.log("User phone not found")
-    return NextResponse.redirect(new URL(`/auth/signup?email=${user?.email}&name=${user?.user_metadata?.name}&provider=${user?.app_metadata?.provider}&providerId=${user?.id}`, request.url))
+    return NextResponse.redirect(new URL(`/auth/details?email=${user?.email}&name=${user?.user_metadata?.full_name}&provider=${user?.app_metadata?.provider}&providerId=${user?.id}`, request.url))
   }
-  //http://localhost:3000/auth/signup?email=hmarupudi%40gmail.com&name=Hemanth+Marupudi&provider=google&providerId=8260a378-dd95-4281-8d47-3b7c47d7453f
  
-  // If accessing auth pages while authenticated (except signup)
-  if (user && request.nextUrl.pathname.startsWith('/auth') && !request.nextUrl.pathname.startsWith('/auth/signup')) {
+  // If accessing old auth pages, redirect to new unified auth page
+  if (user && (request.nextUrl.pathname.startsWith('/auth/signin') || request.nextUrl.pathname.startsWith('/auth/signup'))) {
+    return NextResponse.redirect(new URL('/dashboard', request.url))
+  }
+  
+  // If accessing auth page while authenticated with phone, redirect to dashboard
+  if (user && user.phone && request.nextUrl.pathname.startsWith('/auth') && !request.nextUrl.pathname.startsWith('/auth/details')) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 

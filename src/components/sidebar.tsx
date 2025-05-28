@@ -49,7 +49,7 @@ export default function Sidebar({ activeModule, setActiveModule, children }: Sid
     try {
       const supabase = createClient();
       await supabase.auth.signOut();
-      router.push('/auth/signin');
+      router.push('/auth');
     } catch (error) {
       console.error('Error signing out:', error);
     }
