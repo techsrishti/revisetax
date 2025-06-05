@@ -4,6 +4,8 @@ import crypto from 'crypto'
 import { v4 as uuidv4 } from 'uuid';
 import { createClient } from '@/utils/supabase/server';
 import Redis from 'ioredis';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 
 const PAYU_KEY = process.env.PAYU_KEY;  
 const PAYU_SALT = process.env.PAYU_SALT_32BIT;
@@ -408,6 +410,7 @@ export interface GetPaymentsSuccessResponse {
         initiatedAt: Date,
         settledAt: Date | null,
         invoiceUrl: string | null,
+        invoiceId: string | null,
         planName: string,
     }[]
 }
@@ -459,6 +462,7 @@ export async function getPayments(): Promise<GetPaymentsSuccessResponse | ErrorR
                 initiatedAt: true, 
                 settledAt: true, 
                 invoiceUrl: true,
+                invoiceId: true,
                 Plan: {
                     select: { 
                         name: true,
@@ -477,6 +481,7 @@ export async function getPayments(): Promise<GetPaymentsSuccessResponse | ErrorR
                 initiatedAt: payment.initiatedAt,
                 settledAt: payment.settledAt,
                 invoiceUrl: payment.invoiceUrl,
+                invoiceId: payment.invoiceId,
                 planName: payment.Plan.name,
             }))
         }
@@ -490,4 +495,87 @@ export async function getPayments(): Promise<GetPaymentsSuccessResponse | ErrorR
         }
     }
 
+}
+
+export interface GetInvoiceSuccessResponse { 
+    success: boolean,
+    invoiceUrl?: string,
+    error?: string,
+    errorMessage?: string,
+    errorCode?: string,
+}
+
+
+export async function getInvoice(invoiceId: string): Promise<GetInvoiceSuccessResponse > { 
+    try { 
+        const supabase = await createClient()
+        const { data: { user: supabaseUser } } = await supabase.auth.getUser()
+
+        if (!supabaseUser) { 
+            console.log("getInvoice: User not found.")
+            return { 
+                success: false,
+                error: 'User not found',
+                errorMessage: 'The user you are trying to pay for does not exist',
+                errorCode: 'USER_NOT_FOUND',
+            }
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { 
+                supabaseUserId: supabaseUser.id,
+            },
+            select: { 
+                id: true,
+                Payment: {
+                    where: { 
+                        invoiceId: invoiceId,
+                    }
+                }
+            }
+        })
+
+        if (!user) { 
+            console.log("getInvoice: User not found in the db")
+            return { 
+                success: false,
+                error: 'User not found',
+                errorMessage: 'The user you are trying to pay for does not exist',
+                errorCode: 'USER_NOT_FOUND',
+            }
+        }
+
+        if (user.Payment.length === 0) { 
+            console.log("getInvoice: No payment found for the user with invoiceId: ", invoiceId)
+            return { 
+                success: false,
+                error: 'No payment found',
+                errorMessage: 'No payment found for the user for this invoice',
+                errorCode: 'NO_PAYMENT_FOUND',
+            }
+        }
+
+        const s3 = new S3Client({region: "ap-south-2"})
+
+        const command = new GetObjectCommand({
+            Bucket: "revisetax-alpha-dev",
+            Key: `invoices/${invoiceId}.pdf`,
+            ResponseContentDisposition: `attachment; filename="revisetax-invoice-${invoiceId}.pdf"`
+        });
+
+        const signedUrl = await getSignedUrl(s3, command, { expiresIn: 60 * 60  });
+
+        return { 
+            success: true,
+            invoiceUrl: signedUrl,
+        }
+    } catch (error) { 
+        console.log("getInvoice: Error getting invoice: ", error)
+        return { 
+            success: false,
+            error: 'Failed to get invoice',
+            errorMessage: 'An unknown error occurred',
+            errorCode: 'UNKNOWN_ERROR',
+        }
+    }
 }
