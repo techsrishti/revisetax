@@ -397,3 +397,97 @@ export async function getUserSubscription(): Promise<UserSubscriptionSuccessResp
         }
     }
 }
+
+export interface GetPaymentsSuccessResponse { 
+    success: true,
+    payments: {
+        txnId: string,
+        status: string,
+        failedReason: string | null,
+        amount: number,
+        initiatedAt: Date,
+        settledAt: Date | null,
+        invoiceUrl: string | null,
+        planName: string,
+    }[]
+}
+
+export async function getPayments(): Promise<GetPaymentsSuccessResponse | ErrorResponse> { 
+
+    try { 
+        const supabase = await createClient()
+        const { data: { user: supabaseUser } } = await supabase.auth.getUser()
+
+        if (!supabaseUser) { 
+            console.log("getPayments: User not found.")
+            return { 
+                success: false,
+                error: 'User not found',
+                errorMessage: 'The user you are trying to pay for does not exist',
+                errorCode: 'USER_NOT_FOUND',
+            }
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { 
+                supabaseUserId: supabaseUser.id,
+            },
+            select: { 
+                id: true,
+            }   
+        })
+
+        if (!user) { 
+            console.log("getPayments: User not found in the db")
+            return { 
+                success: false,
+                error: 'User not found',
+                errorMessage: 'The user you are trying to pay for does not exist',
+                errorCode: 'USER_NOT_FOUND',
+            }
+        }
+
+        const payments = await prisma.payment.findMany({
+            where: { 
+                userId: user.id,
+            },
+            select: { 
+                txnId: true,
+                status: true, 
+                failedReason: true,
+                amount: true, 
+                initiatedAt: true, 
+                settledAt: true, 
+                invoiceUrl: true,
+                Plan: {
+                    select: { 
+                        name: true,
+                    }
+                }
+            }
+        })
+
+        return { 
+            success: true,
+            payments: payments.map((payment) => ({
+                txnId: payment.txnId,
+                status: payment.status,
+                failedReason: payment.failedReason,
+                amount: payment.amount.toNumber(),
+                initiatedAt: payment.initiatedAt,
+                settledAt: payment.settledAt,
+                invoiceUrl: payment.invoiceUrl,
+                planName: payment.Plan.name,
+            }))
+        }
+    } catch (error) { 
+        console.log("getPayments: Error getting payments: ", error)
+        return { 
+            success: false,
+            error: 'Failed to get payments',
+            errorMessage: 'An unknown error occurred',
+            errorCode: 'UNKNOWN_ERROR',
+        }
+    }
+
+}
