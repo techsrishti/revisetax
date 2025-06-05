@@ -41,5 +41,11 @@ jobs:
     - name: Install dependencies
       run: pnpm install --frozen-lockfile
     
+    - name: Database URL set
+      run: echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> $GITHUB_ENV
+    
+    - name: Prisma generate
+      run: pnpm prisma generate
+    
     - name: Build
       run: pnpm run build
