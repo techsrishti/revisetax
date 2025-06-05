@@ -18,8 +18,16 @@ const nextConfig = {
       ...config.resolve.alias,
       '@': './src',
     }
+    
+    config.module.exprContextCritical = false;  
+
     return config
+    
+
   },
+ 
+
+  
 }
 
 export default nextConfig
