@@ -1,6 +1,13 @@
 // cachePlansToRedis.ts
-import { PrismaClient, type Plan } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import Redis from 'ioredis';
+
+interface PlanData {
+  id: string;
+  name: string;
+  price: Prisma.Decimal;
+  features: Prisma.JsonValue;
+}
 
 const prisma = new PrismaClient();
 const redis = new Redis(); // Defaults to localhost:6379
@@ -16,7 +23,7 @@ async function cachePlansToRedis() {
       },
     });
 
-    const mappedPlans = plans.map((plan: Pick<Plan, 'id' | 'name' | 'price' | 'features'>) => ({
+    const mappedPlans = plans.map((plan: PlanData) => ({
       id: plan.id,
       name: plan.name,
       price: plan.price.toNumber(),
