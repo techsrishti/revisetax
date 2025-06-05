@@ -575,11 +575,10 @@
 
 .modalTitle {
   color: var(--Default-gray-900, #111827);
-  font-variant-numeric: lining-nums tabular-nums;
-  font-family: var(--font-grotesk);
+    font-family: var(--font-grotesk);
+    
   font-size: 24px;
-  font-style: normal;
-  font-weight: 700;
+   font-weight: 700;
   line-height: 100%;
   align-self: stretch;
   margin-bottom: 0;
