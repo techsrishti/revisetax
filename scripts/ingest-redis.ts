@@ -20,7 +20,7 @@ async function cachePlansToRedis() {
       id: plan.id,
       name: plan.name,
       price: plan.price.toNumber(),
-      features: plan.features as Record<string, boolean>,
+      features: plan.features,
     }));
 
     const cacheKey = 'plans:all';
