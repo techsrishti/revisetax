@@ -5,6 +5,7 @@ import type React from "react"
 import styles from "./sidebar.module.css"
 import { createClient } from "@/utils/supabase/client"
 import { useRouter } from "next/navigation"
+import { inter, grotesk } from '@/lib/fonts';
 
 interface SidebarProps {
   activeModule: string
@@ -64,7 +65,7 @@ export default function Sidebar({ activeModule, setActiveModule, children }: Sid
   };
   
   return (
-    <>
+    <div className={`${inter.variable} ${grotesk.variable}`}>
       {/* Mobile Header - Fixed at top */}
       <div className={styles.mobileHeader}>
         <button 
@@ -187,7 +188,7 @@ export default function Sidebar({ activeModule, setActiveModule, children }: Sid
           {children}
         </main>
       </div>
-    </>
+    </div>
   )
 }
 

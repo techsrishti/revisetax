@@ -1,6 +1,5 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "../node_modules/.prisma/client"
 }
 
 datasource db {
@@ -20,8 +19,6 @@ model User {
   updatedAt   DateTime @updatedAt
   Payment      Payment[]
   Subscription Subscription?
-  folders     Folder[]
-  files       File[]
 }
 
 model Payment {
@@ -77,30 +74,6 @@ model Subscription {
   Plan      Plan      @relation(fields: [planId], references: [id])
   User      User      @relation(fields: [userId], references: [id])
   Payment   Payment   @relation(fields: [paymentId], references: [id])
-}
-
-model Folder {
-  id        String   @id @default(uuid())
-  name      String
-  userId    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  files     File[]
-  User      User     @relation(fields: [userId], references: [id])
-}
-
-model File {
-  id        String   @id @default(uuid())
-  name      String
-  path      String
-  size      Int
-  type      String
-  folderId  String
-  userId    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  Folder    Folder   @relation(fields: [folderId], references: [id])
-  User      User     @relation(fields: [userId], references: [id])
 }
 
 enum PaymentStatus {

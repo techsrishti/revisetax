@@ -1,11 +1,12 @@
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ExternalLink } from "lucide-react"
+import { inter, grotesk } from '@/lib/fonts';
 import styles from "./chat-module.module.css"
 
 export default function ChatModule() {
   return (
-    <div className={styles.container}>
+    <div className={`${styles.container} ${inter.variable} ${grotesk.variable}`}>
       <div className={styles.content}>
         {/* Chat prompt */}
         <div className={styles.card}>

@@ -109,7 +109,7 @@
 .navLabel {
   width: 192px;
   height: 16px;
-  font-family: 'Inter Variable', sans-serif;
+  font-family: var(--font-inter);
   font-weight: 400;
   font-size: 16px;
   line-height: 100%;
@@ -151,7 +151,7 @@
 .copyright {
   width: 160px;
   height: 12px;
-  font-family: 'Inter Variable', sans-serif;
+  font-family: var(--font-inter);
   font-weight: 400;
   font-size: 12px;
   line-height: 100%;
@@ -229,7 +229,7 @@
 .itemText {
   width: 82px;
   height: 16px;
-  font-family: 'Inter Variable', sans-serif;
+  font-family: var(--font-inter);
   font-weight: 400;
   font-size: 16px;
   line-height: 100%;
@@ -240,27 +240,14 @@
 .itemTextLogout {
   width: 53px;
   height: 16px;
-  font-family: 'Inter Variable', sans-serif;
+  font-family: var(--font-inter);
   font-weight: 400;
   font-size: 16px;
   line-height: 100%;
   letter-spacing: 0%;
   color: #B91C1C;
 }
-@font-face {
-  font-family: 'Cabinet Grotesk Variable';
-  src: url('/fonts/CabinetGrotesk-Variable.woff2') format('woff2');
-  font-weight: 100 900;
-  font-display: swap;
-  font-style: normal;
-}
 
-@font-face {
-  font-family: 'Inter Variable';
-  src: url('/fonts/InterVariable.woff2') format('woff2');
-  font-display: swap;
-  font-style: normal;
-}
 @keyframes moveInBottom {
   from {
     opacity: 0;

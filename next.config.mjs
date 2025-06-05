@@ -8,15 +8,19 @@ const nextConfig = {
     serverActions: {
       allowedOrigins: [
         process.env.NEXT_PUBLIC_URL,
-        "testtxncdn.payubiz.in"
+        "testtxncdn.payubiz.in",
+        "txncdn.payubiz.in",
       ]
     }
   },
   webpack: (config) => {
     config.resolve.alias = {
+      
       ...config.resolve.alias,
       '@': './src',
     }
+    config.module.exprContextCritical = false;
+
     return config
   },
 }

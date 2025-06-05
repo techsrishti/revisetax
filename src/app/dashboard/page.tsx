@@ -3,10 +3,10 @@
 import { useState } from "react"
 import ChatModule from "@/components/chat-module"
 import PlansModule from "@/components/plans-module"
-import DocumentsModule from "@/components/documents-module"
-import BillingModule from "@/components/billing-module"
+ import BillingModule from "@/components/billing-module"
 import Sidebar from "@/components/sidebar"
 import styles from "./styles.module.css"
+import Documents from "@/components/documents"
 
 export default function Dashboard() {
   const [activeModule, setActiveModule] = useState("chat")
@@ -16,7 +16,7 @@ export default function Dashboard() {
       <Sidebar activeModule={activeModule} setActiveModule={setActiveModule} />
       <div className={styles.content}>
         {activeModule === "chat" && <ChatModule />}
-        {activeModule === "documents" && <DocumentsModule />}
+        {activeModule === "documents" && <Documents />}
         {activeModule === "plans" && <BillingModule />}
         {activeModule === "billing" && <PlansModule />}
       </div>
