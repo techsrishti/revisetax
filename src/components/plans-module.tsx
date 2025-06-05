@@ -33,14 +33,15 @@ export default function PlansModule() {
   const { toast } = useToast();
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(true);
+  const [paymentsLoading, setPaymentsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadingInvoiceId, setLoadingInvoiceId] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
-      setError(null);
+    // Fetch subscription data
+    async function fetchSubscription() {
+      setSubscriptionLoading(true);
       try {
         const subRes = await getUserSubscription();
         if (subRes.success) {
@@ -56,6 +57,17 @@ export default function PlansModule() {
         } else {
           setError(subRes.errorMessage || "Failed to fetch subscription");
         }
+      } catch (e) {
+        setError("Failed to fetch subscription");
+      } finally {
+        setSubscriptionLoading(false);
+      }
+    }
+
+    // Fetch payments data
+    async function fetchPayments() {
+      setPaymentsLoading(true);
+      try {
         const payRes = await getPayments();
         if (payRes.success) {
           setPayments(
@@ -69,12 +81,15 @@ export default function PlansModule() {
           setError(payRes.errorMessage || "Failed to fetch payments");
         }
       } catch (e) {
-        setError("Something went wrong");
+        setError("Failed to fetch payments");
       } finally {
-        setLoading(false);
+        setPaymentsLoading(false);
       }
     }
-    fetchData();
+
+    // Start both requests independently
+    fetchSubscription();
+    fetchPayments();
   }, []);
 
   const planImages: Record<string, string> = {
@@ -123,8 +138,11 @@ export default function PlansModule() {
     <div className={styles.container}>
       <h2 className={styles.subscriptionHeading} style={{ marginBottom: 24 }}>Subscription</h2>
       <div className={styles.subscriptionCard}>
-        {loading ? (
-          <div>Loading...</div>
+        {subscriptionLoading ? (
+          <div className={styles.bufferContainer}>
+            <div className={styles.bufferSpinner}></div>
+            <div className={styles.bufferText}>Loading your subscription details...</div>
+          </div>
         ) : error ? (
           <div style={{ color: "#dc2626" }}>{error}</div>
         ) : subscription ? (
@@ -178,8 +196,15 @@ export default function PlansModule() {
       <div className={styles.tableWrapper}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <tbody>
-            {loading ? (
-              <tr><td colSpan={5} style={{ padding: 24 }}>Loading...</td></tr>
+            {paymentsLoading ? (
+              <tr>
+                <td colSpan={5} style={{ padding: 24 }}>
+                  <div className={styles.bufferContainer}>
+                    <div className={styles.bufferSpinner}></div>
+                    <div className={styles.bufferText}>Loading your payment history...</div>
+                  </div>
+                </td>
+              </tr>
             ) : payments.length === 0 ? (
               <tr><td colSpan={5} style={{ padding: 24 }}>No payments found.</td></tr>
             ) : (
@@ -230,7 +255,7 @@ export default function PlansModule() {
                           </button>
                         </div>
                       ) : (
-                        <span style={{ color: "#9ca3af" }}>Not available</span>
+                        <span style={{ color: "#9ca3af" }}>Invoice not available</span>
                       )}
                     </td>
                   </tr>
@@ -238,9 +263,8 @@ export default function PlansModule() {
             )}
           </tbody>
         </table>
-        <Toaster />
       </div>
-
+      <Toaster />
     </div>
   );
 }
