@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({
                     success: false,
                     error: "Hash mismatch",
-                    errorMessage: "Evadra nuvvu. Pakkaku vellu aaduko.",
+                    errorMessage: "Hash mismatch.",
                 }, { status: 200 });
         }
         console.log('hash matched')
