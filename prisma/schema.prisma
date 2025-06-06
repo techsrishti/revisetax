@@ -1,0 +1,87 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(uuid())
+  supabaseUserId String @unique
+  name        String?
+  email       String?  @unique
+  phoneNumber String   @unique
+  provider    String?  // The auth provider (google, linkedin, etc)
+  providerId  String?  // The provider's user ID
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  Payment      Payment[]
+  Subscription Subscription?
+}
+
+model Payment {
+  id           String        @id @default(uuid())
+  userId       String
+  planId       String
+  txnId        String        @unique
+  status       PaymentStatus
+  failedReason String?
+  paymentMode  String?
+  amount       Decimal       @db.Decimal(10, 2)
+  currency     String        @default("INR")
+  hash         String
+  initiatedAt  DateTime      @default(now())
+  expiresAt    DateTime
+  settledAt    DateTime?
+  refundedAt   DateTime?
+  refundReason String?
+  webhookRaw   Json?
+  invoiceUrl   String?
+  notes        String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  Plan         Plan          @relation(fields: [planId], references: [id])
+  User         User          @relation(fields: [userId], references: [id])
+  Subscription Subscription?
+}
+
+model Plan {
+  id           String         @id @default(uuid())
+  name         String         @unique
+  price        Decimal        @db.Decimal(10, 2)
+  currency     String         @default("INR")
+  isActive     Boolean        @default(true)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  features     Json
+  Payment      Payment[]
+  Subscription Subscription[]
+}
+
+model Subscription {
+  id        String    @id @default(uuid())
+  userId    String    @unique
+  planId    String
+  paymentId String    @unique
+  planName  String
+  startDate DateTime
+  endDate   DateTime
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  Plan      Plan      @relation(fields: [planId], references: [id])
+  User      User      @relation(fields: [userId], references: [id])
+  Payment   Payment   @relation(fields: [paymentId], references: [id])
+}
+
+enum PaymentStatus {
+  initiated
+  success
+  failed
+  refunded
+  bounced
+  expired
+}

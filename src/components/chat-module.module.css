@@ -1,0 +1,278 @@
+.container {
+  display: flex;
+  padding-top: 48px;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  flex: 1 0 auto;
+  align-self: stretch;
+  background: #FFFFFF;
+  min-height: 100%;
+  width: 100%;
+}
+
+@font-face {
+  font-family: 'Cabinet Grotesk Variable';
+  src: url('/fonts/CabinetGrotesk-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: block;
+}
+@font-face {
+  font-family: 'Inter Variable';
+  src: url('/fonts/InterVariable.woff2') format('woff2');
+  font-display: block;
+  font-style: normal;
+}
+ 
+@media (min-width: 768px) {
+  .container {
+    padding-top: 72px;
+    gap: 40px;
+  }
+}
+
+.content {
+  align-items: center;
+  width: 100%;
+  padding: 0 16px;
+  padding-bottom: 24px; /* Add bottom padding for better scrolling experience */
+  max-width: 500px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: min-content; /* Ensure content can grow */
+}
+
+.card {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 20px;
+  gap: 12px;
+  width: 100%;
+  border-radius: 0px 0px 8px 8px;
+  border-top: 4px solid var(--Brand, #E9420C);
+  background: var(--Default-white, #FFF);
+  box-shadow: 0px 12px 40px 0px rgba(0, 0, 0, 0.12),
+              0px 8px 16px 0px rgba(0, 0, 0, 0.08),
+              0px 4px 8px 0px rgba(0, 0, 0, 0.06),
+              0px 2px 4px 0px rgba(0, 0, 0, 0.08),
+              0px 0px 0px 1px rgba(0, 0, 0, 0.06);
+  margin-bottom: 16px;
+}
+
+@media (min-width: 768px) {
+  .card {
+    padding: 25px;
+    gap: 16px;
+  }
+}
+
+.card:nth-child(2) {
+  border-top: 4px solid hsl(var(--brand-dark));
+}
+
+.cardTitle {
+  font-family: "Cabinet Grotesk Variable";
+  font-size: 20px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 100%;
+  color: var(--Extended-gray-900, #18181B);
+  font-variant-numeric: lining-nums tabular-nums;
+  margin: 0px;
+}
+
+@media (min-width: 768px) {
+  .cardTitle {
+    font-size: 24px;
+  }
+}
+
+.cardDescription {
+  font-family: "Inter Variable";
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 20px;
+  color: var(--Extended-gray-700,#18181B);
+  font-feature-settings: 'ss01' on, 'cv05' on, 'cv08' on, 'cv11' on;
+  margin: 0px;
+}
+
+@media (min-width: 768px) {
+  .cardDescription {
+    font-size: 14px;
+    line-height: 24px;
+  }
+}
+
+.section {
+  margin-bottom: 12px;
+}
+
+.sectionTitle {
+  font-family: "Inter Variable";
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 24px;
+  color: var(--Extended-gray-700, #3F3F46);
+  font-feature-settings: 'ss01' on, 'cv05' on, 'cv08' on, 'cv11' on;
+  margin: 0 0 12px 0;
+}
+
+.checkboxItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.checkboxContent {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  margin-left: 4px;
+}
+
+.checkbox {
+  box-sizing: border-box;
+  display: flex;
+  width: 24px;
+  height: 24px;
+  justify-content: center;
+  align-items: center;
+  border: 2px solid #18181B;
+  border-radius: 0;
+  flex-shrink: 0;
+  cursor: pointer;
+  background: #FFFFFF;
+  transition: all 0.2s ease;
+}
+
+.checkbox[data-state="checked"] {
+  background: #18181B;
+  display: flex;
+  width: 24px;
+  height: 24px;
+   align-items: center;
+  justify-content: center;
+}
+
+.checkboxLabel {
+  font-family: "Inter Variable";
+  font-size: 16px;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 100%;
+  color: var(--Extended-gray-900, #18181B);
+  font-feature-settings: 'ss01' on, 'cv05' on, 'cv08' on, 'cv11' on;
+  margin: 2px 0 0 0;
+  cursor: pointer;
+}
+
+.subLabel {
+  font-family: "Inter Variable";
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 100%;
+  color: hsl(var(--brand-text-gray));
+  margin: 4px0 240px;
+}
+ 
+.checkboxGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.primaryButton {
+  display: flex;
+  height: 40px;
+  padding: 10px 24px;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  align-self: stretch;
+  background: var(--Extended-gray-900,#E9420C);
+  border-radius: 4px;
+  font-family: 'Inter Variable';
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 100%;
+  color: #FFFFFF;
+  border: none;
+  cursor: pointer;
+}
+
+@media (min-width: 768px) {
+  .primaryButton {
+    height: 48px;
+    padding: 12px 32px;
+    font-size: 14px;
+  }
+}
+
+.primaryButton:hover {
+  background-color: hsl(var(--brand-primary) / 0.9);
+}
+
+.callTitle {
+  font-family: "Cabinet Grotesk Variable";
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 100%;
+  color: hsl(var(--brand-dark));
+  margin: 0 0 8px 0;
+}
+
+.callDescription {
+  font-family: "Inter Variable";
+  font-weight: 400;
+  font-size: 13px;
+  line-height: 20px;
+  color: hsl(var(--brand-text-dark));
+  margin: 0 0 16px 0;
+}
+
+.scheduleButton {
+  display: flex;
+  height: 40px;
+  padding: 10px 24px;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  align-self: stretch;
+  background: var(--Extended-gray-900,#0e0e0e);
+  border-radius: 4px;
+  font-family: "Inter Variable";
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 100%;
+  color: var(--Default-white, #FFF);
+  font-feature-settings: 'ss01' on, 'cv05' on, 'cv08' on, 'cv11' on;
+  border: none;
+  cursor: pointer;
+}
+
+@media (min-width: 768px) {
+  .scheduleButton {
+    height: 48px;
+    padding: 12px 32px;
+    font-size: 16px;
+  }
+}
+
+.scheduleButton:hover {
+  background: hsl(var(--brand-dark));
+  color: #FFFFFF;
+}
+
+.scheduleIcon {
+  margin-right: 6px;
+  height: 14px;
+  width: 14px;
+}
