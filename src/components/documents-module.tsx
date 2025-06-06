@@ -20,6 +20,7 @@ import {
 import { toast } from 'sonner';
 import { interLocal, cabinetGrotesk } from '@/app/fonts';
 import styles from './documents-module.module.css';
+import { v4 as uuidv4 } from 'uuid';
 
 interface FolderItem {
   name: string;
@@ -39,6 +40,7 @@ interface FileItem {
     mimetype: string;
   };
   path: string;
+  storageName?: string; // Add storage name for database integration
 }
 
 interface StorageItem {
@@ -49,6 +51,26 @@ interface StorageItem {
   };
   created_at?: string;
   updated_at?: string;
+}
+
+// Database types for API responses
+interface DbFolder {
+  id: string;
+  name: string;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface DbFile {
+  id: string;
+  originalName: string;
+  storageName: string;
+  size: string; // BigInt comes as string from API
+  mimeType: string;
+  createdAt: string;
+  updatedAt: string;
+  folderId: string;
 }
 
 export default function Documents() {
@@ -196,6 +218,39 @@ export default function Documents() {
         return;
       }
 
+      // First create the folder marker in storage
+      const folderMarkerPath = `${user.id}/${currentPath}${newFolderName}.folder_marker`;
+      const { error: storageError } = await supabase
+        .storage
+        .from('documents')
+        .upload(folderMarkerPath, new Blob([''], { type: 'text/plain' }), {
+          upsert: true
+        });
+
+      if (storageError) {
+        console.error('Error creating folder marker:', storageError);
+        toast.error('Failed to create folder');
+        return;
+      }
+
+      // Then create the folder record in database
+      const response = await fetch('/api/folders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: newFolderName,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Error creating folder in database:', errorData);
+        // If database creation fails, we could optionally clean up the storage marker
+        // But for now, we'll continue since the storage folder was created successfully
+      }
+
       const now = new Date().toISOString();
       const newFolder: FolderItem = {
         name: newFolderName,
@@ -204,20 +259,6 @@ export default function Documents() {
         updated_at: now,
         path: currentPath
       };
-
-      const folderMarkerPath = `${user.id}/${currentPath}${newFolderName}.folder_marker`;
-      const { error } = await supabase
-        .storage
-        .from('documents')
-        .upload(folderMarkerPath, new Blob([''], { type: 'text/plain' }), {
-          upsert: true
-        });
-
-      if (error) {
-        console.error('Error creating folder marker:', error);
-        toast.error('Failed to create folder');
-        return;
-      }
 
       setFolders(prev => [...prev, newFolder]);
       toast.success('Folder created successfully');
@@ -247,18 +288,63 @@ export default function Documents() {
       const now = new Date().toISOString();
       const newFiles: FileItem[] = [];
 
-      for (const file of Array.from(uploadedFiles)) {
-        const filePath = `${user.id}/${currentPath}${file.name}`;
+      // Get the current folder's database ID if we're inside a folder
+      let currentFolderId: string | null = null;
+      if (currentPath) {
+        const pathParts = currentPath.split('/').filter(Boolean);
+        const currentFolderName = pathParts[pathParts.length - 1];
         
-        const { error } = await supabase
+        if (currentFolderName) {
+          // Fetch folders from database to get the correct folder ID
+          const folderResponse = await fetch('/api/folders');
+          if (folderResponse.ok) {
+            const dbFolders = await folderResponse.json();
+            const dbFolder = dbFolders.find((f: DbFolder) => f.name === currentFolderName);
+            if (dbFolder) {
+              currentFolderId = dbFolder.id;
+            }
+          }
+        }
+      }
+
+      for (const file of Array.from(uploadedFiles)) {
+        // Generate a unique storage name to avoid conflicts
+        const storageName = `${uuidv4()}-${file.name}`;
+        const filePath = `${user.id}/${currentPath}${storageName}`;
+        
+        // First upload to Supabase Storage
+        const { error: storageError } = await supabase
           .storage
           .from('documents')
           .upload(filePath, file, { upsert: true });
 
-        if (error) {
-          console.error('Error uploading file:', error);
+        if (storageError) {
+          console.error('Error uploading file:', storageError);
           toast.error(`Failed to upload ${file.name}`);
           continue;
+        }
+
+        // Then create file record in database if we have a folder ID
+        if (currentFolderId) {
+          const fileResponse = await fetch('/api/files', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              folderId: currentFolderId,
+              originalName: file.name,
+              storageName: storageName,
+              size: file.size,
+              mimeType: file.type,
+            }),
+          });
+
+          if (!fileResponse.ok) {
+            const errorData = await fileResponse.json();
+            console.error('Error creating file record in database:', errorData);
+            // Continue anyway since storage upload was successful
+          }
         }
 
         newFiles.push({
@@ -270,7 +356,8 @@ export default function Documents() {
             size: file.size,
             mimetype: file.type
           },
-          path: currentPath
+          path: currentPath,
+          storageName: storageName
         });
       }
 
@@ -309,7 +396,9 @@ export default function Documents() {
         return;
       }
 
-      const filePath = `${user.id}/${file.path}${file.name}`;
+      // Use storageName if available, otherwise fall back to display name for older files
+      const fileName = file.storageName || file.name;
+      const filePath = `${user.id}/${file.path}${fileName}`;
       const { data, error } = await supabase
         .storage
         .from('documents')
@@ -322,7 +411,7 @@ export default function Documents() {
       const url = URL.createObjectURL(data);
       const a = document.createElement('a');
       a.href = url;
-      a.download = file.name;
+      a.download = file.name; // Use display name for download
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -348,13 +437,28 @@ export default function Documents() {
       if (type === 'file') {
         const file = files.find(f => f.id === id);
         if (file) {
-          const filePath = `${user.id}/${file.path}${file.name}`;
-          const { error } = await supabase
+          // Delete from Supabase Storage
+          const filePath = file.storageName 
+            ? `${user.id}/${file.path}${file.storageName}`
+            : `${user.id}/${file.path}${file.name}`;
+          const { error: storageError } = await supabase
             .storage
             .from('documents')
             .remove([filePath]);
           
-          if (error) throw error;
+          if (storageError) throw storageError;
+
+          // Delete from database if file has storage name (indicating it's tracked in DB)
+          if (file.storageName) {
+            const deleteResponse = await fetch(`/api/files?storageName=${encodeURIComponent(file.storageName)}`, {
+              method: 'DELETE',
+            });
+            
+            if (!deleteResponse.ok) {
+              console.error('Failed to delete file from database');
+              // Continue anyway since storage deletion was successful
+            }
+          }
         }
         
         setFiles(prev => prev.filter(f => f.id !== id));
@@ -380,11 +484,30 @@ export default function Documents() {
             }
           }
 
-          // Delete the folder marker
+          // Delete the folder marker from storage
           await supabase
             .storage
             .from('documents')
             .remove([`${folderPath}.folder_marker`]);
+
+          // Delete the folder from database
+          // First, we need to find the database folder by name since the storage ID doesn't match the DB ID
+          const folderResponse = await fetch('/api/folders');
+          if (folderResponse.ok) {
+            const dbFolders = await folderResponse.json();
+            const dbFolder = dbFolders.find((f: DbFolder) => f.name === folder.name);
+            
+            if (dbFolder) {
+              const deleteResponse = await fetch(`/api/folders?id=${dbFolder.id}`, {
+                method: 'DELETE',
+              });
+              
+              if (!deleteResponse.ok) {
+                console.error('Failed to delete folder from database');
+                // We continue anyway since the storage deletion was successful
+              }
+            }
+          }
         }
         
         setFolders(prev => prev.filter(f => f.id !== id));
@@ -434,30 +557,84 @@ export default function Documents() {
         return;
       }
 
-      const oldFilePath = `${user.id}/${file.path}${file.name}`;
-      const newFilePath = `${user.id}/${file.path}${newName}`;
+      // Generate new storage name with the new filename
+      const newStorageName = file.storageName 
+        ? `${uuidv4()}-${newName}`
+        : `${uuidv4()}-${newName}`;
 
-      // Download the file, upload with new name, then delete old
+      const oldFilePath = file.storageName 
+        ? `${user.id}/${file.path}${file.storageName}`
+        : `${user.id}/${file.path}${file.name}`;
+      
+      const newFilePath = `${user.id}/${file.path}${newStorageName}`;
+
+      // Step 1: Download the existing file
       const { data: fileData, error: downloadError } = await supabase
         .storage
         .from('documents')
         .download(oldFilePath);
 
-      if (downloadError) throw downloadError;
+      if (downloadError) {
+        console.error('Error downloading file for rename:', downloadError);
+        toast.error('Failed to access file for renaming');
+        return;
+      }
 
+      // Step 2: Upload with new name
       const { error: uploadError } = await supabase
         .storage
         .from('documents')
         .upload(newFilePath, fileData, { upsert: true });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('Error uploading renamed file:', uploadError);
+        toast.error('Failed to create renamed file');
+        return;
+      }
 
-      await supabase.storage.from('documents').remove([oldFilePath]);
+      // Step 3: Update database record if file is tracked in DB
+      if (file.storageName) {
+        const updateResponse = await fetch('/api/files', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            storageName: file.storageName, // Find by old storage name
+            originalName: newName,
+            newStorageName: newStorageName, // Update to new storage name
+          }),
+        });
 
-      setFiles(prev => prev.map(file => 
-        file.id === id 
-          ? { ...file, name: newName, updated_at: new Date().toISOString() }
-          : file
+        if (!updateResponse.ok) {
+          const errorData = await updateResponse.json();
+          console.error('Failed to update file in database:', errorData);
+          
+          // Rollback: Delete the newly uploaded file
+          await supabase.storage.from('documents').remove([newFilePath]);
+          
+          toast.error('Failed to update file record');
+          return;
+        }
+      }
+
+      // Step 4: Delete the old file (only after everything else succeeds)
+      const { error: deleteError } = await supabase
+        .storage
+        .from('documents')
+        .remove([oldFilePath]);
+
+      if (deleteError) {
+        console.error('Error deleting old file:', deleteError);
+        // Don't fail the operation since the new file exists and DB is updated
+        console.warn('Old file could not be deleted, but rename was successful');
+      }
+
+      // Step 5: Update local state with new name and storage name
+      setFiles(prev => prev.map(f => 
+        f.id === id 
+          ? { ...f, name: newName, updated_at: new Date().toISOString(), storageName: newStorageName }
+          : f
       ));
 
       toast.success('File renamed successfully');
