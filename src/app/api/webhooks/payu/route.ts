@@ -3,6 +3,28 @@ import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 
+function generateInvoiceId(): string {
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const randomPrefix = Array.from({ length: 3 }, () =>
+      letters[Math.floor(Math.random() * letters.length)]
+    ).join('');
+  
+    const randomNumber = Math.floor(10000 + Math.random() * 90000); // 5-digit number
+    return `${randomPrefix}${randomNumber}`;
+}
+
+function getFormattedDate(): string {
+    const today = new Date();
+    const options: Intl.DateTimeFormatOptions = {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    };
+  
+    const formatted = today.toLocaleDateString('en-GB', options); 
+    return formatted.replace(/(\d+ \w{3}) (\d{4})/, '$1, $2'); // "5 Jun, 2025"
+  }
+  
 interface PayuWebhookPayload {
     mihpayid: string;
     mode: string;
@@ -93,7 +115,7 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({
                     success: false,
                     error: "Hash mismatch",
-                    errorMessage: "Evadra nuvvu. Pakkaku vellu aaduko.",
+                    errorMessage: "Hash mismatch.",
                 }, { status: 200 });
         }
         console.log('hash matched')
@@ -173,6 +195,36 @@ export async function POST(request: NextRequest) {
 
            const endDate = juneFirstNextYear < twelveMonthsFromStartDate ? juneFirstNextYear : twelveMonthsFromStartDate;
 
+           //TODO: Add invoice generation here. 
+           const invoiceId = generateInvoiceId(); 
+           const invoiceName = `${payload.firstname} ${payload.lastname}`
+           const invoicePhone = `${payload.phone}`
+           const subtotal = Number(payment.amount) / 1.18;
+           const gstAmount = Number(payment.amount) - subtotal;
+           const totalAmount = Number(payment.amount);
+           const rate = Number(payment.amount) ;
+           const amount = Number(payment.amount);
+           const invoiceDate = getFormattedDate();
+           const planName = payment.Plan.name;
+           const awsLambdaURL = process.env.AWS_LAMBDA_URL || "https://18khwno1j0.execute-api.ap-south-2.amazonaws.com/featbilling/revisetax-generate-pdf";
+           const awsLambdaPayload = {   
+            "name": invoiceName,
+            "phone": invoicePhone,
+            "invoice_id": invoiceId,
+            "invoice_date": invoiceDate,
+            "plan_name": planName,
+            "rate": rate,   
+            "amount": amount,
+            "subtotal": subtotal,
+            "gst_amount": gstAmount,
+            "total_amount": totalAmount,
+           }
+           //dont await for lambda response 
+           fetch(awsLambdaURL, {
+            method: "POST",
+            body: JSON.stringify(awsLambdaPayload),
+           })
+           console.log('request sent to lambda')
            //Using transaction for both payment update and subscription creation.
            const [updatePayment, updateSubscription] = await prisma.$transaction([
                 prisma.payment.update({ 
@@ -180,6 +232,7 @@ export async function POST(request: NextRequest) {
                          id: payment.id
                     }, 
                     data: {
+                        invoiceId: invoiceId,
                         status: "success",
                         settledAt: new Date(),                    
                     }

@@ -4,6 +4,8 @@ import crypto from 'crypto'
 import { v4 as uuidv4 } from 'uuid';
 import { createClient } from '@/utils/supabase/server';
 import Redis from 'ioredis';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 
 const PAYU_KEY = process.env.PAYU_KEY;  
 const PAYU_SALT = process.env.PAYU_SALT_32BIT;
@@ -392,6 +394,186 @@ export async function getUserSubscription(): Promise<UserSubscriptionSuccessResp
         return {
             success: false,
             error: 'Failed to get user subscription',
+            errorMessage: 'An unknown error occurred',
+            errorCode: 'UNKNOWN_ERROR',
+        }
+    }
+}
+
+export interface GetPaymentsSuccessResponse { 
+    success: true,
+    payments: {
+        txnId: string,
+        status: string,
+        failedReason: string | null,
+        amount: number,
+        initiatedAt: Date,
+        settledAt: Date | null,
+        invoiceUrl: string | null,
+        invoiceId: string | null,
+        planName: string,
+    }[]
+}
+
+export async function getPayments(): Promise<GetPaymentsSuccessResponse | ErrorResponse> { 
+
+    try { 
+        const supabase = await createClient()
+        const { data: { user: supabaseUser } } = await supabase.auth.getUser()
+
+        if (!supabaseUser) { 
+            console.log("getPayments: User not found.")
+            return { 
+                success: false,
+                error: 'User not found',
+                errorMessage: 'The user you are trying to pay for does not exist',
+                errorCode: 'USER_NOT_FOUND',
+            }
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { 
+                supabaseUserId: supabaseUser.id,
+            },
+            select: { 
+                id: true,
+            }   
+        })
+
+        if (!user) { 
+            console.log("getPayments: User not found in the db")
+            return { 
+                success: false,
+                error: 'User not found',
+                errorMessage: 'The user you are trying to pay for does not exist',
+                errorCode: 'USER_NOT_FOUND',
+            }
+        }
+
+        const payments = await prisma.payment.findMany({
+            where: { 
+                userId: user.id,
+            },
+            select: { 
+                txnId: true,
+                status: true, 
+                failedReason: true,
+                amount: true, 
+                initiatedAt: true, 
+                settledAt: true, 
+                invoiceUrl: true,
+                invoiceId: true,
+                Plan: {
+                    select: { 
+                        name: true,
+                    }
+                }
+            }
+        })
+
+        return { 
+            success: true,
+            payments: payments.map((payment) => ({
+                txnId: payment.txnId,
+                status: payment.status,
+                failedReason: payment.failedReason,
+                amount: payment.amount.toNumber(),
+                initiatedAt: payment.initiatedAt,
+                settledAt: payment.settledAt,
+                invoiceUrl: payment.invoiceUrl,
+                invoiceId: payment.invoiceId,
+                planName: payment.Plan.name,
+            }))
+        }
+    } catch (error) { 
+        console.log("getPayments: Error getting payments: ", error)
+        return { 
+            success: false,
+            error: 'Failed to get payments',
+            errorMessage: 'An unknown error occurred',
+            errorCode: 'UNKNOWN_ERROR',
+        }
+    }
+
+}
+
+export interface GetInvoiceSuccessResponse { 
+    success: boolean,
+    invoiceUrl?: string,
+    error?: string,
+    errorMessage?: string,
+    errorCode?: string,
+}
+
+
+export async function getInvoice(invoiceId: string): Promise<GetInvoiceSuccessResponse > { 
+    try { 
+        const supabase = await createClient()
+        const { data: { user: supabaseUser } } = await supabase.auth.getUser()
+
+        if (!supabaseUser) { 
+            console.log("getInvoice: User not found.")
+            return { 
+                success: false,
+                error: 'User not found',
+                errorMessage: 'The user you are trying to pay for does not exist',
+                errorCode: 'USER_NOT_FOUND',
+            }
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { 
+                supabaseUserId: supabaseUser.id,
+            },
+            select: { 
+                id: true,
+                Payment: {
+                    where: { 
+                        invoiceId: invoiceId,
+                    }
+                }
+            }
+        })
+
+        if (!user) { 
+            console.log("getInvoice: User not found in the db")
+            return { 
+                success: false,
+                error: 'User not found',
+                errorMessage: 'The user you are trying to pay for does not exist',
+                errorCode: 'USER_NOT_FOUND',
+            }
+        }
+
+        if (user.Payment.length === 0) { 
+            console.log("getInvoice: No payment found for the user with invoiceId: ", invoiceId)
+            return { 
+                success: false,
+                error: 'No payment found',
+                errorMessage: 'No payment found for the user for this invoice',
+                errorCode: 'NO_PAYMENT_FOUND',
+            }
+        }
+
+        const s3 = new S3Client({region: "ap-south-2"})
+
+        const command = new GetObjectCommand({
+            Bucket: "revisetax-alpha-dev",
+            Key: `invoices/${invoiceId}.pdf`,
+            ResponseContentDisposition: `attachment; filename="revisetax-invoice-${invoiceId}.pdf"`
+        });
+
+        const signedUrl = await getSignedUrl(s3, command, { expiresIn: 60 * 60  });
+
+        return { 
+            success: true,
+            invoiceUrl: signedUrl,
+        }
+    } catch (error) { 
+        console.log("getInvoice: Error getting invoice: ", error)
+        return { 
+            success: false,
+            error: 'Failed to get invoice',
             errorMessage: 'An unknown error occurred',
             errorCode: 'UNKNOWN_ERROR',
         }
