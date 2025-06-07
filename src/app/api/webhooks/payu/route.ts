@@ -206,7 +206,7 @@ export async function POST(request: NextRequest) {
            const amount = Number(payment.amount);
            const invoiceDate = getFormattedDate();
            const planName = payment.Plan.name;
-           const awsLambdaURL = "https://18khwno1j0.execute-api.ap-south-2.amazonaws.com/featbilling/revisetax-generate-pdf"
+           const awsLambdaURL = process.env.AWS_LAMBDA_URL;
            const awsLambdaPayload = {   
             "name": invoiceName,
             "phone": invoicePhone,
