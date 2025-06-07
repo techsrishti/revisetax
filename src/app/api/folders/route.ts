@@ -96,45 +96,26 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Get all files in the folder before deletion (for storage cleanup)
-    const folderFiles = await prisma.file.findMany({
-      where: { folderId: folderId },
-      select: { id: true, storageName: true }
+    // Check if folder has any files
+    const fileCount = await prisma.file.count({
+      where: { folderId: folderId }
     });
 
-    // Use database transaction to ensure atomicity
-    await prisma.$transaction(async (tx) => {
-      // Step 1: Delete all files from database first
-      if (folderFiles.length > 0) {
-        await tx.file.deleteMany({
-          where: { folderId: folderId }
-        });
-      }
-
-      // Step 2: Delete folder from database
-      await tx.folder.delete({
-        where: { 
-          id: folderId,
-          userId: dbUser.id  
-        }
-      });
-    });
-
-    // Step 3: Clean up files from storage (after successful DB deletion)
-    if (folderFiles.length > 0) {
-      const filesToDelete = folderFiles.map(file => `${user.id}/${file.storageName}`);
-      
-      const { error: storageError } = await supabase
-        .storage
-        .from('documents')
-        .remove(filesToDelete);
-      
-      if (storageError) {
-        console.error('Error deleting files from storage:', storageError);
-        // Don't fail the operation since DB records are already deleted
-        console.warn('Some files could not be deleted from storage, but folder deletion was successful');
-      }
+    // Prevent deletion if folder contains files
+    if (fileCount > 0) {
+      return NextResponse.json({ 
+        error: 'This folder cannot be deleted since there are files inside this folder. Empty this folder completely to delete this folder.',
+        fileCount: fileCount
+      }, { status: 400 });
     }
+
+    // Delete empty folder from database
+    await prisma.folder.delete({
+      where: { 
+        id: folderId,
+        userId: dbUser.id  
+      }
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

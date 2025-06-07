@@ -89,7 +89,7 @@ export default function Documents() {
   const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
   const [editingFile, setEditingFile] = useState<string | null>(null);
   const [editFileName, setEditFileName] = useState('');
-  const [deleteConfirm, setDeleteConfirm] = useState<{id: string, name: string, type: 'file' | 'folder'} | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{id: string, name: string, type: 'file' | 'folder', fileCount?: number} | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const supabase = createClient();
 
@@ -640,7 +640,7 @@ export default function Documents() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => setDeleteConfirm({id: folder.id, name: folder.name, type: 'folder'})}
+                                onClick={() => setDeleteConfirm({id: folder.id, name: folder.name, type: 'folder', fileCount: getFolderFileCount(folder)})}
                                 className={styles.actionButton}
                               >
                                 <Trash2 className="w-4 h-4" style={{ color: '#000000' }} />
@@ -819,16 +819,23 @@ export default function Documents() {
                 Delete {deleteConfirm?.type === 'file' ? 'File' : 'Folder'}
               </DialogTitle>
               <p className={styles.deleteDialogDescription}>
-                Are you sure you want to delete "{deleteConfirm?.name}"?{' '}
-                {deleteConfirm?.type === 'folder' && 'All files inside this folder will also be deleted. '}
-                This action cannot be undone.
+                {deleteConfirm?.type === 'folder' && typeof deleteConfirm?.fileCount === 'number' && deleteConfirm.fileCount > 0 ? (
+                  <>
+                    This folder cannot be deleted since there are files inside this folder. 
+                    Empty this folder completely to delete this folder.
+                  </>
+                ) : (
+                  <>
+                    Are you sure you want to delete "{deleteConfirm?.name}"? This action cannot be undone.
+                  </>
+                )}
               </p>
             </DialogHeader>
             <div className={styles.modalBody}>
               <div className={styles.modalActions}>
                 <Button
                   onClick={() => deleteConfirm && handleDelete(deleteConfirm.id, deleteConfirm.type)}
-                  disabled={isDeleting}
+                  disabled={isDeleting || (deleteConfirm?.type === 'folder' && typeof deleteConfirm?.fileCount === 'number' && deleteConfirm.fileCount > 0)}
                   className={styles.primaryButton}
                 >
                   {isDeleting && <div className={styles.buttonSpinner} />}
