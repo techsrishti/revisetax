@@ -15,11 +15,24 @@ export async function POST(request: Request) {
 
     // Check if user exists in database
     const dbUser = await prisma.user.findUnique({
-      where: { supabaseUserId: user.id }
+      where: { supabaseUserId: user.id },
+      select: { id: true }
     });
 
     if (!dbUser) {
       return NextResponse.json({ error: 'User not found in database. Please complete registration first.' }, { status: 404 });
+    }
+
+    // Check if folder with same name already exists for this user
+    const existingFolder = await prisma.folder.findFirst({
+      where: {
+        name,
+        userId: dbUser.id
+      }
+    });
+
+    if (existingFolder) {
+      return NextResponse.json({ error: 'A folder with this name already exists' }, { status: 409 });
     }
 
     // Create folder in database
@@ -47,7 +60,8 @@ export async function GET(request: Request) {
     }
 
     const dbUser = await prisma.user.findUnique({
-      where: { supabaseUserId: user.id }
+      where: { supabaseUserId: user.id },
+      select: { id: true }
     });
 
     if (!dbUser) {
@@ -89,11 +103,25 @@ export async function DELETE(request: Request) {
     }
 
     const dbUser = await prisma.user.findUnique({
-      where: { supabaseUserId: user.id }
+      where: { supabaseUserId: user.id },
+      select: { id: true }
     });
 
     if (!dbUser) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    // Check if folder exists and belongs to the user
+    const folder = await prisma.folder.findFirst({
+      where: {
+        id: folderId,
+        userId: dbUser.id
+      },
+      select: { id: true }
+    });
+
+    if (!folder) {
+      return NextResponse.json({ error: 'Folder not found or you do not have permission to delete it' }, { status: 404 });
     }
 
     // Check if folder has any files

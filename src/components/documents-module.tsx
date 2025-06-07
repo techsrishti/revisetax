@@ -77,7 +77,7 @@ interface DbFile {
 export default function Documents() {
   const [folders, setFolders] = useState<FolderItem[]>([]);
   const [files, setFiles] = useState<FileItem[]>([]);
-  const [currentPath, setCurrentPath] = useState<string>('');
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [currentFolderName, setCurrentFolderName] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -123,31 +123,24 @@ export default function Documents() {
       // Fetch files from database for current folder
       let fetchedFiles: FileItem[] = [];
 
-      if (currentPath) {
-        // Find the current folder by name (for backward compatibility)
-        const pathParts = currentPath.split('/').filter(Boolean);
-        const currentFolderName = pathParts[pathParts.length - 1];
-        const currentFolder = dbFolders.find(f => f.name === currentFolderName);
-        
-        if (currentFolder) {
-          // Fetch files for this folder
-          const filesResponse = await fetch(`/api/files?folderId=${currentFolder.id}`);
-          if (filesResponse.ok) {
-            const dbFiles: DbFile[] = await filesResponse.json();
-            
-            fetchedFiles = dbFiles.map(file => ({
-              name: file.originalName,
-              id: file.id,
-              created_at: file.createdAt,
-              updated_at: file.updatedAt,
-              metadata: {
-                size: parseInt(file.size),
-                mimetype: file.mimeType
-              },
-              path: currentPath,
-              storageName: file.storageName
-            }));
-          }
+      if (currentFolderId) {
+        // Fetch files for this folder
+        const filesResponse = await fetch(`/api/files?folderId=${currentFolderId}`);
+        if (filesResponse.ok) {
+          const dbFiles: DbFile[] = await filesResponse.json();
+          
+          fetchedFiles = dbFiles.map(file => ({
+            name: file.originalName,
+            id: file.id,
+            created_at: file.createdAt,
+            updated_at: file.updatedAt,
+            metadata: {
+              size: parseInt(file.size),
+              mimetype: file.mimeType
+            },
+            path: currentFolderId,
+            storageName: file.storageName
+          }));
         }
       } else {
         // At root level, get file counts for each folder
@@ -177,11 +170,10 @@ export default function Documents() {
 
   useEffect(() => {
     fetchData();
-  }, [currentPath]);
+  }, [currentFolderId]);
 
   const getCurrentFolderContents = () => {
- 
-    if (currentPath === '') {
+    if (currentFolderId === null) {
       return { currentFolders: folders, currentFiles: [] };
     } else {
       return { currentFolders: [], currentFiles: files };
@@ -247,25 +239,6 @@ export default function Documents() {
     try {
       setIsLoading(true);
       
-      // Get the current folder's database ID if we're inside a folder
-      let currentFolderId: string | null = null;
-      if (currentPath) {
-        const pathParts = currentPath.split('/').filter(Boolean);
-        const currentFolderName = pathParts[pathParts.length - 1];
-        
-        if (currentFolderName) {
-          // Fetch folders from database to get the correct folder ID
-          const folderResponse = await fetch('/api/folders');
-          if (folderResponse.ok) {
-            const dbFolders = await folderResponse.json();
-            const dbFolder = dbFolders.find((f: DbFolder) => f.name === currentFolderName);
-            if (dbFolder) {
-              currentFolderId = dbFolder.id;
-            }
-          }
-        }
-      }
-
       if (!currentFolderId) {
         toast.error('Please select or create a folder first');
         return;
@@ -302,7 +275,7 @@ export default function Documents() {
               size: parseInt(fileData.size),
               mimetype: fileData.mimeType
             },
-            path: currentPath,
+            path: currentFolderId || '',
             storageName: fileData.storageName
           });
         } catch (fileError) {
@@ -461,23 +434,13 @@ export default function Documents() {
   };
 
   const handleFolderClick = (folder: FolderItem) => {
-    // Use folder name for path (keeping backward compatibility)
-    const newPath = folder.name + '/';
-    setCurrentPath(newPath);
+    setCurrentFolderId(folder.id);
     setCurrentFolderName(folder.name);
   };
 
   const handleBackClick = () => {
-    const pathParts = currentPath.split('/').filter(Boolean);
-    pathParts.pop();
-    const newPath = pathParts.length > 0 ? pathParts.join('/') + '/' : '';
-    setCurrentPath(newPath);
-    
-    if (pathParts.length > 0) {
-      setCurrentFolderName(pathParts[pathParts.length - 1]);
-    } else {
-      setCurrentFolderName('');
-    }
+    setCurrentFolderId(null);
+    setCurrentFolderName('');
   };
 
   const getFolderFileCount = (folder: FolderItem) => {
@@ -491,7 +454,7 @@ export default function Documents() {
       <div className={`${styles.container} ${interLocal.variable} ${cabinetGrotesk.variable}`}>
         <div className={styles.mainWrapper}>
           {/* Access Past Filings Section - Only show on root level */}
-          {!currentPath && !isPastFilingsView && (
+          {!currentFolderId && !isPastFilingsView && (
             <div 
               className={`${styles.accessPastFilings} hover:shadow-md`}
               onClick={() => setIsPastFilingsView(true)}
@@ -521,7 +484,7 @@ export default function Documents() {
                       variant="ghost"
                       onClick={() => {
                         setIsPastFilingsView(false);
-                        setCurrentPath('');
+                        setCurrentFolderId(null);
                         setCurrentFolderName('');
                       }}
                       className={styles.backButton}
@@ -552,11 +515,11 @@ export default function Documents() {
 
           {/* Your Documents - Full Page Layout */}
           {!isPastFilingsView && (
-            <div className={`${styles.documentsView} ${!currentPath ? styles.withMarginTop : styles.noMarginTop}`}>
+            <div className={`${styles.documentsView} ${!currentFolderId ? styles.withMarginTop : styles.noMarginTop}`}>
               <div className={styles.documentsHeader}>
                 <div className={styles.documentsHeaderContent}>
                   <div className={styles.headerLeft}>
-                    {currentPath && (
+                    {currentFolderId && (
                       <Button
                         variant="ghost"
                         onClick={handleBackClick}
@@ -566,7 +529,7 @@ export default function Documents() {
                       </Button>
                     )}
                     <h2 className={styles.documentsTitle}>
-                      {currentPath ? currentFolderName : 'Your Documents'}
+                      {currentFolderId ? currentFolderName : 'Your Documents'}
                     </h2>
                   </div>
                   <div className={styles.headerActions}>
@@ -748,10 +711,10 @@ export default function Documents() {
                       <div className="text-center py-12">
                         <Folder className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                         <p className="text-gray-500">
-                          {currentPath ? 'This folder is empty' : 'No documents yet'}
+                          {currentFolderId ? 'This folder is empty' : 'No documents yet'}
                         </p>
                         <p className="text-sm text-gray-400 mt-1">
-                          {currentPath ? 'Upload files to this folder' : 'Create a folder or upload files to get started'}
+                          {currentFolderId ? 'Upload files to this folder' : 'Create a folder or upload files to get started'}
                         </p>
                       </div>
                     )}
