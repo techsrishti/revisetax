@@ -18,6 +18,7 @@ import {
   X
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Toaster } from '@/components/ui/sonner';
 import { interLocal, cabinetGrotesk } from '@/app/fonts';
 import styles from './documents-module.module.css';
 import { v4 as uuidv4 } from 'uuid';
@@ -79,6 +80,8 @@ export default function Documents() {
   const [currentPath, setCurrentPath] = useState<string>('');
   const [currentFolderName, setCurrentFolderName] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isRenaming, setIsRenaming] = useState(false);
   const [isFetchingData, setIsFetchingData] = useState(false);
   const [isPastFilingsView, setIsPastFilingsView] = useState(false);
   const [folderFileCounts, setFolderFileCounts] = useState<{[key: string]: number}>({});
@@ -119,6 +122,34 @@ export default function Documents() {
       const fetchedFolders: FolderItem[] = [];
       const fetchedFiles: FileItem[] = [];
 
+      // Get database file records if we're in a folder to map storage names to original names
+      let dbFiles: DbFile[] = [];
+      if (currentPath) {
+        const pathParts = currentPath.split('/').filter(Boolean);
+        const currentFolderName = pathParts[pathParts.length - 1];
+        
+        if (currentFolderName) {
+          try {
+            // Get folder ID from database
+            const folderResponse = await fetch('/api/folders');
+            if (folderResponse.ok) {
+              const dbFolders = await folderResponse.json();
+              const dbFolder = dbFolders.find((f: DbFolder) => f.name === currentFolderName);
+              
+              if (dbFolder) {
+                // Get files for this folder
+                const filesResponse = await fetch(`/api/files?folderId=${dbFolder.id}`);
+                if (filesResponse.ok) {
+                  dbFiles = await filesResponse.json();
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Error fetching database files:', error);
+          }
+        }
+      }
+
       for (const item of fileList) {
         if (item.name.endsWith('.folder_marker')) {
           const folderName = item.name.replace('.folder_marker', '');
@@ -132,8 +163,11 @@ export default function Documents() {
             });
           }
         } else if (!item.name.startsWith('.') && item.metadata) {
+          // Check if this file has a database record
+          const dbFile = dbFiles.find(f => f.storageName === item.name);
+          
           fetchedFiles.push({
-            name: item.name,
+            name: dbFile ? dbFile.originalName : item.name, // Use original name if available, otherwise storage name
             id: `${user.id}-${currentPath}${item.name}`,
             created_at: item.created_at || new Date().toISOString(),
             updated_at: item.updated_at || new Date().toISOString(),
@@ -141,7 +175,8 @@ export default function Documents() {
               size: item.metadata?.size || 0,
               mimetype: item.metadata?.mimetype || 'application/octet-stream'
             },
-            path: currentPath
+            path: currentPath,
+            storageName: item.name // Always keep the storage name for operations
           });
         }
       }
@@ -229,7 +264,7 @@ export default function Documents() {
 
       if (storageError) {
         console.error('Error creating folder marker:', storageError);
-        toast.error('Failed to create folder');
+        toast.error('Failed to create folder in storage');
         return;
       }
 
@@ -247,10 +282,18 @@ export default function Documents() {
       if (!response.ok) {
         const errorData = await response.json();
         console.error('Error creating folder in database:', errorData);
-        // If database creation fails, we could optionally clean up the storage marker
-        // But for now, we'll continue since the storage folder was created successfully
+        
+        // Clean up the storage marker since database creation failed
+        await supabase
+          .storage
+          .from('documents')
+          .remove([folderMarkerPath]);
+        
+        toast.error(errorData.error || 'Failed to create folder');
+        return;
       }
 
+      // Only add folder to UI after both storage and database operations succeed
       const now = new Date().toISOString();
       const newFolder: FolderItem = {
         name: newFolderName,
@@ -261,12 +304,14 @@ export default function Documents() {
       };
 
       setFolders(prev => [...prev, newFolder]);
-      toast.success('Folder created successfully');
+      toast.success('Folder created successfully', {
+        icon: <Check className="w-4 h-4" style={{ color: '#E9420C' }} />
+      });
       setNewFolderName('');
       setShowCreateFolderModal(false);
     } catch (error) {
       console.error('Error creating folder:', error);
-      toast.error('Failed to create folder');
+      toast.error('Failed to create folder. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -286,7 +331,7 @@ export default function Documents() {
       }
 
       const now = new Date().toISOString();
-      const newFiles: FileItem[] = [];
+      const successfullyUploadedFiles: FileItem[] = [];
 
       // Get the current folder's database ID if we're inside a folder
       let currentFolderId: string | null = null;
@@ -308,77 +353,104 @@ export default function Documents() {
       }
 
       for (const file of Array.from(uploadedFiles)) {
-        // Generate a unique storage name to avoid conflicts
-        const storageName = `${uuidv4()}-${file.name}`;
-        const filePath = `${user.id}/${currentPath}${storageName}`;
-        
-        // First upload to Supabase Storage
-        const { error: storageError } = await supabase
-          .storage
-          .from('documents')
-          .upload(filePath, file, { upsert: true });
+        try {
+          // Generate a unique storage name to avoid conflicts
+          const storageName = `${uuidv4()}-${file.name}`;
+          const filePath = `${user.id}/${currentPath}${storageName}`;
+          
+          // First upload to Supabase Storage
+          const { error: storageError } = await supabase
+            .storage
+            .from('documents')
+            .upload(filePath, file, { upsert: true });
 
-        if (storageError) {
-          console.error('Error uploading file:', storageError);
-          toast.error(`Failed to upload ${file.name}`);
-          continue;
-        }
+          if (storageError) {
+            console.error('Error uploading file:', storageError);
+            toast.error(`Failed to upload ${file.name} to storage`);
+            continue;
+          }
 
-        // Then create file record in database if we have a folder ID
-        if (currentFolderId) {
-          const fileResponse = await fetch('/api/files', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              folderId: currentFolderId,
-              originalName: file.name,
-              storageName: storageName,
+          // Then create file record in database if we have a folder ID
+          if (currentFolderId) {
+            const fileResponse = await fetch('/api/files', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                folderId: currentFolderId,
+                originalName: file.name,
+                storageName: storageName,
+                size: file.size,
+                mimeType: file.type,
+              }),
+            });
+
+            if (!fileResponse.ok) {
+              const errorData = await fileResponse.json();
+              console.error('Error creating file record in database:', errorData);
+              
+              // Clean up the uploaded file from storage since database creation failed
+              await supabase
+                .storage
+                .from('documents')
+                .remove([filePath]);
+              
+              toast.error(`Failed to save ${file.name} record: ${errorData.error || 'Database error'}`);
+              continue;
+            }
+          }
+
+          // Only add to successful files array if both storage and database operations succeeded
+          successfullyUploadedFiles.push({
+            name: file.name,
+            id: `${user.id}-${currentPath}${file.name}`,
+            created_at: now,
+            updated_at: now,
+            metadata: {
               size: file.size,
-              mimeType: file.type,
-            }),
+              mimetype: file.type
+            },
+            path: currentPath,
+            storageName: storageName
           });
+        } catch (fileError) {
+          console.error(`Error processing file ${file.name}:`, fileError);
+          toast.error(`Failed to upload ${file.name}`);
+        }
+      }
 
-          if (!fileResponse.ok) {
-            const errorData = await fileResponse.json();
-            console.error('Error creating file record in database:', errorData);
-            // Continue anyway since storage upload was successful
+      // Only update UI with successfully uploaded files
+      if (successfullyUploadedFiles.length > 0) {
+        setFiles(prev => [...prev, ...successfullyUploadedFiles]);
+        
+        // Update folder file counts
+        if (currentPath) {
+          const pathParts = currentPath.split('/').filter(Boolean);
+          const currentFolderName = pathParts[pathParts.length - 1];
+          if (currentFolderName) {
+            setFolderFileCounts(prev => ({
+              ...prev,
+              [currentFolderName]: (prev[currentFolderName] || 0) + successfullyUploadedFiles.length
+            }));
           }
         }
 
-        newFiles.push({
-          name: file.name,
-          id: `${user.id}-${currentPath}${file.name}`,
-          created_at: now,
-          updated_at: now,
-          metadata: {
-            size: file.size,
-            mimetype: file.type
-          },
-          path: currentPath,
-          storageName: storageName
-        });
-      }
-
-      setFiles(prev => [...prev, ...newFiles]);
-      
-      // Update folder file counts
-      if (currentPath) {
-        const pathParts = currentPath.split('/').filter(Boolean);
-        const currentFolderName = pathParts[pathParts.length - 1];
-        if (currentFolderName) {
-          setFolderFileCounts(prev => ({
-            ...prev,
-            [currentFolderName]: (prev[currentFolderName] || 0) + newFiles.length
-          }));
+        if (successfullyUploadedFiles.length === uploadedFiles.length) {
+          toast.success('All files uploaded successfully', {
+            icon: <Check className="w-4 h-4" style={{ color: '#E9420C' }} />
+          });
+        } else {
+          toast.success(`${successfullyUploadedFiles.length} of ${uploadedFiles.length} files uploaded successfully`, {
+            icon: <Check className="w-4 h-4" style={{ color: '#E9420C' }} />
+          });
         }
+      } else {
+        toast.error('No files were uploaded successfully');
       }
-
-      toast.success('Files uploaded successfully');
     } catch (error) {
       console.error('Error uploading files:', error);
-      toast.error('Failed to upload files');
+      toast.error('Failed to upload files. Please try again.');
     } finally {
       setIsLoading(false);
       if (fileInputRef.current) {
@@ -417,7 +489,9 @@ export default function Documents() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       
-      toast.success('File downloaded successfully');
+      toast.success('File downloaded successfully', {
+        icon: <Check className="w-4 h-4" style={{ color: '#E9420C' }} />
+      });
     } catch (error) {
       console.error('Error downloading file:', error);
       toast.error('Failed to download file');
@@ -426,7 +500,7 @@ export default function Documents() {
 
   const handleDelete = async (id: string, type: 'file' | 'folder') => {
     try {
-      setIsLoading(true);
+      setIsDeleting(true);
       const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
@@ -437,79 +511,141 @@ export default function Documents() {
       if (type === 'file') {
         const file = files.find(f => f.id === id);
         if (file) {
-          // Delete from Supabase Storage
-          const filePath = file.storageName 
-            ? `${user.id}/${file.path}${file.storageName}`
-            : `${user.id}/${file.path}${file.name}`;
-          const { error: storageError } = await supabase
-            .storage
-            .from('documents')
-            .remove([filePath]);
-          
-          if (storageError) throw storageError;
-
-          // Delete from database if file has storage name (indicating it's tracked in DB)
+          // Step 1: Delete from database first (if file is tracked in DB)
           if (file.storageName) {
             const deleteResponse = await fetch(`/api/files?storageName=${encodeURIComponent(file.storageName)}`, {
               method: 'DELETE',
             });
             
             if (!deleteResponse.ok) {
-              console.error('Failed to delete file from database');
-              // Continue anyway since storage deletion was successful
+              const errorData = await deleteResponse.json();
+              console.error('Failed to delete file from database:', errorData);
+              toast.error('Failed to delete file record from database');
+              return;
             }
+          }
+
+          // Step 2: Delete from Supabase Storage (only after DB deletion succeeds)
+          const filePath = file.storageName 
+            ? `${user.id}/${file.path}${file.storageName}`
+            : `${user.id}/${file.path}${file.name}`;
+          
+          const { error: storageError } = await supabase
+            .storage
+            .from('documents')
+            .remove([filePath]);
+          
+          if (storageError) {
+            console.error('Failed to delete file from storage:', storageError);
+            
+            // Rollback: Try to recreate the database record if storage deletion failed
+            if (file.storageName) {
+              try {
+                // We'd need additional info to recreate the record properly
+                console.error('Storage deletion failed, but database record was already deleted');
+              } catch (rollbackError) {
+                console.error('Rollback failed:', rollbackError);
+              }
+            }
+            
+            toast.error('Failed to delete file from storage');
+            return;
           }
         }
         
+        // Update local state only if both operations succeeded
         setFiles(prev => prev.filter(f => f.id !== id));
-        toast.success('File deleted successfully');
+        toast.success('File deleted successfully', {
+          icon: <Check className="w-4 h-4" style={{ color: '#E9420C' }} />
+        });
       } else {
+        // Folder deletion
         const folder = folders.find(f => f.id === id);
         if (folder) {
           const folderPath = `${user.id}/${folder.path}${folder.name}/`;
           
-          // List and delete all files in the folder
+          // Step 1: Get the database folder ID to delete all associated files from DB
+          const folderResponse = await fetch('/api/folders');
+          let dbFolderId = null;
+          if (folderResponse.ok) {
+            const dbFolders = await folderResponse.json();
+            const dbFolder = dbFolders.find((f: DbFolder) => f.name === folder.name);
+            if (dbFolder) {
+              dbFolderId = dbFolder.id;
+            }
+          }
+
+          // Step 2: List all files in the folder from storage
           const { data: folderContents } = await supabase
             .storage
             .from('documents')
             .list(folderPath, { limit: 1000 });
 
-          if (folderContents && folderContents.length > 0) {
-            const filesToDelete = folderContents
+          // Step 3: Delete all files from database first (if folder exists in DB)
+          if (dbFolderId && folderContents && folderContents.length > 0) {
+            const filesToDeleteFromDB = folderContents
               .filter((item: StorageItem) => !item.name.endsWith('.folder_marker'))
-              .map((item: StorageItem) => `${folderPath}${item.name}`);
-            
-            if (filesToDelete.length > 0) {
-              await supabase.storage.from('documents').remove(filesToDelete);
-            }
-          }
+              .map((item: StorageItem) => item.name);
 
-          // Delete the folder marker from storage
-          await supabase
-            .storage
-            .from('documents')
-            .remove([`${folderPath}.folder_marker`]);
-
-          // Delete the folder from database
-          // First, we need to find the database folder by name since the storage ID doesn't match the DB ID
-          const folderResponse = await fetch('/api/folders');
-          if (folderResponse.ok) {
-            const dbFolders = await folderResponse.json();
-            const dbFolder = dbFolders.find((f: DbFolder) => f.name === folder.name);
-            
-            if (dbFolder) {
-              const deleteResponse = await fetch(`/api/folders?id=${dbFolder.id}`, {
-                method: 'DELETE',
-              });
-              
-              if (!deleteResponse.ok) {
-                console.error('Failed to delete folder from database');
-                // We continue anyway since the storage deletion was successful
+            // Delete each file from database
+            for (const storageName of filesToDeleteFromDB) {
+              try {
+                const deleteFileResponse = await fetch(`/api/files?storageName=${encodeURIComponent(storageName)}`, {
+                  method: 'DELETE',
+                });
+                if (!deleteFileResponse.ok) {
+                  console.error(`Failed to delete file ${storageName} from database`);
+                }
+              } catch (error) {
+                console.error(`Error deleting file ${storageName} from database:`, error);
               }
             }
           }
+
+          // Step 4: Delete folder from database
+          if (dbFolderId) {
+            try {
+              const deleteFolderResponse = await fetch(`/api/folders?id=${dbFolderId}`, {
+                method: 'DELETE',
+              });
+              if (!deleteFolderResponse.ok) {
+                console.error('Failed to delete folder from database');
+              }
+            } catch (error) {
+              console.error('Error deleting folder from database:', error);
+            }
+          }
+
+          // Step 5: Delete all files from storage
+          if (folderContents && folderContents.length > 0) {
+            const allFilesToDelete = folderContents.map((item: StorageItem) => `${folderPath}${item.name}`);
+            
+            if (allFilesToDelete.length > 0) {
+              const { error: storageDeleteError } = await supabase.storage.from('documents').remove(allFilesToDelete);
+              if (storageDeleteError) {
+                console.error('Error deleting files from storage:', storageDeleteError);
+              }
+            }
+          }
+
+          // Step 6: Delete the folder marker from storage 
+          // The folder marker is located at the parent level, not inside the folder
+          try {
+            const folderMarkerPath = `${user.id}/${folder.path}${folder.name}.folder_marker`;
+            const { error: markerDeleteError } = await supabase
+              .storage
+              .from('documents')
+              .remove([folderMarkerPath]);
+            
+            if (markerDeleteError) {
+              console.error('Error deleting folder marker:', markerDeleteError);
+            }
+          } catch (error) {
+            console.error('Error deleting folder marker:', error);
+          }
         }
         
+        // Update local state
         setFolders(prev => prev.filter(f => f.id !== id));
         
         // Remove files from this folder from local state
@@ -524,7 +660,9 @@ export default function Documents() {
           });
         }
         
-        toast.success('Folder deleted successfully');
+        toast.success('Folder deleted successfully', {
+          icon: <Check className="w-4 h-4" style={{ color: '#E9420C' }} />
+        });
       }
       
       setDeleteConfirm(null);
@@ -532,7 +670,7 @@ export default function Documents() {
       console.error('Error deleting:', error);
       toast.error(`Failed to delete ${type}`);
     } finally {
-      setIsLoading(false);
+      setIsDeleting(false);
     }
   };
 
@@ -543,7 +681,7 @@ export default function Documents() {
     }
 
     try {
-      setIsLoading(true);
+      setIsRenaming(true);
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
@@ -637,14 +775,16 @@ export default function Documents() {
           : f
       ));
 
-      toast.success('File renamed successfully');
+      toast.success('File renamed successfully', {
+        icon: <Check className="w-4 h-4" style={{ color: '#E9420C' }} />
+      });
       setEditingFile(null);
       setEditFileName('');
     } catch (error) {
       console.error('Error renaming:', error);
       toast.error('Failed to rename file');
     } finally {
-      setIsLoading(false);
+      setIsRenaming(false);
     }
   };
 
@@ -757,6 +897,8 @@ export default function Documents() {
                     </h2>
                   </div>
                   <div className={styles.headerActions}>
+             
+                    
                     <Button
                       variant="outline"
                       onClick={() => setShowCreateFolderModal(true)}
@@ -864,10 +1006,10 @@ export default function Documents() {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleRename(file.id, editFileName)}
-                                  disabled={isLoading || !editFileName.trim()}
+                                  disabled={isRenaming || !editFileName.trim()}
                                   className={styles.saveButton}
                                 >
-                                  {isLoading ? (
+                                  {isRenaming ? (
                                     <div className={styles.saveButtonSpinner} />
                                   ) : (
                                     <Check className="w-4 h-4" />
@@ -880,7 +1022,7 @@ export default function Documents() {
                                     setEditingFile(null);
                                     setEditFileName('');
                                   }}
-                                  disabled={isLoading}
+                                  disabled={isRenaming}
                                   className={styles.cancelButton}
                                 >
                                   <X className="w-4 h-4" />
@@ -1011,14 +1153,18 @@ export default function Documents() {
               <div className={styles.modalActions}>
                 <Button
                   onClick={() => deleteConfirm && handleDelete(deleteConfirm.id, deleteConfirm.type)}
-                  disabled={isLoading}
+                  disabled={isDeleting}
                   className={styles.primaryButton}
                 >
-                  <span className={styles.primaryButtonText}>Delete</span>
+                  {isDeleting && <div className={styles.buttonSpinner} />}
+                  <span className={styles.primaryButtonText}>
+                    {isDeleting ? 'Deleting...' : 'Delete'}
+                  </span>
                 </Button>
                 <Button
                   variant="outline"
                   onClick={() => setDeleteConfirm(null)}
+                  disabled={isDeleting}
                   className={styles.secondaryButton}
                 >
                   <span className={styles.secondaryButtonText}>Cancel</span>
@@ -1028,6 +1174,7 @@ export default function Documents() {
           </DialogContent>
         </Dialog>
       </div>
+      <Toaster />
     </>
   );
 } 

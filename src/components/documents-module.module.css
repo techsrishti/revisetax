@@ -98,7 +98,7 @@
   padding: 40px;
   background: #fff;
   flex: 1;
-  margin-top: 32px;
+  margin-top: 0;
   margin-left: 0;
   margin-right: 0;
   margin-bottom: 0;
@@ -334,14 +334,13 @@
 .folderName {
   color: #18181B;
   font-family: var(--font-inter);
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 500;
-  white-space: nowrap;
+  line-height: 1.2;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
-  width: 100%;
-  max-width: 100%;
-  display: block;
+  white-space: nowrap;
 }
 
 .folderRight {
@@ -445,14 +444,13 @@
 .fileName {
   color: #18181B;
   font-family: var(--font-inter);
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 500;
-  white-space: nowrap;
+  line-height: 1.2;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
-  width: 100%;
-  max-width: 100%;
-  display: block;
+  white-space: nowrap;
 }
 
 .fileRight {
@@ -504,6 +502,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  height: 40px;
 }
 
 .renameInput {
@@ -511,6 +510,7 @@
   height: 32px;
   font-size: 14px;
   padding: 4px 8px;
+  margin-left: 10px;
 }
 
 .saveButton {
@@ -524,13 +524,13 @@
 
 .cancelButton {
   display: flex;
-  height: 48px;
-  padding: 12px 32px;
+  height: 32px;
+  width: 32px;
+  min-width: 32px;
+  padding: 4px;
   justify-content: center;
   align-items: center;
-  gap: 12px;
   border-color: #183361;
-  flex: 1 0 0;
 }
 
 .saveButtonSpinner {
@@ -808,9 +808,13 @@
   
   .folderName,
   .fileName {
-    font-size: 18px;
-    font-weight: 600;
+    font-size: 14px;
+    font-weight: 500;
     line-height: 1.2;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   
   .folderRight,
@@ -882,19 +886,19 @@
   
   /* Mobile specific improvements for long file names */
   .fileContent {
-    max-width: calc(100% - 80px); /* Less space reserved for actions on mobile */
+    max-width: calc(100% - 70px); /* More space for names on mobile */
   }
   
   .folderContent {
-    max-width: calc(100% - 80px); /* Less space reserved for actions on mobile */
+    max-width: calc(100% - 70px); /* More space for names on mobile */
   }
   
   .fileRight {
-    min-width: 60px; /* Smaller minimum width on mobile */
+    min-width: 50px; /* Smaller minimum width on mobile */
   }
   
   .folderRight {
-    min-width: 60px; /* Smaller minimum width on mobile */
+    min-width: 50px; /* Smaller minimum width on mobile */
   }
   
   .fileName {
@@ -943,31 +947,29 @@
   
   .folderName,
   .fileName {
-    font-size: 16px;
+    font-size: 12px; /* Even smaller font for very small screens */
+    font-weight: 500;
+    line-height: 1.2;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   
   .fileContent {
-    max-width: calc(100% - 60px); /* Even less space reserved for actions */
+    max-width: calc(100% - 50px); /* Maximum space for names on small screens */
   }
   
   .folderContent {
-    max-width: calc(100% - 60px); /* Even less space reserved for actions */
-  }
-  
-  .fileName {
-    font-size: 13px; /* Even smaller font for very small screens */
-  }
-  
-  .folderName {
-    font-size: 13px; /* Even smaller font for very small screens */
+    max-width: calc(100% - 50px); /* Maximum space for names on small screens */
   }
   
   .fileRight {
-    min-width: 50px; /* Minimal width for very small screens */
+    min-width: 40px; /* Minimal width for very small screens */
   }
   
   .folderRight {
-    min-width: 50px; /* Minimal width for very small screens */
+    min-width: 40px; /* Minimal width for very small screens */
   }
 }
 
