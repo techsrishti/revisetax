@@ -13,19 +13,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Find or create user in database
-    let dbUser = await prisma.user.findUnique({
+    // Check if user exists in database
+    const dbUser = await prisma.user.findUnique({
       where: { supabaseUserId: user.id }
     });
 
     if (!dbUser) {
-      dbUser = await prisma.user.create({
-        data: {
-          supabaseUserId: user.id,
-          email: user.email,
-          phoneNumber: user.phone || '',
-        }
-      });
+      return NextResponse.json({ error: 'User not found in database. Please complete registration first.' }, { status: 404 });
     }
 
     // Create folder in database
@@ -57,11 +51,17 @@ export async function GET(request: Request) {
     });
 
     if (!dbUser) {
-      return NextResponse.json([]);
+      return NextResponse.json({ error: 'User not found in database. Please complete registration first.' }, { status: 404 });
     }
 
     const folders = await prisma.folder.findMany({
       where: { userId: dbUser.id },
+      select: {
+        id: true,
+        name: true,
+        createdAt: true,
+        updatedAt: true
+      },
       orderBy: { createdAt: 'asc' }
     });
 
@@ -96,12 +96,45 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-     await prisma.folder.delete({
-      where: { 
-        id: folderId,
-        userId: dbUser.id  
-      }
+    // Get all files in the folder before deletion (for storage cleanup)
+    const folderFiles = await prisma.file.findMany({
+      where: { folderId: folderId },
+      select: { id: true, storageName: true }
     });
+
+    // Use database transaction to ensure atomicity
+    await prisma.$transaction(async (tx) => {
+      // Step 1: Delete all files from database first
+      if (folderFiles.length > 0) {
+        await tx.file.deleteMany({
+          where: { folderId: folderId }
+        });
+      }
+
+      // Step 2: Delete folder from database
+      await tx.folder.delete({
+        where: { 
+          id: folderId,
+          userId: dbUser.id  
+        }
+      });
+    });
+
+    // Step 3: Clean up files from storage (after successful DB deletion)
+    if (folderFiles.length > 0) {
+      const filesToDelete = folderFiles.map(file => `${user.id}/${file.storageName}`);
+      
+      const { error: storageError } = await supabase
+        .storage
+        .from('documents')
+        .remove(filesToDelete);
+      
+      if (storageError) {
+        console.error('Error deleting files from storage:', storageError);
+        // Don't fail the operation since DB records are already deleted
+        console.warn('Some files could not be deleted from storage, but folder deletion was successful');
+      }
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
