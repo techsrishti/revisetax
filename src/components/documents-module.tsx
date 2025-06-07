@@ -280,8 +280,8 @@ export default function Documents() {
           formData.append('file', file);
           formData.append('folderId', currentFolderId);
           
-          // Use the new server-side upload endpoint that handles both DB and storage
-          const uploadResponse = await fetch('/api/upload', {
+          // Use the files endpoint for upload
+          const uploadResponse = await fetch('/api/files', {
             method: 'POST',
             body: formData,
           });
@@ -340,8 +340,8 @@ export default function Documents() {
 
   const handleDownload = async (file: FileItem) => {
     try {
-      // Use the new server-side download endpoint
-      const downloadResponse = await fetch(`/api/download?fileId=${encodeURIComponent(file.id)}`);
+      // Use the files endpoint with fileId query parameter for download
+      const downloadResponse = await fetch(`/api/files?fileId=${encodeURIComponent(file.id)}`);
 
       if (!downloadResponse.ok) {
         const errorData = await downloadResponse.json();
