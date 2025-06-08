@@ -244,9 +244,32 @@ export default function Documents() {
         return;
       }
 
+      const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB in bytes
+      const ALLOWED_TYPES = [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      ];
+      const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx'];
+
       const successfullyUploadedFiles: FileItem[] = [];
+      const validationErrors: string[] = [];
 
       for (const file of Array.from(uploadedFiles)) {
+        // Check file size
+        if (file.size > MAX_FILE_SIZE) {
+          validationErrors.push(`${file.name}: File size exceeds 50MB limit`);
+          continue;
+        }
+
+        const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
+        const isValidType = ALLOWED_TYPES.includes(file.type) || ALLOWED_EXTENSIONS.includes(fileExtension);
+        
+        if (!isValidType) {
+          validationErrors.push(`${file.name}: Only PDF and Word documents are allowed`);
+          continue;
+        }
+
         try {
           // Create a FormData object to send the file to the new upload endpoint
           const formData = new FormData();
@@ -284,6 +307,13 @@ export default function Documents() {
         }
       }
 
+      // Show validation errors first
+      if (validationErrors.length > 0) {
+        validationErrors.forEach(error => {
+          toast.error(error);
+        });
+      }
+
       // Refresh data from database and show success message
       if (successfullyUploadedFiles.length > 0) {
         await fetchData();
@@ -298,7 +328,9 @@ export default function Documents() {
           });
         }
       } else {
-        toast.error('No files were uploaded successfully');
+        if (validationErrors.length === 0) {
+          toast.error('No files were uploaded successfully');
+        }
       }
     } catch (error) {
       console.error('Error uploading files:', error);
@@ -564,7 +596,7 @@ export default function Documents() {
                       multiple
                       onChange={handleFileUpload}
                       className="hidden"
-                      accept="*/*"
+                      accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                     />
                   </div>
                 </div>
