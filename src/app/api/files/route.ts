@@ -23,7 +23,8 @@ export async function POST(request: Request) {
 
     // Check if user exists in database
     const dbUser = await prisma.user.findUnique({
-      where: { supabaseUserId: user.id }
+      where: { supabaseUserId: user.id },
+      select: { id: true }
     });
 
     if (!dbUser) {
@@ -35,7 +36,8 @@ export async function POST(request: Request) {
       where: { 
         id: folderId,
         userId: dbUser.id
-      }
+      },
+      select: { id: true }
     });
 
     if (!folder) {
@@ -113,7 +115,8 @@ export async function GET(request: Request) {
 
     // Check if user exists in database
     const dbUser = await prisma.user.findUnique({
-      where: { supabaseUserId: user.id }
+      where: { supabaseUserId: user.id },
+      select: { id: true }
     });
 
     if (!dbUser) {
@@ -125,7 +128,15 @@ export async function GET(request: Request) {
       // Get file info and verify ownership
       const file = await prisma.file.findUnique({
         where: { id: fileId },
-        include: { Folder: true }
+        select: {
+          id: true,
+          originalName: true,
+          storageName: true,
+          mimeType: true,
+          Folder: {
+            select: { userId: true }
+          }
+        }
       });
 
       if (!file) {
@@ -162,7 +173,8 @@ export async function GET(request: Request) {
     if (folderId) {
       // Verify that the folder belongs to the user
       const folder = await prisma.folder.findUnique({
-        where: { id: folderId, userId: dbUser.id }
+        where: { id: folderId, userId: dbUser.id },
+        select: { id: true }
       });
 
       if (!folder) {
@@ -218,7 +230,8 @@ export async function DELETE(request: Request) {
 
     // Check if user exists in database
     const dbUser = await prisma.user.findUnique({
-      where: { supabaseUserId: user.id }
+      where: { supabaseUserId: user.id },
+      select: { id: true }
     });
 
     if (!dbUser) {
@@ -230,12 +243,24 @@ export async function DELETE(request: Request) {
     if (fileId) {
       fileToDelete = await prisma.file.findUnique({
         where: { id: fileId },
-        include: { Folder: true }
+        select: {
+          id: true,
+          storageName: true,
+          Folder: {
+            select: { userId: true }
+          }
+        }
       });
     } else if (storageName) {
       fileToDelete = await prisma.file.findUnique({
         where: { storageName: storageName },
-        include: { Folder: true }
+        select: {
+          id: true,
+          storageName: true,
+          Folder: {
+            select: { userId: true }
+          }
+        }
       });
     }
 
@@ -289,7 +314,8 @@ export async function PUT(request: Request) {
 
     // Check if user exists in database
     const dbUser = await prisma.user.findUnique({
-      where: { supabaseUserId: user.id }
+      where: { supabaseUserId: user.id },
+      select: { id: true }
     });
 
     if (!dbUser) {
@@ -301,12 +327,22 @@ export async function PUT(request: Request) {
     if (id) {
       fileToUpdate = await prisma.file.findUnique({
         where: { id },
-        include: { Folder: true }
+        select: {
+          id: true,
+          Folder: {
+            select: { userId: true }
+          }
+        }
       });
     } else if (storageName) {
       fileToUpdate = await prisma.file.findUnique({
         where: { storageName },
-        include: { Folder: true }
+        select: {
+          id: true,
+          Folder: {
+            select: { userId: true }
+          }
+        }
       });
     }
 
