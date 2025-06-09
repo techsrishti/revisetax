@@ -47,21 +47,24 @@ export async function POST(request: Request) {
     // Generate a unique storage name
     const storageName = `${uuidv4()}-${file.name}`;
     
-    // Step 1: Create the file record in database first (per architecture)
-    const fileRecord = await prisma.file.create({
-      data: {
-        folderId,
-        originalName: file.name,
-        storageName,
-        size: BigInt(file.size),
-        mimeType: file.type,
-      }
-    });
+    // Step 1: Create the file record and increment folder count atomically
+    const fileRecord = await prisma.$transaction(async (tx) => {
+      const newFile = await tx.file.create({
+        data: {
+          folderId,
+          originalName: file.name,
+          storageName,
+          size: BigInt(file.size),
+          mimeType: file.type,
+        }
+      });
 
-    // Increment folder file count
-    await prisma.folder.update({
-      where: { id: folderId },
-      data: { fileCount: { increment: 1 } }
+      await tx.folder.update({
+        where: { id: folderId },
+        data: { fileCount: { increment: 1 } }
+      });
+
+      return newFile;
     });
 
     try {
@@ -78,15 +81,16 @@ export async function POST(request: Request) {
         .upload(filePath, fileBuffer, { upsert: true });
 
       if (storageError) {
-        // If storage upload fails, delete the database record (rollback)
-        await prisma.file.delete({
-          where: { id: fileRecord.id }
-        });
-        
-        // Decrement folder file count (rollback)
-        await prisma.folder.update({
-          where: { id: folderId },
-          data: { fileCount: { decrement: 1 } }
+        // If storage upload fails, rollback database changes atomically
+        await prisma.$transaction(async (tx) => {
+          await tx.file.delete({
+            where: { id: fileRecord.id }
+          });
+          
+          await tx.folder.update({
+            where: { id: folderId },
+            data: { fileCount: { decrement: 1 } }
+          });
         });
         
         console.error('Error uploading file to storage:', storageError);
@@ -98,15 +102,16 @@ export async function POST(request: Request) {
         size: fileRecord.size.toString() // Convert BigInt to string for JSON
       });
     } catch (storageUploadError) {
-      // If anything fails during storage upload, clean up the database record
-      await prisma.file.delete({
-        where: { id: fileRecord.id }
-      });
-      
-      // Decrement folder file count (rollback)
-      await prisma.folder.update({
-        where: { id: folderId },
-        data: { fileCount: { decrement: 1 } }
+      // If anything fails during storage upload, rollback database changes atomically
+      await prisma.$transaction(async (tx) => {
+        await tx.file.delete({
+          where: { id: fileRecord.id }
+        });
+        
+        await tx.folder.update({
+          where: { id: folderId },
+          data: { fileCount: { decrement: 1 } }
+        });
       });
       
       console.error('Error during file upload process:', storageUploadError);
@@ -293,15 +298,16 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    // Delete file record from database first
-    await prisma.file.delete({
-      where: { id: fileToDelete.id }
-    });
+    // Delete file record and decrement folder count atomically
+    await prisma.$transaction(async (tx) => {
+      await tx.file.delete({
+        where: { id: fileToDelete.id }
+      });
 
-    // Decrement folder file count
-    await prisma.folder.update({
-      where: { id: fileToDelete.folderId },
-      data: { fileCount: { decrement: 1 } }
+      await tx.folder.update({
+        where: { id: fileToDelete.folderId },
+        data: { fileCount: { decrement: 1 } }
+      });
     });
 
     // Delete from storage - using simplified path structure
