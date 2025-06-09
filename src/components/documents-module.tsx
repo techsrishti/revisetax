@@ -29,6 +29,7 @@ interface FolderItem {
   created_at: string;
   updated_at: string;
   path: string;
+  fileCount?: number;
 }
 
 interface FileItem {
@@ -59,6 +60,7 @@ interface DbFolder {
   id: string;
   name: string;
   userId: string;
+  fileCount: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -84,7 +86,7 @@ export default function Documents() {
   const [isRenaming, setIsRenaming] = useState(false);
   const [isFetchingData, setIsFetchingData] = useState(false);
   const [isPastFilingsView, setIsPastFilingsView] = useState(false);
-  const [folderFileCounts, setFolderFileCounts] = useState<{[key: string]: number}>({});
+
   const [newFolderName, setNewFolderName] = useState('');
   const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
   const [editingFile, setEditingFile] = useState<string | null>(null);
@@ -117,7 +119,8 @@ export default function Documents() {
         id: folder.id,
         created_at: folder.createdAt,
         updated_at: folder.updatedAt,
-        path: ''  
+        path: '',
+        fileCount: folder.fileCount
       }));
 
       // Fetch files from database for current folder
@@ -142,19 +145,6 @@ export default function Documents() {
             storageName: file.storageName
           }));
         }
-      } else {
-        // At root level, get file counts for each folder
-        const counts: {[key: string]: number} = {};
-        for (const folder of dbFolders) {
-          const filesResponse = await fetch(`/api/files?folderId=${folder.id}`);
-          if (filesResponse.ok) {
-            const folderFiles: DbFile[] = await filesResponse.json();
-            counts[folder.name] = folderFiles.length;
-          } else {
-            counts[folder.name] = 0;
-          }
-        }
-        setFolderFileCounts(counts);
       }
 
       // Update state
@@ -476,7 +466,7 @@ export default function Documents() {
   };
 
   const getFolderFileCount = (folder: FolderItem) => {
-    return folderFileCounts[folder.name] || 0;
+    return folder.fileCount || 0;
   };
 
   const { currentFolders, currentFiles } = getCurrentFolderContents();

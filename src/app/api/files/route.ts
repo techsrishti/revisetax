@@ -58,6 +58,12 @@ export async function POST(request: Request) {
       }
     });
 
+    // Increment folder file count
+    await prisma.folder.update({
+      where: { id: folderId },
+      data: { fileCount: { increment: 1 } }
+    });
+
     try {
       // Step 2: Upload to Supabase Storage using simplified structure
       // No folder hierarchy needed since DB tracks relationships
@@ -77,6 +83,12 @@ export async function POST(request: Request) {
           where: { id: fileRecord.id }
         });
         
+        // Decrement folder file count (rollback)
+        await prisma.folder.update({
+          where: { id: folderId },
+          data: { fileCount: { decrement: 1 } }
+        });
+        
         console.error('Error uploading file to storage:', storageError);
         return NextResponse.json({ error: 'Failed to upload file to storage' }, { status: 500 });
       }
@@ -89,6 +101,12 @@ export async function POST(request: Request) {
       // If anything fails during storage upload, clean up the database record
       await prisma.file.delete({
         where: { id: fileRecord.id }
+      });
+      
+      // Decrement folder file count (rollback)
+      await prisma.folder.update({
+        where: { id: folderId },
+        data: { fileCount: { decrement: 1 } }
       });
       
       console.error('Error during file upload process:', storageUploadError);
@@ -246,6 +264,7 @@ export async function DELETE(request: Request) {
         select: {
           id: true,
           storageName: true,
+          folderId: true,
           Folder: {
             select: { userId: true }
           }
@@ -257,6 +276,7 @@ export async function DELETE(request: Request) {
         select: {
           id: true,
           storageName: true,
+          folderId: true,
           Folder: {
             select: { userId: true }
           }
@@ -276,6 +296,12 @@ export async function DELETE(request: Request) {
     // Delete file record from database first
     await prisma.file.delete({
       where: { id: fileToDelete.id }
+    });
+
+    // Decrement folder file count
+    await prisma.folder.update({
+      where: { id: fileToDelete.folderId },
+      data: { fileCount: { decrement: 1 } }
     });
 
     // Delete from storage - using simplified path structure

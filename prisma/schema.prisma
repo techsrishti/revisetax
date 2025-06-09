@@ -91,6 +91,7 @@ model Folder {
   id        String   @id @default(uuid())
   userId    String
   name      String
+  fileCount Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
