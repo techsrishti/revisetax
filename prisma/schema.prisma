@@ -1,6 +1,5 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "../node_modules/.prisma/client"
 }
 
 datasource db {
@@ -20,6 +19,7 @@ model User {
   updatedAt   DateTime @updatedAt
   Payment      Payment[]
   Subscription Subscription?
+  Folder       Folder[]
 }
 
 model Payment {
@@ -76,7 +76,7 @@ model Subscription {
   Plan      Plan      @relation(fields: [planId], references: [id])
   User      User      @relation(fields: [userId], references: [id])
   Payment   Payment   @relation(fields: [paymentId], references: [id])
-}
+} 
 
 enum PaymentStatus {
   initiated
@@ -85,4 +85,32 @@ enum PaymentStatus {
   refunded
   bounced
   expired
+}
+
+model Folder {
+  id        String   @id @default(uuid())
+  userId    String
+  name      String
+  fileCount Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  File      File[]
+
+  @@index([userId])
+}
+
+model File {
+  id           String   @id @default(uuid())
+  folderId     String
+  originalName String
+  storageName  String   @unique // Unique name for object storage
+  size         BigInt
+  mimeType     String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  Folder       Folder   @relation(fields: [folderId], references: [id], onDelete: Cascade)
+
+  @@index([folderId])
+  @@index([storageName])
 }
