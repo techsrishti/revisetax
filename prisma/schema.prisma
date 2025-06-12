@@ -21,6 +21,8 @@ model User {
   Subscription Subscription?
   Folder       Folder[]
   Chat         Chat[]
+
+  @@index([supabaseUserId])
 }
 
 model Payment {
@@ -128,6 +130,8 @@ model Chat {
 
   messages      Message[]
   user          User      @relation(fields: [userId], references: [id])
+
+  @@index([userId])
 }
 
 model Message { 
