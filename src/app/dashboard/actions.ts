@@ -579,3 +579,84 @@ export async function getInvoice(invoiceId: string): Promise<GetInvoiceSuccessRe
         }
     }
 }
+
+
+export interface GetChatsSuccessResponse { 
+    success: true, 
+    chats: { 
+        id: string, 
+        chatName: string, 
+        socketIORoomId: string, 
+        adminId: string, 
+        updatedAt: Date, 
+        chatType: string,
+    }[]
+}
+
+export async function getChats(): Promise<GetChatsSuccessResponse|ErrorResponse> { 
+    try { 
+
+        const supabase = await createClient()
+        const { data: { user: supabaseUser } } = await supabase.auth.getUser()
+
+        if (!supabaseUser) { 
+            console.log("getChats: User not found.")
+            return { 
+                success: false,
+                error: 'User not found',
+                errorMessage: 'The user you are trying to pay for does not exist',
+                errorCode: 'USER_NOT_FOUND',
+            }
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { 
+                supabaseUserId: supabaseUser.id,
+            },
+            select: { 
+                id: true,
+                Chat: { 
+                    select: { 
+                        id: true, 
+                        chatName: true, 
+                        socketIORoomId: true, 
+                        adminId: true, 
+                        updatedAt: true, 
+                        chatType: true,
+                    }
+                }
+            }
+        })
+
+        if (!user) { 
+            console.log("getChats: User not found in the db")
+            return { 
+                success: false,
+                error: 'User not found',
+                errorMessage: 'The user you are trying to pay for does not exist',
+                errorCode: 'USER_NOT_FOUND',
+            }
+        }
+
+        return { 
+            success: true,
+            chats: user.Chat.map((chat) => ({
+                id: chat.id,
+                chatName: chat.chatName,
+                socketIORoomId: chat.socketIORoomId,
+                adminId: chat.adminId,
+                updatedAt: chat.updatedAt,
+                chatType: chat.chatType,
+            }))
+        }
+
+    } catch (error) { 
+        console.log("getChats: Error getting chats: ", error)
+        return { 
+            success: false,
+            error: 'Failed to get chats',
+            errorMessage: 'An unknown error occurred',
+            errorCode: 'UNKNOWN_ERROR',
+        }
+    }
+}
