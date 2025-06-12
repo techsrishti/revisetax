@@ -126,7 +126,7 @@ model Chat {
   adminId       String    @default("admin_1")
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-  chatType      ChatTypes 
+  chatType      ChatTypes @unique
 
   messages      Message[]
   user          User      @relation(fields: [userId], references: [id])
