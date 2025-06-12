@@ -20,6 +20,7 @@ model User {
   Payment      Payment[]
   Subscription Subscription?
   Folder       Folder[]
+  Chat         Chat[]
 }
 
 model Payment {
@@ -113,4 +114,37 @@ model File {
 
   @@index([folderId])
   @@index([storageName])
+}
+
+model Chat { 
+  id            String    @id @default(uuid())
+  chatName      String
+  userId        String
+  socketIORoomId  String
+  adminId       String    @default("admin_1")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  chatType      ChatTypes 
+
+  messages      Message[]
+  user          User      @relation(fields: [userId], references: [id])
+}
+
+model Message { 
+  id            String    @id @default(uuid())
+  chatId        String    
+  senderId      String
+  isAdmin       Boolean
+  content       String?
+  createdAt     DateTime  @default(now())
+
+  Chat          Chat      @relation(fields: [chatId], references: [id])
+
+  @@index([chatId])
+}
+
+enum ChatTypes { 
+  ITRTaxFiling
+  LoansProducts
+  FinancialAdvisory
 }
