@@ -49,7 +49,7 @@ export default function AdminChat() {
     fetchChats()
 
     // Initialize socket connection
-    const socketInstance = io("http://localhost:3001")
+    const socketInstance = io("http://18.60.99.199:3001")
     setSocket(socketInstance)
 
     return () => {
@@ -86,6 +86,41 @@ export default function AdminChat() {
         })
       })
     })
+
+
+  socket.on("user_joined_room", (msgPayload: any) => {
+    console.log("user_joined_room", msgPayload)
+    //if chat is in sidebar. move it to the top else add it to the sidebar at the top 
+    const anonymousName = msgPayload.senderId
+    //add to chats 
+    //if chat in sidebar move to the top 
+    if (selectedChat && selectedChat.id === msgPayload.roomCode) {
+      setSelectedChat(null)
+      setSelectedChat(msgPayload)
+    } else {
+
+    setChats(prevChats => {
+      return [
+        {
+          id: "test_id",
+          chatName: anonymousName,
+          socketIORoomId: msgPayload.roomCode as string || "test_room",
+          userId: msgPayload.senderId as string || "test_user",
+          user: { 
+            name: anonymousName,
+            email: null,
+            phoneNumber: "1234567890"
+          },
+          updatedAt: new Date(),
+          chatType: "anonymous",
+          messages: []
+        },
+        ...prevChats
+      ]
+    })
+  }
+  })
+    
 
     socket.on("started_typing", () => {
       setIsTyping(true)
