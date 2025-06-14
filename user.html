@@ -1,91 +1,62 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>User Chat</title>
+  <title>User Chat - user_1</title>
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
-  <h2>User Chat (user_1)</h2>
-  <input id="msgInput" placeholder="Type message..." onfocus="startTyping()" onblur="stopTyping()" />
-  <button onclick="sendMessage()">Send to Admin</button>
-  <div id="chat"></div>
+  <h2>User Chat Interface (user_1)</h2>
+  <div>
+    <div id="chat-box" style="border:1px solid #ccc; padding:10px; height:200px; overflow:auto;"></div>
+    <input type="text" id="messageInput" placeholder="Type your message" />
+    <button onclick="sendMessage()">Send</button>
+  </div>
 
   <script>
-    const socket = io("http://18.60.99.199:3001"); // replace with your AWS IP
+    const socket = io("http://18.60.99.199:3001");
 
-    const input = document.getElementById("msgInput");
-   
-input.addEventListener("focus", () => {
-  console.log("typing")
-  socket.emit("start_typing", { roomCode, userId });
-});
+    const userId = "user_2";
+    const chatId = "chat_2";
+    const roomCode = chatId; // Same for now
 
-input.addEventListener("blur", () => {
-  socket.emit("stop_typing", { roomCode, userId });
-});
+    // Join the room after connection
+    socket.on("connect", () => {
+      console.log("Connected as user:", socket.id);
 
+      socket.emit("join_room", { roomCode, userId });
+    });
 
-    const roomId = "room_1";
-    const userId = "user_1";
-    const adminId = "admin_1";
+    // Handle message confirmation
+    socket.on("message_sent", (msg) => {
+      appendToChat(`🟢 You: ${msg.message}`);
+    });
 
-    // socket.emit("join_room", {roomCode: roomId, userId: adminId});
-
-    function startTyping() {
-      console.log("typing")
-      socket.emit("start_typing", { roomCode: roomId, userId: userId });
-    }
-
-    function stopTyping() {
-      socket.emit("stop_typing", { roomCode: roomId, userId: userId });
-    }
+    // Handle received message
+    socket.on("receive_message", (msg) => {
+      appendToChat(`🔵 Admin: ${msg.message}`);
+    });
 
     function sendMessage() {
-      console.log("socket.connected", socket.connected)
+      const msgInput = document.getElementById("messageInput");
+      const message = msgInput.value;
+      if (!message.trim()) return;
 
-      if (!socket.connected) { 
-        console.log("disconnected. try again")
-        document.getElementById("chat").innerHTML += `<p><b>You:</b> Disconnected. Try again.</p>`;
-
-      }
-      else {
-        
-      
-      const msg = document.getElementById("msgInput").value;
       socket.emit("send_message", {
-        roomCode: roomId,
+        roomCode,
         senderId: userId,
-        message: msg,
+        message,
       });
+
+      msgInput.value = "";
     }
+
+    function appendToChat(text) {
+      const chatBox = document.getElementById("chat-box");
+      const p = document.createElement("p");
+      p.textContent = text;
+      chatBox.appendChild(p);
+      chatBox.scrollTop = chatBox.scrollHeight;
     }
-
-
-
-    socket.on("message_sent", (data) => {
-      console.log('message_sent', data)
-      document.getElementById("chat").innerHTML += `<p><b>You:</b> ${data.message}</p>`;
-    });
-
-    socket.on("reconnect", () => {
-        document.getElementById("chat").innerHTML += `<p><b>You:</b> Reconnected to server</p>`;
-        socket.emit("join_room", {roomCode: roomId, userId: userId});
-    });
-
-    socket.on("connect", () => {
-        document.getElementById("chat").innerHTML += `<p><b>You:</b> Connected to server</p>`;
-        socket.emit("join_room", {roomCode: roomId, userId: userId});
-    });
-
-    
-
-    socket.on("disconnect", () => {
-        document.getElementById("chat").innerHTML += `<p><b>You:</b> Disconnected from server 1</p>`;
-    });
-
-    socket.on("receive_message", (data) => {
-      document.getElementById("chat").innerHTML += `<p><b>Admin:</b> ${data.message}</p>`;
-    });
   </script>
 </body>
 </html>

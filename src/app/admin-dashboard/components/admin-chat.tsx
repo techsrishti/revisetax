@@ -50,6 +50,7 @@ export default function AdminChat() {
 
     // Initialize socket connection
     const socketInstance = io("http://18.60.99.199:3001")
+    socketInstance.emit("identify_as_admin", { adminId: "admin_1" })
     setSocket(socketInstance)
 
     return () => {
@@ -88,40 +89,40 @@ export default function AdminChat() {
     })
 
 
-  socket.on("user_joined_room", (msgPayload: any) => {
-    console.log("user_joined_room", msgPayload)
-    //if chat is in sidebar. move it to the top else add it to the sidebar at the top 
-    const anonymousName = msgPayload.senderId
-    //add to chats 
-    //if chat in sidebar move to the top 
-    if (selectedChat && selectedChat.id === msgPayload.roomCode) {
-      setSelectedChat(null)
-      setSelectedChat(msgPayload)
-    } else {
-
-    setChats(prevChats => {
-      return [
-        {
-          id: "test_id",
-          chatName: anonymousName,
-          socketIORoomId: msgPayload.roomCode as string || "test_room",
-          userId: msgPayload.senderId as string || "test_user",
-          user: { 
-            name: anonymousName,
-            email: null,
-            phoneNumber: "1234567890"
-          },
-          updatedAt: new Date(),
-          chatType: "anonymous",
-          messages: []
-        },
-        ...prevChats
-      ]
-    })
-  }
-  })
+    socket.on("user_joined_room", (msgPayload: any) => {
+      const { roomCode, userId, name } = msgPayload
     
-
+      setChats(prevChats => {
+        const existingChatIndex = prevChats.findIndex(chat => chat.socketIORoomId === roomCode)
+    
+        if (existingChatIndex !== -1) {
+          // Chat already exists → Move it to the top
+          const updatedChat = prevChats[existingChatIndex]
+          const newOrder = [updatedChat, ...prevChats.filter((_, i) => i !== existingChatIndex)]
+          return newOrder
+        } else {
+          // New chat → Create and add it to the top
+          const newChat: Chat = {
+            id: roomCode,
+            chatName: name || "Anonymous",
+            socketIORoomId: roomCode,
+            userId,
+            user: {
+              name: name || "Anonymous",
+              email: null,
+              phoneNumber: "unknown"
+            },
+            updatedAt: new Date(),
+            chatType: "anonymous",
+            messages: []
+          }
+    
+          return [newChat, ...prevChats]
+        }
+      })
+    })
+    
+  
     socket.on("started_typing", () => {
       setIsTyping(true)
     })
