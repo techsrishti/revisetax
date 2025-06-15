@@ -1,8 +1,55 @@
 <!DOCTYPE html>
-<html>
+<html class="dark-theme">
 <head>
   <title>User Chat - user_1</title>
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <style>
+    :root {
+      --bg-color: #1a1a1a;
+      --text-color: #ffffff;
+      --input-bg: #2d2d2d;
+      --border-color: #444;
+      --button-bg: #4CAF50;
+      --button-hover: #45a049;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    #chat-box {
+      border: 1px solid var(--border-color);
+      background-color: var(--input-bg);
+      color: var(--text-color);
+      padding: 10px;
+      height: 200px;
+      overflow: auto;
+    }
+    #messageInput {
+      background-color: var(--input-bg);
+      color: var(--text-color);
+      border: 1px solid var(--border-color);
+      padding: 8px;
+      margin: 10px 0;
+      width: 70%;
+    }
+    button {
+      background-color: var(--button-bg);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      cursor: pointer;
+      margin-left: 10px;
+    }
+    button:hover {
+      background-color: var(--button-hover);
+    }
+    p {
+      margin: 5px 0;
+    }
+  </style>
 </head>
 <body>
   <h2>User Chat Interface (user_1)</h2>
