@@ -86,6 +86,10 @@ export default function Documents() {
   const [isRenaming, setIsRenaming] = useState(false);
   const [isFetchingData, setIsFetchingData] = useState(false);
   const [isPastFilingsView, setIsPastFilingsView] = useState(false);
+  
+  // Add drag and drop state
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [dragCounter, setDragCounter] = useState(0);
 
   const [newFolderName, setNewFolderName] = useState('');
   const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
@@ -222,106 +226,110 @@ export default function Documents() {
     }
   };
 
+  // Extract file processing logic into a separate function
+  const processFiles = async (filesToProcess: FileList | File[]) => {
+    if (!currentFolderId) {
+      toast.error('Please select or create a folder first');
+      return;
+    }
+
+    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB in bytes
+    const ALLOWED_TYPES = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ];
+    const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx'];
+
+    const successfullyUploadedFiles: FileItem[] = [];
+    const validationErrors: string[] = [];
+
+    for (const file of Array.from(filesToProcess)) {
+      // Check file size
+      if (file.size > MAX_FILE_SIZE) {
+        validationErrors.push(`${file.name}: File size exceeds 50MB limit`);
+        continue;
+      }
+
+      const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
+      const isValidType = ALLOWED_TYPES.includes(file.type) || ALLOWED_EXTENSIONS.includes(fileExtension);
+      
+      if (!isValidType) {
+        validationErrors.push(`${file.name}: Only PDF and Word documents are allowed`);
+        continue;
+      }
+
+      try {
+        // Create a FormData object to send the file to the new upload endpoint
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('folderId', currentFolderId);
+        
+        // Use the files endpoint for upload
+        const uploadResponse = await fetch('/api/files', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!uploadResponse.ok) {
+          const errorData = await uploadResponse.json();
+          toast.error(`Failed to upload ${file.name}: ${errorData.error || 'Upload error'}`);
+          continue;
+        }
+
+        const fileData = await uploadResponse.json();
+        successfullyUploadedFiles.push({
+          name: fileData.originalName,
+          id: fileData.id,
+          created_at: fileData.createdAt,
+          updated_at: fileData.updatedAt,
+          metadata: {
+            size: parseInt(fileData.size),
+            mimetype: fileData.mimeType
+          },
+          path: currentFolderId || '',
+          storageName: fileData.storageName
+        });
+      } catch (fileError) {
+        console.error(`Error processing file ${file.name}:`, fileError);
+        toast.error(`Failed to upload ${file.name}`);
+      }
+    }
+
+    // Show validation errors first
+    if (validationErrors.length > 0) {
+      validationErrors.forEach(error => {
+        toast.error(error);
+      });
+    }
+
+    // Refresh data from database and show success message
+    if (successfullyUploadedFiles.length > 0) {
+      await fetchData();
+      
+      if (successfullyUploadedFiles.length === filesToProcess.length) {
+        toast.success('All files uploaded successfully', {
+          icon: <Check className="w-4 h-4" style={{ color: '#E9420C' }} />
+        });
+      } else {
+        toast.success(`${successfullyUploadedFiles.length} of ${filesToProcess.length} files uploaded successfully`, {
+          icon: <Check className="w-4 h-4" style={{ color: '#E9420C' }} />
+        });
+      }
+    } else {
+      if (validationErrors.length === 0) {
+        toast.error('No files were uploaded successfully');
+      }
+    }
+  };
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFiles = event.target.files;
     if (!uploadedFiles || uploadedFiles.length === 0) return;
 
     try {
       setIsLoading(true);
-      
-      if (!currentFolderId) {
-        toast.error('Please select or create a folder first');
-        return;
-      }
-
-      const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB in bytes
-      const ALLOWED_TYPES = [
-        'application/pdf',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-      ];
-      const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx'];
-
-      const successfullyUploadedFiles: FileItem[] = [];
-      const validationErrors: string[] = [];
-
-      for (const file of Array.from(uploadedFiles)) {
-        // Check file size
-        if (file.size > MAX_FILE_SIZE) {
-          validationErrors.push(`${file.name}: File size exceeds 50MB limit`);
-          continue;
-        }
-
-        const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
-        const isValidType = ALLOWED_TYPES.includes(file.type) || ALLOWED_EXTENSIONS.includes(fileExtension);
-        
-        if (!isValidType) {
-          validationErrors.push(`${file.name}: Only PDF and Word documents are allowed`);
-          continue;
-        }
-
-        try {
-          // Create a FormData object to send the file to the new upload endpoint
-          const formData = new FormData();
-          formData.append('file', file);
-          formData.append('folderId', currentFolderId);
-          
-          // Use the files endpoint for upload
-          const uploadResponse = await fetch('/api/files', {
-            method: 'POST',
-            body: formData,
-          });
-
-          if (!uploadResponse.ok) {
-            const errorData = await uploadResponse.json();
-            toast.error(`Failed to upload ${file.name}: ${errorData.error || 'Upload error'}`);
-            continue;
-          }
-
-          const fileData = await uploadResponse.json();
-          successfullyUploadedFiles.push({
-            name: fileData.originalName,
-            id: fileData.id,
-            created_at: fileData.createdAt,
-            updated_at: fileData.updatedAt,
-            metadata: {
-              size: parseInt(fileData.size),
-              mimetype: fileData.mimeType
-            },
-            path: currentFolderId || '',
-            storageName: fileData.storageName
-          });
-        } catch (fileError) {
-          console.error(`Error processing file ${file.name}:`, fileError);
-          toast.error(`Failed to upload ${file.name}`);
-        }
-      }
-
-      // Show validation errors first
-      if (validationErrors.length > 0) {
-        validationErrors.forEach(error => {
-          toast.error(error);
-        });
-      }
-
-      // Refresh data from database and show success message
-      if (successfullyUploadedFiles.length > 0) {
-        await fetchData();
-        
-        if (successfullyUploadedFiles.length === uploadedFiles.length) {
-          toast.success('All files uploaded successfully', {
-            icon: <Check className="w-4 h-4" style={{ color: '#E9420C' }} />
-          });
-        } else {
-          toast.success(`${successfullyUploadedFiles.length} of ${uploadedFiles.length} files uploaded successfully`, {
-            icon: <Check className="w-4 h-4" style={{ color: '#E9420C' }} />
-          });
-        }
-      } else {
-        if (validationErrors.length === 0) {
-          toast.error('No files were uploaded successfully');
-        }
-      }
+      await processFiles(uploadedFiles);
     } catch (error) {
       console.error('Error uploading files:', error);
       toast.error('Failed to upload files. Please try again.');
@@ -330,6 +338,63 @@ export default function Documents() {
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
+    }
+  };
+
+  // Drag and drop event handlers
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragCounter(prev => prev + 1);
+    
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragOver(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragCounter(prev => {
+      const newCount = prev - 1;
+      if (newCount <= 0) {
+        setIsDragOver(false);
+      }
+      return newCount;
+    });
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    setIsDragOver(false);
+    setDragCounter(0);
+
+    if (!currentFolderId) {
+      toast.error('Please select or create a folder first');
+      return;
+    }
+
+    const droppedFiles = Array.from(e.dataTransfer.files);
+    
+    if (droppedFiles.length === 0) {
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      await processFiles(droppedFiles);
+    } catch (error) {
+      console.error('Error uploading dropped files:', error);
+      toast.error('Failed to upload files. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -599,7 +664,24 @@ export default function Documents() {
                     <p className={styles.loadingText}>Loading documents...</p>
                   </div>
                 ) : (
-                  <div className={styles.filesList}>
+                  <div 
+                    className={`${styles.filesList} ${currentFolderId ? styles.dropZone : ''} ${isDragOver ? styles.dragOver : ''}`}
+                    onDragEnter={currentFolderId ? handleDragEnter : undefined}
+                    onDragLeave={currentFolderId ? handleDragLeave : undefined}
+                    onDragOver={currentFolderId ? handleDragOver : undefined}
+                    onDrop={currentFolderId ? handleDrop : undefined}
+                  >
+                    {/* Drag overlay */}
+                    {isDragOver && currentFolderId && (
+                      <div className={styles.dragOverlay}>
+                        <div className={styles.dragOverlayContent}>
+                          <Upload className="w-12 h-12 text-orange-600 mb-4" />
+                          <p className="text-lg font-medium text-gray-900 mb-2">Drop files to upload</p>
+                          <p className="text-sm text-gray-600">Only PDF and Word documents are allowed</p>
+                        </div>
+                      </div>
+                    )}
+
                     {currentFolders.map((folder) => {
                       const itemCount = getFolderFileCount(folder);
                       return (
@@ -730,13 +812,13 @@ export default function Documents() {
                     ))}
 
                     {currentFolders.length === 0 && currentFiles.length === 0 && (
-                      <div className="text-center py-12">
-                        <Folder className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                        <p className="text-gray-500">
+                      <div className={styles.emptyState}>
+                        <Folder className={`${styles.emptyIcon}`} />
+                        <p className={`${styles.emptyTitle} text-gray-500`}>
                           {currentFolderId ? 'This folder is empty' : 'No documents yet'}
                         </p>
-                        <p className="text-sm text-gray-400 mt-1">
-                          {currentFolderId ? 'Upload files to this folder' : 'Create a folder or upload files to get started'}
+                        <p className={`${styles.emptyDescription} text-sm text-gray-400 mt-1`}>
+                          {currentFolderId ? 'Drag and drop files here or use the upload button' : 'Create a folder or upload files to get started'}
                         </p>
                       </div>
                     )}
