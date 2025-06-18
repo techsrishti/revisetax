@@ -34,6 +34,7 @@ export default function AdminChat() {
   const [socket, setSocket] = useState<any>(null)
   const [isTyping, setIsTyping] = useState(false)
   const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null)
+  const [joinedRooms, setJoinedRooms] = useState<string[]>([])
 
   useEffect(() => {
     const fetchChats = async () => {
@@ -61,12 +62,16 @@ export default function AdminChat() {
   useEffect(() => {
     if (!socket || !selectedChat) return
 
-    socket.emit("join_room", {
-      roomCode: selectedChat.socketIORoomId,
-      userId: "admin_1"
-    })
+    if (!joinedRooms.includes(selectedChat.socketIORoomId)) {
+      socket.emit("join_room", {
+        roomCode: selectedChat.socketIORoomId,
+        userId: "admin_1"
+      })
+      setJoinedRooms([...joinedRooms, selectedChat.socketIORoomId])
+    }
 
     socket.on("receive_message", (msgPayload: any) => {
+      console.log("receive_message", msgPayload)
       setChats(prevChats => {
         return prevChats.map(chat => {
           if (chat.id === selectedChat.id) {
@@ -103,7 +108,7 @@ export default function AdminChat() {
         } else {
           // New chat → Create and add it to the top
           const newChat: Chat = {
-            id: roomCode,
+            id: `${roomCode}_${Date.now()}`,
             chatName: name || "Anonymous",
             socketIORoomId: roomCode,
             userId,
@@ -216,7 +221,7 @@ export default function AdminChat() {
         <div className={styles.chatList}>
           {chats.map((chat) => (
             <div
-              key={chat.id}
+              key={`${chat.id}_${chat.socketIORoomId}`}
               className={cn(styles.chatItem, {
                 [styles.active]: selectedChat?.id === chat.id
               })}
