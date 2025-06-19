@@ -119,19 +119,33 @@ model File {
 }
 
 model Chat { 
-  id            String    @id @default(uuid())
+  id            String      @id @default(uuid())
   chatName      String
   userId        String
-  socketIORoomId  String
-  adminId       String    @default("admin_1")
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  chatType      ChatTypes @unique
+  socketIORoomId  String    @unique
+  adminId       String?     // Nullable - will be assigned when admin joins
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  chatType      ChatTypes
+  status        ChatStatus  @default(PENDING)
+  lastMessageAt DateTime?
+  isActive      Boolean     @default(true)
+  
+  // Chat closure tracking
+  closedAt      DateTime?
+  closedBy      String?     // adminId who closed the chat
+  closeReason   String?     // Reason for closing
+  archivedAt    DateTime?
 
   messages      Message[]
-  user          User      @relation(fields: [userId], references: [id])
+  user          User        @relation(fields: [userId], references: [id])
+  admin         Admin?      @relation(fields: [adminId], references: [id])
 
   @@index([userId])
+  @@index([adminId])
+  @@index([status])
+  @@index([chatType])
+  @@index([closedAt])
 }
 
 model Message { 
@@ -141,14 +155,55 @@ model Message {
   isAdmin       Boolean
   content       String?
   createdAt     DateTime  @default(now())
+  readAt        DateTime?
 
   Chat          Chat      @relation(fields: [chatId], references: [id])
 
   @@index([chatId])
+  @@index([createdAt])
+}
+
+model Admin {
+  id            String    @id @default(uuid())
+  name          String
+  email         String    @unique
+  isActive      Boolean   @default(true)
+  isOnline      Boolean   @default(false)
+  lastSeenAt    DateTime?
+  maxChats      Int       @default(5) // Maximum concurrent chats
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  chats         Chat[]
+  adminSessions AdminSession[]
+
+  @@index([isOnline])
+  @@index([isActive])
+}
+
+model AdminSession {
+  id        String   @id @default(uuid())
+  adminId   String
+  socketId  String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  admin     Admin    @relation(fields: [adminId], references: [id])
+
+  @@index([adminId])
+  @@index([socketId])
 }
 
 enum ChatTypes { 
   ITRTaxFiling
   LoansProducts
   FinancialAdvisory
+}
+
+enum ChatStatus {
+  PENDING    // Chat created, waiting for admin
+  ACTIVE     // Admin has joined and chat is active
+  CLOSED     // Chat has been closed
+  ARCHIVED   // Chat archived after closure
 }
