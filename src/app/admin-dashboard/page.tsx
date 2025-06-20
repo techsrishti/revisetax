@@ -31,61 +31,35 @@ export default function AdminDashboard() {
         const { data: { user } } = await supabase.auth.getUser()
 
         if (!user) {
-          router.push("/auth/signin")
+          router.push("/admin/login")
           return
         }
 
         // Check if user is admin
-        const { data: dbUser } = await supabase
-          .from("users")
-          .select("id")
-          .eq("supabase_user_id", user.id)
-          .single()
-
-        if (!dbUser) {
-          router.push("/auth/signin")
+        const adminCheckResponse = await fetch('/api/admin/check')
+        if (!adminCheckResponse.ok) {
+          router.push("/admin/login")
+          return
+        }
+        
+        const adminCheck = await adminCheckResponse.json()
+        if (!adminCheck.isAdmin) {
+          router.push("/admin/login")
           return
         }
 
-        // Fetch user statistics
-        const { data: users } = await supabase
-          .from("users")
-          .select(`
-            id,
-            subscriptions:Subscription (
-              isActive,
-              Plan (
-                name
-              )
-            )
-          `)
-
-        if (users) {
-          const stats: UserStats = {
-            totalUsers: users.length,
-            activeUsers: users.filter(u => u.subscriptions?.some(s => s.isActive)).length,
-            inactiveUsers: users.filter(u => !u.subscriptions?.some(s => s.isActive)).length,
-            usersWithPlans: users.filter(u => u.subscriptions?.length > 0).length,
-            usersWithoutPlans: users.filter(u => !u.subscriptions?.length).length,
-            planDistribution: {}
-          }
-
-          // Calculate plan distribution
-          users.forEach(user => {
-            user.subscriptions?.forEach(sub => {
-              if (sub.Plan?.[0]?.name) {
-                stats.planDistribution[sub.Plan[0].name] = (stats.planDistribution[sub.Plan[0].name] || 0) + 1
-              }
-            })
-          })
-
-          setUserStats(stats)
+        // Fetch user statistics from API
+        const response = await fetch('/api/admin/stats')
+        if (!response.ok) {
+          throw new Error('Failed to fetch admin stats')
         }
-
+        
+        const stats: UserStats = await response.json()
+        setUserStats(stats)
         setIsLoading(false)
       } catch (error) {
         console.error("Error checking admin status:", error)
-        router.push("/auth/signin")
+        router.push("/admin/login")
       }
     }
 
