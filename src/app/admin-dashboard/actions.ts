@@ -12,31 +12,31 @@ export interface ErrorResponse {
 
 export interface GetAdminChatsSuccessResponse {
   success: true,
-  chats: {
-    id: string,
-    chatName: string,
-    socketIORoomId: string,
-    userId: string,
+  chats: ({
     user: {
-      name: string | null,
-      email: string | null,
-      phoneNumber: string
-    },
-    updatedAt: Date,
-    chatType: string,
+        name: string | null;
+        email: string | null;
+        phoneNumber: string;
+    };
     messages: {
-      id: string,
-      content: string | null,
-      createdAt: Date,
-      isAdmin: boolean
-    }[]
-  }[]
+        id: string;
+        content: string | null;
+        createdAt: Date;
+        isAdmin: boolean;
+    }[];
+  } & {
+    id: string;
+    chatName: string;
+    socketIORoomId: string;
+    userId: string;
+    updatedAt: Date;
+    chatType: ChatTypes;
+    isAiChat: boolean;
+  })[]
 }
 
 export async function getAdminChats(): Promise<GetAdminChatsSuccessResponse|ErrorResponse> {
   try {
-
-
     const chats = await prisma.chat.findMany({
       include: {
         user: {
@@ -60,16 +60,13 @@ export async function getAdminChats(): Promise<GetAdminChatsSuccessResponse|Erro
 
     return {
       success: true,
-      chats: chats.map(chat => ({
-        id: chat.id,
-        chatName: chat.chatName,
-        socketIORoomId: chat.socketIORoomId,
-        userId: chat.userId,
-        user: chat.user,
-        updatedAt: chat.updatedAt,
-        chatType: chat.chatType,
-        messages: chat.messages
-      }))
+      chats: chats.map(chat => {
+        const { isAiChat, ...rest } = chat as any;
+        return {
+          ...rest,
+          isAiChat: isAiChat || false,
+        };
+      }),
     }
 
   } catch (error) {
@@ -78,7 +75,7 @@ export async function getAdminChats(): Promise<GetAdminChatsSuccessResponse|Erro
       success: false,
       error: 'Failed to get chats',
       errorMessage: 'An unknown error occurred',
-      errorCode: 'UNKNOWN_ERROR',
+      errorCode: 'UNKNOWN_error',
     }
   }
 } 

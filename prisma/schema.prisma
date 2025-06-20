@@ -130,6 +130,7 @@ model Chat {
   status        ChatStatus  @default(PENDING)
   lastMessageAt DateTime?
   isActive      Boolean     @default(true)
+  isAiChat      Boolean     @default(false)
   
   // Chat closure tracking
   closedAt      DateTime?
