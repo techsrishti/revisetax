@@ -178,7 +178,7 @@ export default function Sidebar({ activeModule, setActiveModule, children }: Sid
             <div className={styles.logoContainer}>
               <img src="/revise-tax-logo.svg" alt="Revise Tax" className={styles.logo} />
             </div>
-            <p className={styles.copyright}>© 2024, All rights reserved.</p>
+            <p className={styles.copyright}>© 2025, All rights reserved.</p>
           </div>
         </div>
 

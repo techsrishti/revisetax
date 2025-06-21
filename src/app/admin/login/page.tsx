@@ -729,7 +729,7 @@ export default function AdminLoginPage() {
           
           <div className="text-center text-xs text-muted-foreground">
             <p>Protected by Microsoft Authenticator two-factor authentication</p>
-            <p className="mt-1">ReviseTax Admin Portal &copy; 2024</p>
+            <p className="mt-1">ReviseTax Admin Portal &copy; 2025</p>
           </div>
         </CardContent>
       </Card>

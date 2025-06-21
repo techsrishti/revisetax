@@ -588,7 +588,7 @@ export interface GetChatsSuccessResponse {
         id: string, 
         chatName: string, 
         socketIORoomId: string, 
-        adminId: string, 
+        adminId: string | null, 
         updatedAt: Date, 
         chatType: string,
     }[]
@@ -647,7 +647,7 @@ export async function getChats(): Promise<GetChatsSuccessResponse|ErrorResponse>
                 socketIORoomId: chat.socketIORoomId,
                 adminId: chat.adminId,
                 updatedAt: chat.updatedAt,
-                chatType: chat.chatType,
+                chatType: chat.chatType.toString(),
             }))
         }
 

@@ -24,7 +24,7 @@ export default function ChatModule() {
                 <label htmlFor="itr-tax-filing" className={styles.checkboxLabel}>
                   ITR Tax Filing
                 </label>
-                <p className={styles.subLabel}>Income Tax Returns 2024 - 2025</p>
+                <p className={styles.subLabel}>Income Tax Returns 2025 - 2026</p>
               </div>
             </div>
           </div>
