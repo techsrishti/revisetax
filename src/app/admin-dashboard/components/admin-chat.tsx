@@ -60,7 +60,9 @@ interface BaseChat {
     name: string
     email: string
   } | null
+  createdAt: Date
   updatedAt: Date
+  lastMessageAt?: Date | null
   chatType: string
   status: string
   closedAt: Date | null
@@ -224,7 +226,11 @@ export default function AdminChat() {
               updatedAt: c.updatedAt ? new Date(c.updatedAt) : new Date(),
               user: c.user || { name: '', email: '', phoneNumber: '' }
             }))
-            setChats(mappedChats)
+            // Remove duplicates based on chat ID
+            const uniqueChats = mappedChats.filter((chat: any, index: number, self: any[]) => 
+              index === self.findIndex((c: any) => c.id === chat.id)
+            )
+            setChats(uniqueChats)
             // Set current admin id from first chat with admin
             const adminChat = data.chats.find((chat: any) => chat.adminId && chat.admin)
             if (adminChat?.admin?.id) setCurrentAdminId(adminChat.admin.id)
@@ -236,23 +242,30 @@ export default function AdminChat() {
 
         // Listen for new chat requests (add to chat list)
         socketInstance.on("new_chat_request", (data: any) => {
-          setChats(prev => [...prev, {
-            id: data.chatId,
-            chatName: data.chatName,
-            socketIORoomId: data.roomId,
-            userId: "",
-            adminId: admin.id,
-            user: data.user || { name: data.userName || '', email: data.userEmail || '', phoneNumber: '' },
-            updatedAt: data.updatedAt ? new Date(data.updatedAt) : new Date(),
-            chatType: data.chatType,
-            status: "PENDING",
-            closedAt: null,
-            closedBy: null,
-            closeReason: null,
-            isActive: true,
-            messages: [],
-            isAiChat: false
-          }])
+          setChats(prev => {
+            // Check if chat already exists
+            const chatExists = prev.some(chat => chat.id === data.chatId)
+            if (chatExists) {
+              return prev // Don't add duplicate
+            }
+            return [...prev, {
+              id: data.chatId,
+              chatName: data.chatName,
+              socketIORoomId: data.roomId,
+              userId: "",
+              adminId: admin.id,
+              user: data.user || { name: data.userName || '', email: data.userEmail || '', phoneNumber: '' },
+              updatedAt: data.updatedAt ? new Date(data.updatedAt) : new Date(),
+              chatType: data.chatType,
+              status: "PENDING",
+              closedAt: null,
+              closedBy: null,
+              closeReason: null,
+              isActive: true,
+              messages: [],
+              isAiChat: false
+            }]
+          })
         })
 
         // Listen for chat history
@@ -271,6 +284,7 @@ export default function AdminChat() {
           } else {
             setMessages([])
           }
+          setIsLoadingChat(false)
         })
 
         // Listen for new messages
@@ -279,23 +293,38 @@ export default function AdminChat() {
 
           // Update the message list if it's for the currently selected chat
           if (msg.chatId === selectedChatRef.current?.id) {
-            setMessages(prev => [...prev, msg])
+            setMessages(prev => {
+              // Check if message already exists to prevent duplicates
+              const messageExists = prev.some(existingMsg => existingMsg.id === msg.id)
+              if (messageExists) {
+                return prev
+              }
+              return [...prev, msg]
+            })
           }
 
           // Update the chat list in the sidebar
           setChats(prevChats => {
             const updatedChats = prevChats.map(chat => {
               if (chat.id === msg.chatId) {
+                // Check if message already exists in chat messages
+                const messageExists = Array.isArray(chat.messages) && 
+                  chat.messages.some(existingMsg => existingMsg.id === msg.id)
+                
                 return {
                   ...chat,
                   updatedAt: new Date(msg.createdAt),
-                  messages: [msg, ...(Array.isArray(chat.messages) ? chat.messages : [])],
+                  messages: messageExists ? chat.messages : [msg, ...(Array.isArray(chat.messages) ? chat.messages : [])],
                 }
               }
               return chat
             })
+            // Remove any duplicates that might have been created
+            const uniqueChats = updatedChats.filter((chat, index, self) => 
+              index === self.findIndex(c => c.id === chat.id)
+            )
             // Sort chats to bring the most recent to the top
-            return updatedChats.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+            return uniqueChats.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
           })
         })
 
@@ -320,8 +349,22 @@ export default function AdminChat() {
   // Join room handler
   const handleJoinRoom = async (chat: Chat) => {
     if (!socket || !isAuthenticated || !adminDetails) return
+    setIsLoadingChat(true)
     socket.emit("admin_join_chat", { chatId: chat.id })
     setJoinedRooms([chat.socketIORoomId]) // Only keep the current joined room
+    
+    const loadingTimeout = setTimeout(() => {
+      setIsLoadingChat(false);
+      toast({
+        title: "Error",
+        description: "Could not join chat. Please try again.",
+        variant: "destructive"
+      });
+    }, 8000); // 8-second timeout
+
+    socket.once("chat_history", () => {
+      clearTimeout(loadingTimeout);
+    });
     
     // Fetch detailed chat information including user details
     try {
@@ -356,8 +399,22 @@ export default function AdminChat() {
   // When a chat is selected (only if already joined)
   const handleSelectChat = async (chat: Chat) => {
     if (!joinedRooms.includes(chat.socketIORoomId) || !isAuthenticated || !adminDetails) return;
+    
     setIsLoadingChat(true);
-    setMessages([])
+    setMessages([]);
+
+    const loadingTimeout = setTimeout(() => {
+      setIsLoadingChat(false);
+      toast({
+        title: "Error",
+        description: "Could not load chat history. Please try again.",
+        variant: "destructive"
+      });
+    }, 8000); // 8-second timeout
+
+    socket.once("chat_history", () => {
+      clearTimeout(loadingTimeout);
+    });
     
     try {
       // Fetch detailed chat information including user details
@@ -387,8 +444,10 @@ export default function AdminChat() {
     
     if (socket) {
       socket.emit("get_chat_history", { chatId: chat.id });
+    } else {
+       clearTimeout(loadingTimeout);
+       setIsLoadingChat(false);
     }
-    setIsLoadingChat(false);
   }
 
   const handleCreateTicket = (ticketingSystem: "osticket" | "hubspot") => {
@@ -502,7 +561,7 @@ export default function AdminChat() {
       <div className="p-0 grid grid-cols-1 md:grid-cols-4 h-full min-h-0">
         {/* Chat List Sidebar */}
         <div className="col-span-1 border-r border-white/20 flex flex-col bg-white/5 h-full min-h-0">
-          <div className="p-4 border-b border-white/20">
+          <div className="p-4 border-b border-white/20 flex flex-col justify-center h-28">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-white">Chats</h2>
               {/* Add any header controls here, e.g., filters */}
@@ -559,7 +618,7 @@ export default function AdminChat() {
                           <p className="text-sm text-white/70 truncate">{userName}</p>
                         </div>
                         <span className="text-xs text-white/60 whitespace-nowrap ml-2">
-                          {chat.lastMessageAt ? formatSidebarTimestamp(chat.lastMessageAt) : "N/A"}
+                          {chat.lastMessageAt ? formatSidebarTimestamp(chat.lastMessageAt) : formatSidebarTimestamp(chat.createdAt)}
                         </span>
                       </div>
 
@@ -631,7 +690,7 @@ export default function AdminChat() {
             </div>
           ) : selectedChat && joinedRooms.includes(selectedChat.socketIORoomId) ? (
             <>
-              <div className="p-4 border-b border-white/20 flex items-center justify-between bg-white/5">
+              <div className="p-4 border-b border-white/20 flex items-center justify-between bg-white/5 h-28">
                 <div className="flex items-center gap-4">
                   <Avatar>
                     <AvatarFallback className="bg-white/20 text-white">{(selectedChat.user && selectedChat.user.name ? selectedChat.user.name[0] : "U")}</AvatarFallback>
@@ -740,60 +799,68 @@ export default function AdminChat() {
         {/* Agent Panel - Only visible when chat is selected */}
         {selectedChat && (
           <div className="col-span-1 border-l border-white/20 flex flex-col bg-white/5">
-            <div className="p-4 border-b border-white/20 text-center bg-white/5">
+            <div className="p-4 border-b border-white/20 text-center bg-white/5 flex items-center justify-center h-28">
               <h2 className="text-xl font-bold text-white">Agent Panel</h2>
             </div>
-            {isPending && <Loader2 className="animate-spin m-auto text-primary" />}
-            {!isPending && (
-              <div className="p-4 space-y-6 flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
-                {/* User Info */}
-                <div className="space-y-2">
-                  <h3 className="font-semibold text-white">User Information</h3>
-                  <div className="space-y-1 text-sm">
-                    <p className="text-white/80"><strong className="text-white">Name:</strong> {selectedChat.user?.name || "Not provided"}</p>
-                    <p className="text-white/80"><strong className="text-white">Email:</strong> {selectedChat.user?.email || "Not provided"}</p>
-                    <p className="text-white/80"><strong className="text-white">Phone:</strong> {selectedChat.user?.phoneNumber || "Not provided"}</p>
-                    <p className="text-white/80"><strong className="text-white">Plan:</strong> {selectedChat.user?.Subscription?.planName || "No active plan"}</p>
-                  </div>
-                </div>
-
-                {/* Ticketing */}
-                <div className="space-y-2">
-                  <h3 className="font-semibold text-white">Create Ticket</h3>
-                  <div className="flex flex-col space-y-2">
-                      <Button 
-                        onClick={() => handleCreateTicket('hubspot')}
-                        className="bg-white/10 hover:bg-white/20 text-white border border-white/20"
-                      >
-                        <Ticket className="mr-2 h-4 w-4"/>HubSpot
-                      </Button>
-                      <Button 
-                        onClick={() => handleCreateTicket('osticket')}
-                        className="bg-white/10 hover:bg-white/20 text-white border border-white/20"
-                      >
-                        <Ticket className="mr-2 h-4 w-4"/>osTicket
-                      </Button>
-                  </div>
-                </div>
-
-                {/* Documents */}
-                <div className="space-y-2">
-                  <h3 className="font-semibold text-white">Uploaded Documents</h3>
-                  <div className="space-y-2">
-                      {userDocs.length > 0 ? userDocs.map(folder => (
-                          <div key={folder.id}>
-                              <h4 className="font-medium text-sm text-white">{folder.name}</h4>
-                              {folder.File.length > 0 ? folder.File.map(file => (
-                                  <a key={file.id} href={`https://hykxpxglhoyjbodkvoxx.supabase.co/storage/v1/object/public/documents/${file.storageName}`} target="_blank" rel="noopener noreferrer" className="flex items-center text-sm text-primary hover:text-primary/80 transition-colors">
-                                      <FileText className="mr-2 h-4 w-4"/>
-                                      {file.originalName}
-                                  </a>
-                              )) : <p className="text-sm text-white/60">No Files in this folder</p>}
-                          </div>
-                      )) : <p className="text-sm text-white/60">No documents uploaded.</p>}
-                  </div>
-                </div>
+            {isLoadingChat ? (
+              <div className="flex items-center justify-center h-full">
+                <Loader2 className="animate-spin h-8 w-8 text-primary" />
               </div>
+            ) : (
+              <>
+                {isPending && <Loader2 className="animate-spin m-auto text-primary" />}
+                {!isPending && (
+                  <div className="p-4 space-y-6 flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+                    {/* User Info */}
+                    <div className="space-y-2">
+                      <h3 className="font-semibold text-white">User Information</h3>
+                      <div className="space-y-1 text-sm">
+                        <p className="text-white/80"><strong className="text-white">Name:</strong> {selectedChat.user?.name || "Not provided"}</p>
+                        <p className="text-white/80"><strong className="text-white">Email:</strong> {selectedChat.user?.email || "Not provided"}</p>
+                        <p className="text-white/80"><strong className="text-white">Phone:</strong> {selectedChat.user?.phoneNumber || "Not provided"}</p>
+                        <p className="text-white/80"><strong className="text-white">Plan:</strong> {selectedChat.user?.Subscription?.planName || "No active plan"}</p>
+                      </div>
+                    </div>
+
+                    {/* Ticketing */}
+                    <div className="space-y-2">
+                      <h3 className="font-semibold text-white">Create Ticket</h3>
+                      <div className="flex flex-col space-y-2">
+                          <Button 
+                            onClick={() => handleCreateTicket('hubspot')}
+                            className="bg-white/10 hover:bg-white/20 text-white border border-white/20"
+                          >
+                            <Ticket className="mr-2 h-4 w-4"/>HubSpot
+                          </Button>
+                          <Button 
+                            onClick={() => handleCreateTicket('osticket')}
+                            className="bg-white/10 hover:bg-white/20 text-white border border-white/20"
+                          >
+                            <Ticket className="mr-2 h-4 w-4"/>osTicket
+                          </Button>
+                      </div>
+                    </div>
+
+                    {/* Documents */}
+                    <div className="space-y-2">
+                      <h3 className="font-semibold text-white">Uploaded Documents</h3>
+                      <div className="space-y-2">
+                          {userDocs.length > 0 ? userDocs.map(folder => (
+                              <div key={folder.id}>
+                                  <h4 className="font-medium text-sm text-white">{folder.name}</h4>
+                                  {folder.File.length > 0 ? folder.File.map(file => (
+                                      <a key={file.id} href={`https://hykxpxglhoyjbodkvoxx.supabase.co/storage/v1/object/public/documents/${file.storageName}`} target="_blank" rel="noopener noreferrer" className="flex items-center text-sm text-primary hover:text-primary/80 transition-colors">
+                                          <FileText className="mr-2 h-4 w-4"/>
+                                          {file.originalName}
+                                      </a>
+                                  )) : <p className="text-sm text-white/60">No Files in this folder</p>}
+                              </div>
+                          )) : <p className="text-sm text-white/60">No documents uploaded.</p>}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
