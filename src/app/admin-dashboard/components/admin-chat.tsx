@@ -37,9 +37,12 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
 
-// Add your admin DB credentials here (replace with real admin from your DB)
-const ADMIN_ID = "f8ffa022-23a6-41ae-bf27-b9938806971f";
-const ADMIN_EMAIL = "admin2@revisetax.com";
+interface AdminDetails {
+  id: string
+  name: string
+  email: string
+  authId: string
+}
 
 interface BaseChat {
   id: string
@@ -145,6 +148,8 @@ export default function AdminChat() {
   const [isLoadingChat, setIsLoadingChat] = useState(false)
   const [messages, setMessages] = useState<any[]>([])
   const [joinedRooms, setJoinedRooms] = useState<string[]>([])
+  const [adminDetails, setAdminDetails] = useState<AdminDetails | null>(null)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const selectedChatRef = useRef(selectedChat)
 
@@ -152,91 +157,158 @@ export default function AdminChat() {
     selectedChatRef.current = selectedChat
   }, [selectedChat])
 
-  useEffect(() => {
-    // Initialize socket connection
-    const socketInstance = io("https://socket.alpha.revisetax.com")
-    setSocket(socketInstance)
-
-    // Authenticate admin on connect
-    socketInstance.on("connect", () => {
-      socketInstance.emit("admin_authenticate", { adminId: ADMIN_ID, adminEmail: ADMIN_EMAIL })
-    })
-
-    // Listen for chat list
-    socketInstance.on("existing_admin_chats", (data: any) => {
-      if (data.chats && Array.isArray(data.chats)) {
-        setChats(data.chats.map((c: any) => ({
-          ...c,
-          isAiChat: c.isAiChat || false,
-          updatedAt: c.updatedAt ? new Date(c.updatedAt) : new Date(),
-          user: c.user || { name: '', email: '', phoneNumber: '' }
-        })))
-        // Set current admin id from first chat with admin
-        const adminChat = data.chats.find((chat: any) => chat.adminId && chat.admin)
-        if (adminChat?.admin?.id) setCurrentAdminId(adminChat.admin.id)
-      } else {
-        setChats([])
+  // Fetch admin details from API
+  const fetchAdminDetails = async (): Promise<AdminDetails | null> => {
+    try {
+      const response = await fetch('/api/admin/current')
+      if (!response.ok) {
+        throw new Error('Failed to fetch admin details')
       }
-      setIsLoading(false)
-    })
-
-    // Listen for new chat requests (add to chat list)
-    socketInstance.on("new_chat_request", (data: any) => {
-      setChats(prev => [...prev, {
-        id: data.chatId,
-        chatName: data.chatName,
-        socketIORoomId: data.roomId,
-        userId: "",
-        adminId: currentAdminId,
-        user: data.user || { name: data.userName || '', email: data.userEmail || '', phoneNumber: '' },
-        updatedAt: data.updatedAt ? new Date(data.updatedAt) : new Date(),
-        chatType: data.chatType,
-        status: "PENDING",
-        closedAt: null,
-        closedBy: null,
-        closeReason: null,
-        isActive: true,
-        messages: [],
-        isAiChat: false
-      }])
-    })
-
-    // Listen for chat history
-    socketInstance.on("chat_history", (data: any) => {
-      if (data && data.messages) {
-        setMessages(data.messages)
+      const data = await response.json()
+      if (data.success && data.admin) {
+        return data.admin
       }
-    })
-
-    // Listen for new messages
-    socketInstance.on("new_message", (msg: any) => {
-      // msg should contain { id, content, createdAt, isAdmin, chatId }
-
-      // Update the message list if it's for the currently selected chat
-      if (msg.chatId === selectedChatRef.current?.id) {
-        setMessages(prev => [...prev, msg])
-      }
-
-      // Update the chat list in the sidebar
-      setChats(prevChats => {
-        const updatedChats = prevChats.map(chat => {
-          if (chat.id === msg.chatId) {
-            return {
-              ...chat,
-              updatedAt: new Date(msg.createdAt),
-              messages: [msg, ...(Array.isArray(chat.messages) ? chat.messages : [])],
-            }
-          }
-          return chat
-        })
-        // Sort chats to bring the most recent to the top
-        return updatedChats.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-      })
-    })
-
-    return () => {
-      socketInstance.disconnect()
+      throw new Error('Admin details not found')
+    } catch (error) {
+      console.error('Error fetching admin details:', error)
+      return null
     }
+  }
+
+  useEffect(() => {
+    // Initialize socket connection and admin authentication
+    const initializeSocket = async () => {
+      try {
+        // First, fetch admin details
+        const admin = await fetchAdminDetails()
+        if (!admin) {
+          console.error('Failed to fetch admin details')
+          setIsLoading(false)
+          return
+        }
+
+        setAdminDetails(admin)
+        setCurrentAdminId(admin.id)
+
+        // Initialize socket connection
+        const socketInstance = io("https://socket.alpha.revisetax.com")
+        setSocket(socketInstance)
+
+        // Authenticate admin on connect
+        socketInstance.on("connect", () => {
+          socketInstance.emit("admin_authenticate", { 
+            adminId: admin.id, 
+            adminEmail: admin.email 
+          })
+        })
+
+        // Listen for authentication success
+        socketInstance.on("admin_authenticated", (data: any) => {
+          console.log("Admin authenticated:", data)
+          setIsAuthenticated(true)
+        })
+
+        // Listen for authentication error
+        socketInstance.on("auth_error", (data: any) => {
+          console.error("Admin authentication failed:", data)
+          setIsAuthenticated(false)
+        })
+
+        // Listen for chat list
+        socketInstance.on("existing_admin_chats", (data: any) => {
+          if (data.chats && Array.isArray(data.chats)) {
+            const mappedChats = data.chats.map((c: any) => ({
+              ...c,
+              socketIORoomId: c.roomId || c.socketIORoomId, // Map roomId to socketIORoomId
+              isAiChat: c.isAiChat || false,
+              updatedAt: c.updatedAt ? new Date(c.updatedAt) : new Date(),
+              user: c.user || { name: '', email: '', phoneNumber: '' }
+            }))
+            setChats(mappedChats)
+            // Set current admin id from first chat with admin
+            const adminChat = data.chats.find((chat: any) => chat.adminId && chat.admin)
+            if (adminChat?.admin?.id) setCurrentAdminId(adminChat.admin.id)
+          } else {
+            setChats([])
+          }
+          setIsLoading(false)
+        })
+
+        // Listen for new chat requests (add to chat list)
+        socketInstance.on("new_chat_request", (data: any) => {
+          setChats(prev => [...prev, {
+            id: data.chatId,
+            chatName: data.chatName,
+            socketIORoomId: data.roomId,
+            userId: "",
+            adminId: admin.id,
+            user: data.user || { name: data.userName || '', email: data.userEmail || '', phoneNumber: '' },
+            updatedAt: data.updatedAt ? new Date(data.updatedAt) : new Date(),
+            chatType: data.chatType,
+            status: "PENDING",
+            closedAt: null,
+            closedBy: null,
+            closeReason: null,
+            isActive: true,
+            messages: [],
+            isAiChat: false
+          }])
+        })
+
+        // Listen for chat history
+        socketInstance.on("chat_history", (data: any) => {
+          if (data && data.messages) {
+            // Ensure messages have the correct structure
+            const formattedMessages = data.messages.map((msg: any) => ({
+              id: msg.id,
+              content: msg.content || msg.message || '',
+              createdAt: msg.createdAt ? new Date(msg.createdAt) : new Date(),
+              isAdmin: msg.isAdmin || false,
+              chatId: msg.chatId || data.chatId
+            }))
+            
+            setMessages(formattedMessages)
+          } else {
+            setMessages([])
+          }
+        })
+
+        // Listen for new messages
+        socketInstance.on("new_message", (msg: any) => {
+          // msg should contain { id, content, createdAt, isAdmin, chatId }
+
+          // Update the message list if it's for the currently selected chat
+          if (msg.chatId === selectedChatRef.current?.id) {
+            setMessages(prev => [...prev, msg])
+          }
+
+          // Update the chat list in the sidebar
+          setChats(prevChats => {
+            const updatedChats = prevChats.map(chat => {
+              if (chat.id === msg.chatId) {
+                return {
+                  ...chat,
+                  updatedAt: new Date(msg.createdAt),
+                  messages: [msg, ...(Array.isArray(chat.messages) ? chat.messages : [])],
+                }
+              }
+              return chat
+            })
+            // Sort chats to bring the most recent to the top
+            return updatedChats.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+          })
+        })
+
+        return () => {
+          socketInstance.disconnect()
+        }
+      } catch (error) {
+        console.error('Error initializing socket:', error)
+        setIsLoading(false)
+      }
+    }
+
+    initializeSocket()
   }, [])
 
   useEffect(() => {
@@ -247,7 +319,7 @@ export default function AdminChat() {
 
   // Join room handler
   const handleJoinRoom = async (chat: Chat) => {
-    if (!socket) return
+    if (!socket || !isAuthenticated || !adminDetails) return
     socket.emit("admin_join_chat", { chatId: chat.id })
     setJoinedRooms([chat.socketIORoomId]) // Only keep the current joined room
     
@@ -283,7 +355,7 @@ export default function AdminChat() {
 
   // When a chat is selected (only if already joined)
   const handleSelectChat = async (chat: Chat) => {
-    if (!joinedRooms.includes(chat.socketIORoomId)) return;
+    if (!joinedRooms.includes(chat.socketIORoomId) || !isAuthenticated || !adminDetails) return;
     setIsLoadingChat(true);
     setMessages([])
     
@@ -356,7 +428,7 @@ export default function AdminChat() {
   }
 
   const handleSendMessage = () => {
-    if (!message.trim() || !selectedChat || !socket) return
+    if (!message.trim() || !selectedChat || !socket || !isAuthenticated || !adminDetails) return
 
     // Send the correct payload expected by the server
     socket.emit("send_message", {
@@ -368,11 +440,11 @@ export default function AdminChat() {
   }
 
   const handleTyping = () => {
-    if (!selectedChat || !socket) return
+    if (!selectedChat || !socket || !isAuthenticated || !adminDetails) return
 
     socket.emit("start_typing", {
       roomCode: selectedChat.socketIORoomId,
-      senderId: "admin_1"
+      senderId: adminDetails.id
     })
 
     if (typingTimeout) {
@@ -382,7 +454,7 @@ export default function AdminChat() {
     const timeout = setTimeout(() => {
       socket.emit("stop_typing", {
         roomCode: selectedChat.socketIORoomId,
-        senderId: "admin_1"
+        senderId: adminDetails.id
       })
     }, 1000)
 
@@ -395,7 +467,19 @@ export default function AdminChat() {
         <div className="text-center text-white/80 p-8">
           <Loader2 className="animate-spin mx-auto h-12 w-12 mb-4 text-primary" />
           <h2 className="text-xl font-semibold text-white">Loading...</h2>
-          <p className="text-white/70">Please wait while we load the chat data.</p>
+          <p className="text-white/70">Please wait while we authenticate and load the chat data.</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!adminDetails) {
+    return (
+      <div className="h-[80vh] flex items-center justify-center bg-white/5 backdrop-blur-sm border border-white/20 rounded-lg">
+        <div className="text-center text-white/80 p-8">
+          <Power className="mx-auto h-12 w-12 mb-4 text-red-400" />
+          <h2 className="text-xl font-semibold text-white">Authentication Required</h2>
+          <p className="text-white/70">Please log in as an admin to access the chat dashboard.</p>
         </div>
       </div>
     )
@@ -475,7 +559,7 @@ export default function AdminChat() {
                           <p className="text-sm text-white/70 truncate">{userName}</p>
                         </div>
                         <span className="text-xs text-white/60 whitespace-nowrap ml-2">
-                          {chat.updatedAt ? formatSidebarTimestamp(chat.updatedAt) : "N/A"}
+                          {chat.lastMessageAt ? formatSidebarTimestamp(chat.lastMessageAt) : "N/A"}
                         </span>
                       </div>
 
@@ -576,39 +660,46 @@ export default function AdminChat() {
               </div>
               <div className="flex-1 h-full min-h-0 p-6 overflow-y-auto space-y-6 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent" style={{ minHeight: 0 }}>
                 {/* Message bubbles */}
-                {messages.slice().reverse().map(msg => (
-                  <div
-                    key={msg.id}
-                    className={cn("flex items-end gap-3", {
-                      "justify-end": msg.isAdmin,
-                    })}
-                  >
-                    {!msg.isAdmin && (
-                      <Avatar className="h-8 w-8">
-                        <AvatarFallback className="bg-white/20 text-white">{(selectedChat.user && selectedChat.user.name ? selectedChat.user.name[0] : "U")}</AvatarFallback>
-                      </Avatar>
-                    )}
-                    <div
-                      className={cn(
-                        "max-w-xs md:max-w-md lg:max-w-lg p-3 rounded-lg",
-                        {
-                          "bg-primary text-white": msg.isAdmin,
-                          "bg-white/15 text-white border border-white/20": !msg.isAdmin,
-                        }
-                      )}
-                    >
-                      <p className="text-sm">{msg.content}</p>
-                      <span className="text-xs text-white/60 mt-1 block text-right">
-                        {formatTimestamp(msg.createdAt)}
-                      </span>
-                    </div>
-                    {msg.isAdmin && (
-                      <Avatar className="h-8 w-8">
-                        <AvatarFallback className="bg-primary text-white">A</AvatarFallback>
-                      </Avatar>
-                    )}
+                {messages.length === 0 ? (
+                  <div className="text-center text-white/60 py-8">
+                    <p>No messages yet</p>
+                    <p className="text-xs">Messages will appear here once the conversation starts</p>
                   </div>
-                ))}
+                ) : (
+                  messages.map(msg => (
+                    <div
+                      key={msg.id}
+                      className={cn("flex items-end gap-3", {
+                        "justify-end": msg.isAdmin,
+                      })}
+                    >
+                      {!msg.isAdmin && (
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className="bg-white/20 text-white">{(selectedChat.user && selectedChat.user.name ? selectedChat.user.name[0] : "U")}</AvatarFallback>
+                        </Avatar>
+                      )}
+                      <div
+                        className={cn(
+                          "max-w-xs md:max-w-md lg:max-w-lg p-3 rounded-lg",
+                          {
+                            "bg-primary text-white": msg.isAdmin,
+                            "bg-white/15 text-white border border-white/20": !msg.isAdmin,
+                          }
+                        )}
+                      >
+                        <p className="text-sm">{msg.content}</p>
+                        <span className="text-xs text-white/60 mt-1 block text-right">
+                          {formatTimestamp(msg.createdAt)}
+                        </span>
+                      </div>
+                      {msg.isAdmin && (
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className="bg-primary text-white">A</AvatarFallback>
+                        </Avatar>
+                      )}
+                    </div>
+                  ))
+                )}
                 <div ref={messagesEndRef} />
               </div>
               <div className="p-4 border-t border-white/20 bg-white/5">
