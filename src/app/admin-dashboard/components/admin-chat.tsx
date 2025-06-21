@@ -123,6 +123,7 @@ export default function AdminChat() {
   const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [currentAdminId, setCurrentAdminId] = useState<string | null>(null)
+  const [isLoadingChat, setIsLoadingChat] = useState(false)
 
   useEffect(() => {
     const fetchChats = async () => {
@@ -250,6 +251,7 @@ export default function AdminChat() {
     startTransition(async () => {
       setSelectedChat(null) // Clear previous selection immediately
       setUserDocs([]) // Clear docs
+      setIsLoadingChat(true) // Start loading
       
       try {
         // If this is a PENDING chat and not assigned to anyone, assign it to current admin
@@ -267,6 +269,7 @@ export default function AdminChat() {
             toast({ title: "Success", description: "Chat assigned to you." })
           } else {
             toast({ title: "Error", description: "Failed to assign chat.", variant: "destructive" })
+            setIsLoadingChat(false)
             return
           }
         }
@@ -291,6 +294,8 @@ export default function AdminChat() {
       } catch (error) {
         console.error("Error in handleSelectChat:", error)
         toast({ title: "Error", description: "Failed to process chat selection.", variant: "destructive" })
+      } finally {
+        setIsLoadingChat(false) // End loading
       }
     })
   }
@@ -521,7 +526,15 @@ export default function AdminChat() {
 
         {/* Chat Area */}
         <div className={cn("flex flex-col", selectedChat ? "col-span-2" : "col-span-3")}>
-          {selectedChat ? (
+          {isLoadingChat ? (
+            <div className="flex items-center justify-center h-full text-muted-foreground bg-gray-50/50">
+              <div className="text-center">
+                <Loader2 className="animate-spin mx-auto h-8 w-8 mb-4" />
+                <p className="text-lg">Loading chat...</p>
+                <p className="text-sm">Please wait while we load the conversation</p>
+              </div>
+            </div>
+          ) : selectedChat ? (
             <>
               <div className="p-4 border-b flex items-center justify-between">
                 <div className="flex items-center gap-4">
