@@ -85,7 +85,7 @@ export async function createOsTicket(params: {
         email: params.email,
         subject: params.subject,
         message: `data:text/plain,${params.message}`,
-        ip: "203.115.69.190", // Example IP, consider making this dynamic or removing
+        ip: process.env.REVISE_TAX_INSTANCE_IP || "203.115.69.190", // Use environment variable with fallback
         source: "API",
       }),
     })
