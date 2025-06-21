@@ -398,7 +398,7 @@
             }
 
             currentUserId = userId;
-            socket.emit('user_authenticate', { userId });
+            socket.emit('user_authenticate', { supabaseUserId: userId });
         }
 
         socket.on('user_authenticated', (data) => {
