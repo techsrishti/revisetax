@@ -122,9 +122,12 @@ const formatSidebarTimestamp = (date: Date | string | undefined | null) => {
   const d = new Date(date)
   if (isNaN(d.getTime())) return "-"
   if (isToday(d)) {
-    return `${format(d, "h:mm a")} · ${format(d, "MMM d, yyyy")}`
+    return format(d, "p") // 5:41 PM
   }
-  return format(d, "MMM d, yyyy")
+  if (isYesterday(d)) {
+    return "Yesterday"
+  }
+  return format(d, "d MMM") // 21 Jun
 }
 
 export default function AdminChat() {
@@ -143,6 +146,11 @@ export default function AdminChat() {
   const [messages, setMessages] = useState<any[]>([])
   const [joinedRooms, setJoinedRooms] = useState<string[]>([])
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
+  const selectedChatRef = useRef(selectedChat)
+
+  useEffect(() => {
+    selectedChatRef.current = selectedChat
+  }, [selectedChat])
 
   useEffect(() => {
     // Initialize socket connection
@@ -202,7 +210,28 @@ export default function AdminChat() {
 
     // Listen for new messages
     socketInstance.on("new_message", (msg: any) => {
-      setMessages(prev => [...prev, msg])
+      // msg should contain { id, content, createdAt, isAdmin, chatId }
+
+      // Update the message list if it's for the currently selected chat
+      if (msg.chatId === selectedChatRef.current?.id) {
+        setMessages(prev => [...prev, msg])
+      }
+
+      // Update the chat list in the sidebar
+      setChats(prevChats => {
+        const updatedChats = prevChats.map(chat => {
+          if (chat.id === msg.chatId) {
+            return {
+              ...chat,
+              updatedAt: new Date(msg.createdAt),
+              messages: [msg, ...(Array.isArray(chat.messages) ? chat.messages : [])],
+            }
+          }
+          return chat
+        })
+        // Sort chats to bring the most recent to the top
+        return updatedChats.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      })
     })
 
     return () => {
@@ -217,24 +246,77 @@ export default function AdminChat() {
   }, [messages])
 
   // Join room handler
-  const handleJoinRoom = (chat: Chat) => {
+  const handleJoinRoom = async (chat: Chat) => {
     if (!socket) return
     socket.emit("admin_join_chat", { chatId: chat.id })
     setJoinedRooms([chat.socketIORoomId]) // Only keep the current joined room
+    
+    // Fetch detailed chat information including user details
+    try {
+      const chatDetailsResult = await getChatDetails(chat.id);
+      if (chatDetailsResult.success && chatDetailsResult.chat) {
+        const detailedChat = chatDetailsResult.chat as ChatDetails;
+        setSelectedChat(detailedChat);
+        
+        // Fetch user documents if user exists
+        if (detailedChat.userId) {
+          const docsResult = await getUserDocuments(detailedChat.userId);
+          if (docsResult.success && docsResult.folders) {
+            setUserDocs(docsResult.folders as DocumentFolder[]);
+          } else {
+            setUserDocs([]);
+          }
+        }
+      } else {
+        // Fallback to basic chat info if detailed fetch fails
+        setSelectedChat(chat as any);
+      }
+    } catch (error) {
+      console.error("Error fetching chat details:", error);
+      // Fallback to basic chat info
+      setSelectedChat(chat as any);
+    }
+    
     // After joining, request chat history
     socket.emit("get_chat_history", { chatId: chat.id })
-    setSelectedChat(chat as any)
   }
 
   // When a chat is selected (only if already joined)
-  const handleSelectChat = (chat: Chat) => {
-    if (!joinedRooms.includes(chat.socketIORoomId)) return
-    setSelectedChat(chat as any)
-    setIsLoadingChat(true)
-    if (socket) {
-      socket.emit("get_chat_history", { chatId: chat.id })
+  const handleSelectChat = async (chat: Chat) => {
+    if (!joinedRooms.includes(chat.socketIORoomId)) return;
+    setIsLoadingChat(true);
+    setMessages([])
+    
+    try {
+      // Fetch detailed chat information including user details
+      const chatDetailsResult = await getChatDetails(chat.id);
+      if (chatDetailsResult.success && chatDetailsResult.chat) {
+        const detailedChat = chatDetailsResult.chat as ChatDetails;
+        setSelectedChat(detailedChat);
+        
+        // Fetch user documents if user exists
+        if (detailedChat.userId) {
+          const docsResult = await getUserDocuments(detailedChat.userId);
+          if (docsResult.success && docsResult.folders) {
+            setUserDocs(docsResult.folders as DocumentFolder[]);
+          } else {
+            setUserDocs([]);
+          }
+        }
+      } else {
+        // Fallback to basic chat info if detailed fetch fails
+        setSelectedChat(chat as any);
+      }
+    } catch (error) {
+      console.error("Error fetching chat details:", error);
+      // Fallback to basic chat info
+      setSelectedChat(chat as any);
     }
-    setIsLoadingChat(false)
+    
+    if (socket) {
+      socket.emit("get_chat_history", { chatId: chat.id });
+    }
+    setIsLoadingChat(false);
   }
 
   const handleCreateTicket = (ticketingSystem: "osticket" | "hubspot") => {
@@ -280,27 +362,6 @@ export default function AdminChat() {
     socket.emit("send_message", {
       chatId: selectedChat.id,
       content: message.trim()
-    })
-
-    // Update local state
-    setChats(prevChats => {
-      return prevChats.map(chat => {
-        if (chat.id === selectedChat.id) {
-          return {
-            ...chat,
-            messages: [
-              {
-                id: Date.now().toString(),
-                content: message.trim(),
-                createdAt: new Date(),
-                isAdmin: true
-              },
-              ...(Array.isArray(chat.messages) ? chat.messages : [])
-            ]
-          }
-        }
-        return chat
-      })
     })
 
     setMessage("")
@@ -387,9 +448,16 @@ export default function AdminChat() {
                 return (
                   <div
                     key={chat.id}
+                    onClick={async () => {
+                      if (isJoined) {
+                        await handleSelectChat(chat)
+                      } else {
+                        await handleJoinRoom(chat)
+                      }
+                    }}
                     className={cn(
-                      "p-4 border-b border-white/10 flex items-start gap-4 cursor-pointer hover:bg-white/10 transition-all duration-200",
-                      { 
+                      "p-3 border-b border-white/10 flex items-start gap-3 cursor-pointer hover:bg-white/10 transition-all duration-200",
+                      {
                         "bg-white/15": selectedChat?.id === chat.id,
                         "border-l-4 border-l-orange-500 bg-orange-500/10": isNewRequest,
                         "border-l-4 border-l-blue-500 bg-blue-500/10": isReopened,
@@ -397,68 +465,67 @@ export default function AdminChat() {
                       }
                     )}
                   >
-                    <Avatar>
+                    <Avatar className="mt-1">
                       <AvatarFallback className="bg-white/20 text-white">{userInitial}</AvatarFallback>
                     </Avatar>
-                    <div className="flex-1 min-w-0" onClick={() => isJoined && handleSelectChat(chat)}>
-                      <div className="flex items-center justify-between mb-1">
-                        <div>
-                          <span className="block font-semibold text-white truncate">{chat.chatName || 'Chat'}</span>
-                          <span className="block text-xs text-white/70 truncate">{userName}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between mb-1">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-white truncate">{chat.chatName || 'Chat'}</p>
+                          <p className="text-sm text-white/70 truncate">{userName}</p>
                         </div>
-                        <span className="text-xs text-white/60">
+                        <span className="text-xs text-white/60 whitespace-nowrap ml-2">
                           {chat.updatedAt ? formatSidebarTimestamp(chat.updatedAt) : "N/A"}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs text-white/60 capitalize">
-                          {chat.chatType.replace(/([A-Z])/g, ' $1').trim()}
-                        </span>
-                        <span className={cn(
-                          "text-xs px-2 py-1 rounded-full font-medium",
-                          {
-                            "bg-yellow-500/20 text-yellow-300 border border-yellow-500/30": chat.status === 'PENDING',
-                            "bg-green-500/20 text-green-300 border border-green-500/30": chat.status === 'ACTIVE',
-                            "bg-red-500/20 text-red-300 border border-red-500/30": chat.status === 'CLOSED',
-                            "bg-gray-500/20 text-gray-300 border border-gray-500/30": chat.status === 'ARCHIVED'
-                          }
-                        )}>
-                          {chat.status}
-                        </span>
-                        {isNewRequest && (
-                          <span className="text-xs px-2 py-1 rounded-full font-medium bg-orange-500/20 text-orange-300 border border-orange-500/30">
-                            NEW
+
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs text-white/60 capitalize">
+                            {chat.chatType.replace(/([A-Z])/g, ' $1').trim()}
                           </span>
+                          <span className={cn(
+                            "text-xs px-2 py-0.5 rounded-full font-medium",
+                            {
+                              "bg-yellow-500/20 text-yellow-300 border border-yellow-500/30": chat.status === 'PENDING',
+                              "bg-green-500/20 text-green-300 border border-green-500/30": chat.status === 'ACTIVE',
+                              "bg-red-500/20 text-red-300 border border-red-500/30": chat.status === 'CLOSED',
+                              "bg-gray-500/20 text-gray-300 border border-gray-500/30": chat.status === 'ARCHIVED'
+                            }
+                          )}>
+                            {chat.status}
+                          </span>
+                          {isNewRequest && (
+                            <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-orange-500/20 text-orange-300 border border-orange-500/30">
+                              NEW
+                            </span>
+                          )}
+                          {isReopened && (
+                            <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                              REOPENED
+                            </span>
+                          )}
+                        </div>
+
+                        {!isJoined && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-auto px-3 py-1 text-sm bg-primary text-primary-foreground hover:bg-primary/90"
+                            onClick={(e) => { e.stopPropagation(); handleJoinRoom(chat); }}
+                          >
+                            Join
+                          </Button>
                         )}
-                        {isReopened && (
-                          <span className="text-xs px-2 py-1 rounded-full font-medium bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                            REOPENED
-                          </span>
+                        {isJoined && selectedChat?.id === chat.id && (
+                          <span className="text-xs font-semibold text-green-400">Joined</span>
                         )}
                       </div>
-                      {chat.admin && (
-                        <p className="text-xs text-white/60 mb-1">
-                          Assigned to: {chat.admin.name}
-                        </p>
-                      )}
+
                       {lastMessage && (
-                        <p className="text-sm text-white/70 truncate">
+                        <p className="text-sm text-white/70 truncate mt-1">
                           {lastMessage}
                         </p>
-                      )}
-                      {chat.status === 'CLOSED' && chat.closeReason && (
-                        <p className="text-xs text-red-400 mt-1">
-                          Closed: {chat.closeReason}
-                        </p>
-                      )}
-                      {/* Join Room Button */}
-                      {!isJoined && (
-                        <Button size="sm" className="mt-2 bg-primary/80 text-white" onClick={() => handleJoinRoom(chat)}>
-                          Join Room
-                        </Button>
-                      )}
-                      {isJoined && (
-                        <span className="text-xs text-green-400 ml-2">Joined</span>
                       )}
                     </div>
                   </div>
