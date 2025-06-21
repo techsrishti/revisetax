@@ -1,0 +1,233 @@
+.container {
+  display: flex;
+  height: calc(100vh - 64px);
+  background: #FFFFFF;
+}
+
+.sidebar {
+  width: 320px;
+  border-right: 1px solid #E5E7EB;
+  display: flex;
+  flex-direction: column;
+  background: #F9FAFB;
+}
+
+.sidebarHeader {
+  padding: 16px;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.sidebarHeader h2 {
+  font-family: "Cabinet Grotesk Variable";
+  font-size: 20px;
+  font-weight: 700;
+  color: #18181B;
+  margin: 0;
+}
+
+.chatList {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.chatItem {
+  padding: 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  margin-bottom: 4px;
+}
+
+.chatItem:hover {
+  background-color: #F3F4F6;
+}
+
+.chatItem.active {
+  background-color: #E9420C;
+  color: white;
+}
+
+.chatItem.active .chatType,
+.chatItem.active .lastMessage {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.chatInfo {
+  flex: 1;
+}
+
+.chatInfo h3 {
+  font-family: "Inter Variable";
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 4px 0;
+}
+
+.chatType {
+  font-family: "Inter Variable";
+  font-size: 12px;
+  color: #6B7280;
+  margin: 0 0 4px 0;
+}
+
+.lastMessage {
+  font-family: "Inter Variable";
+  font-size: 13px;
+  color: #4B5563;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chatMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.timestamp {
+  font-family: "Inter Variable";
+  font-size: 12px;
+  color: #6B7280;
+}
+
+.chatArea {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #FFFFFF;
+}
+
+.chatHeader {
+  padding: 16px;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.chatHeader h2 {
+  font-family: "Cabinet Grotesk Variable";
+  font-size: 18px;
+  font-weight: 700;
+  color: #18181B;
+  margin: 0 0 4px 0;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.message {
+  max-width: 70%;
+  align-self: flex-start;
+}
+
+.adminMessage {
+  align-self: flex-end;
+}
+
+.messageContent {
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: #F3F4F6;
+  font-family: "Inter Variable";
+  font-size: 14px;
+  line-height: 1.5;
+  color: #18181B;
+}
+
+.adminMessage .messageContent {
+  background: #E9420C;
+  color: white;
+}
+
+.messageTime {
+  font-family: "Inter Variable";
+  font-size: 12px;
+  color: #6B7280;
+  margin-top: 4px;
+  text-align: right;
+}
+
+.typingIndicator {
+  padding: 8px 16px;
+  font-family: "Inter Variable";
+  font-size: 13px;
+  color: #6B7280;
+  font-style: italic;
+}
+
+.inputArea {
+  padding: 16px;
+  border-top: 1px solid #E5E7EB;
+  display: flex;
+  gap: 8px;
+}
+
+.input {
+  flex: 1;
+  padding: 12px 16px;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  font-family: "Inter Variable";
+  font-size: 14px;
+  color: #18181B;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.input:focus {
+  border-color: #E9420C;
+}
+
+.sendButton {
+  padding: 12px 24px;
+  background: #E9420C;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-family: "Inter Variable";
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.sendButton:hover {
+  background: #D13A0A;
+}
+
+.sendButton:disabled {
+  background: #E5E7EB;
+  cursor: not-allowed;
+}
+
+.noChats {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  padding: 24px;
+}
+
+.noChats h2 {
+  font-family: "Cabinet Grotesk Variable";
+  font-size: 24px;
+  font-weight: 700;
+  color: #18181B;
+  margin: 0 0 8px 0;
+}
+
+.noChats p {
+  font-family: "Inter Variable";
+  font-size: 16px;
+  color: #6B7280;
+  margin: 0;
+} 
