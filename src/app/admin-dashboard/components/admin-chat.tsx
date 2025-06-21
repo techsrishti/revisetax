@@ -255,16 +255,20 @@ export default function AdminChat() {
             // Check if chat already exists
             const chatExists = prev.some(chat => chat.id === data.chatId)
             if (chatExists) {
-              return prev // Don't add duplicate
+              return prev
             }
-            return [...prev, {
+            
+            // Create new chat object with all required properties
+            const newChat: Chat = {
               id: data.chatId,
-              chatName: data.chatName,
-              socketIORoomId: data.roomId,
-              userId: "",
+              chatName: data.chatName || 'New Chat',
+              socketIORoomId: data.roomId || data.socketIORoomId,
+              userId: data.userId,
               adminId: admin.id,
               user: data.user || { name: data.userName || '', email: data.userEmail || '', phoneNumber: '' },
               updatedAt: data.updatedAt ? new Date(data.updatedAt) : new Date(),
+              createdAt: data.createdAt ? new Date(data.createdAt) : new Date(),
+              lastMessageAt: data.lastMessageAt ? new Date(data.lastMessageAt) : null,
               chatType: data.chatType,
               status: "PENDING",
               closedAt: null,
@@ -273,7 +277,9 @@ export default function AdminChat() {
               isActive: true,
               messages: [],
               isAiChat: false
-            }]
+            }
+            
+            return [newChat, ...prev]
           })
         })
 
