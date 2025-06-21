@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { Eye, EyeOff, Shield, Smartphone, AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import ReCAPTCHA from 'react-google-recaptcha';
 
 // Rate limiting configuration
 const MAX_ATTEMPTS = 3; // Lock after 3 failed attempts
@@ -36,9 +37,9 @@ export default function AdminLoginPage() {
   const [factorId, setFactorId] = useState('');
   const [challengeId, setChallengeId] = useState('');
   
-  // Captcha states
-  const [captcha, setCaptcha] = useState({ num1: 0, num2: 0, answer: 0 });
-  const [captchaInput, setCaptchaInput] = useState('');
+  // reCAPTCHA states
+  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
+  const recaptchaRef = useRef<ReCAPTCHA>(null);
   
   // Rate limiting states
   const [isRateLimited, setIsRateLimited] = useState(false);
@@ -48,12 +49,28 @@ export default function AdminLoginPage() {
   const supabase = createClient();
   const router = useRouter();
 
-  // Generate new captcha
-  const generateCaptcha = () => {
-    const num1 = Math.floor(Math.random() * 10) + 1;
-    const num2 = Math.floor(Math.random() * 10) + 1;
-    setCaptcha({ num1, num2, answer: num1 + num2 });
-    setCaptchaInput('');
+  // Handle reCAPTCHA response
+  const handleRecaptchaChange = (token: string | null) => {
+    setRecaptchaToken(token);
+  };
+
+  // Verify reCAPTCHA token with server
+  const verifyRecaptcha = async (token: string): Promise<boolean> => {
+    try {
+      const response = await fetch('/api/verify-recaptcha', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ token }),
+      });
+
+      const result = await response.json();
+      return result.success;
+    } catch (error) {
+      console.error('reCAPTCHA verification error:', error);
+      return false;
+    }
   };
 
   // Rate limiting functions
@@ -152,10 +169,9 @@ export default function AdminLoginPage() {
     };
   }, [isRateLimited, lockoutTimeRemaining]);
 
-  // Check rate limit on component mount and generate initial captcha
+  // Check rate limit on component mount
   useEffect(() => {
     checkRateLimit();
-    generateCaptcha();
   }, []);
 
   const formatTime = (seconds: number): string => {
@@ -199,11 +215,21 @@ export default function AdminLoginPage() {
       return;
     }
 
-    // Validate captcha
-    if (parseInt(captchaInput) !== captcha.answer) {
-      setError('Incorrect verification answer. Please try again.');
-      generateCaptcha();
-      return;
+    // Validate reCAPTCHA (only if configured)
+    if (process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY) {
+      if (!recaptchaToken) {
+        setError('Please complete the reCAPTCHA verification.');
+        return;
+      }
+
+      // Verify reCAPTCHA token with server
+      const isRecaptchaValid = await verifyRecaptcha(recaptchaToken);
+      if (!isRecaptchaValid) {
+        setError('reCAPTCHA verification failed. Please try again.');
+        setRecaptchaToken(null);
+        recaptchaRef.current?.reset();
+        return;
+      }
     }
 
     setIsLoading(true);
@@ -217,9 +243,10 @@ export default function AdminLoginPage() {
 
       if (signInError) throw signInError;
 
-      // Success - reset attempts and generate new captcha
+      // Success - reset attempts and reCAPTCHA
       resetAttempts();
-      generateCaptcha();
+      setRecaptchaToken(null);
+      recaptchaRef.current?.reset();
 
       // Check for TOTP factors
       const { data: factorsData, error: factorsError } = await supabase.auth.mfa.listFactors();
@@ -275,7 +302,8 @@ export default function AdminLoginPage() {
       console.error('Login error:', error);
       setError(error instanceof Error ? error.message : 'Authentication failed');
       recordFailedAttempt();
-      generateCaptcha(); // Generate new captcha on error
+      setRecaptchaToken(null);
+      recaptchaRef.current?.reset(); // Reset reCAPTCHA on error
     } finally {
       setIsLoading(false);
     }
@@ -599,38 +627,33 @@ export default function AdminLoginPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label htmlFor="captcha" className="text-sm font-medium text-gray-900">
+                  <label className="text-sm font-medium text-gray-900">
                     Verification
                   </label>
-                  <div className="flex items-center space-x-3">
-                    <div className="flex items-center space-x-2 px-3 py-2 bg-gray-100 border rounded-md min-w-fit">
-                      <span className="text-lg font-mono font-semibold">
-                        {captcha.num1} + {captcha.num2} = ?
-                      </span>
-                    </div>
-                    <Input
-                      id="captcha"
-                      type="number"
-                      value={captchaInput}
-                      onChange={(e) => setCaptchaInput(e.target.value)}
-                      placeholder="Answer"
-                      className="w-20 text-center"
-                      disabled={isRateLimited}
-                      required
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={generateCaptcha}
-                      disabled={isRateLimited}
-                      className="text-xs"
-                    >
-                      ↻
-                    </Button>
+                  <div className="flex justify-center">
+                    {process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ? (
+                      <ReCAPTCHA
+                        ref={recaptchaRef}
+                        sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY}
+                        onChange={handleRecaptchaChange}
+                        theme="light"
+                        size="normal"
+                      />
+                    ) : (
+                      <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg text-center">
+                        <AlertCircle className="h-8 w-8 mx-auto text-yellow-500 mb-2" />
+                        <p className="text-sm text-gray-600 mb-1">reCAPTCHA Not Configured</p>
+                        <p className="text-xs text-gray-500">
+                          Set NEXT_PUBLIC_RECAPTCHA_SITE_KEY environment variable
+                        </p>
+                      </div>
+                    )}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Solve the math problem to continue
+                  <p className="text-xs text-muted-foreground text-center">
+                    {process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY 
+                      ? 'Complete the reCAPTCHA verification to continue'
+                      : 'reCAPTCHA configuration required for production'
+                    }
                   </p>
                 </div>
 
