@@ -14,15 +14,8 @@ import { Bar, BarChart, CartesianGrid, XAxis, Pie, PieChart } from "recharts"
 import AdminChat from "./components/admin-chat"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Users, UserCheck, UserX, CreditCard, LogOut, User } from "lucide-react"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
+import { Users, UserCheck, UserX, CreditCard, Shield, LogOut, BarChart3, MessageSquare, Activity } from "lucide-react"
 
 interface UserStats {
   usersWithPlans: number;
@@ -40,21 +33,17 @@ export default function AdminDashboard() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(true)
   const [userStats, setUserStats] = useState<UserStats | null>(null)
-  const [adminProfile, setAdminProfile] = useState<any>(null)
+  const supabase = createClient()
 
   useEffect(() => {
     const checkAdmin = async () => {
       try {
-        const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
 
         if (!user) {
           router.push("/admin/login")
           return
         }
-
-        // Set admin profile
-        setAdminProfile(user)
 
         // Check if user is admin
         const adminCheckResponse = await fetch('/api/admin/check')
@@ -87,119 +76,166 @@ export default function AdminDashboard() {
     checkAdmin()
   }, [router])
 
-  const handleLogout = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push("/admin/login")
+  const handleSignOut = async () => {
+    try {
+      await supabase.auth.signOut()
+      router.push("/admin/login")
+    } catch (error) {
+      console.error("Error signing out:", error)
+    }
   }
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#E9420C]"></div>
+      <div className="min-h-screen bg-gradient-to-b from-slate-800 to-slate-900 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-orange-100">
+            <Shield className="h-6 w-6 text-primary animate-pulse" />
+          </div>
+          <div className="space-y-2">
+            <div className="h-4 w-4 mx-auto animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+            <p className="text-white/80 text-sm">Loading admin dashboard...</p>
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
-    <Tabs defaultValue="overview" className="flex flex-col min-h-screen bg-gray-50/50">
-      <header className="bg-white border-b sticky top-0 z-10 p-4 sm:p-6">
-        <div className="relative flex items-center justify-between">
-          <TabsList className="grid w-[200px] grid-cols-2">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="chat">Admin Chat</TabsTrigger>
-          </TabsList>
-          <h1 className="text-2xl font-bold text-gray-800">Admin Dashboard</h1>
-          <div className="flex items-center gap-4">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={adminProfile?.user_metadata?.avatar_url} alt={adminProfile?.email} />
-                    <AvatarFallback>
-                      {adminProfile?.email?.charAt(0).toUpperCase() || "A"}
-                    </AvatarFallback>
-                  </Avatar>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56" align="end" forceMount>
-                <div className="flex items-center justify-start gap-2 p-2">
-                  <div className="flex flex-col space-y-1 leading-none">
-                    <p className="font-medium">{adminProfile?.email}</p>
-                    <p className="w-[200px] truncate text-sm text-muted-foreground">
-                      Admin
-                    </p>
-                  </div>
-                </div>
-                <DropdownMenuItem onClick={handleLogout}>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Log out</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+    <div className="min-h-screen bg-gradient-to-b from-slate-800 to-slate-900">
+      {/* Header */}
+      <header className="bg-white/5 backdrop-blur-sm border-b border-white/10 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-100">
+                <Shield className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h1 className="font-cabinet-grotesk-variable text-2xl font-bold text-white">
+                  Admin Dashboard
+                </h1>
+                <p className="text-white/60 text-sm">
+                  ReviseTax Administration Portal
+                </p>
+              </div>
+            </div>
+            <Button 
+              onClick={handleSignOut}
+               size="sm"
+              className="bg-primary hover:bg-primary/90 text-white"
+              >
+              <LogOut className="h-4 w-4 mr-2" />
+              Sign Out
+            </Button>
           </div>
         </div>
       </header>
-      <main className="flex-1 p-4 sm:p-6">
-        <TabsContent value="overview" className="mt-6">
-          <div className="space-y-8">
-            <div>
-              <h2 className="text-xl font-semibold text-gray-700 mb-4">User Statistics</h2>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Users with Plans</CardTitle>
-                    <CreditCard className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{userStats?.usersWithPlans || 0}</div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Auth Users</CardTitle>
-                    <Users className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{userStats?.supabaseStats?.totalAuthUsers || 0}</div>
-                    <p className="text-xs text-muted-foreground">Supabase Auth</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Recently Active</CardTitle>
-                    <UserCheck className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{userStats?.supabaseStats?.recentlyActiveUsers || 0}</div>
-                    <p className="text-xs text-muted-foreground">Last 30 days</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Confirmed Users</CardTitle>
-                    <UserCheck className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{userStats?.supabaseStats?.confirmedUsers || 0}</div>
-                    <p className="text-xs text-muted-foreground">Email verified</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Unconfirmed Users</CardTitle>
-                    <UserX className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{userStats?.supabaseStats?.unconfirmedUsers || 0}</div>
-                    <p className="text-xs text-muted-foreground">Email not verified</p>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-            <Card>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Tabs defaultValue="overview" className="space-y-8">
+          {/* Navigation */}
+          <div className="flex justify-center">
+            <TabsList className="bg-white/10 border border-white/20 backdrop-blur-sm">
+              <TabsTrigger 
+                value="overview" 
+                className="data-[state=active]:bg-primary data-[state=active]:text-white text-white/80"
+              >
+                <BarChart3 className="h-4 w-4 mr-2" />
+                Overview
+              </TabsTrigger>
+              <TabsTrigger 
+                value="chat" 
+                className="data-[state=active]:bg-primary data-[state=active]:text-white text-white/80"
+              >
+                <MessageSquare className="h-4 w-4 mr-2" />
+                Admin Chat
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
+          <TabsContent value="overview" className="space-y-8">
+            {/* Welcome Section */}
+            <Card className="bg-white/10 backdrop-blur-sm border-white/20">
               <CardHeader>
-                <CardTitle>Plan Distribution</CardTitle>
+                <CardTitle className="font-cabinet-grotesk-variable text-xl font-bold text-white flex items-center">
+                  <Activity className="h-5 w-5 mr-2" />
+                  System Overview
+                </CardTitle>
+                <p className="text-white/70">
+                  Monitor user activity, subscriptions, and system health
+                </p>
+              </CardHeader>
+            </Card>
+
+            {/* Statistics Cards */}
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+              <Card className="bg-white/10 backdrop-blur-sm border-white/20 hover:bg-white/15 transition-colors">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-white/90">Users with Plans</CardTitle>
+                  <CreditCard className="h-4 w-4 text-primary" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-white">{userStats?.usersWithPlans || 0}</div>
+                  <p className="text-xs text-white/60">Active subscriptions</p>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-white/10 backdrop-blur-sm border-white/20 hover:bg-white/15 transition-colors">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-white/90">Total Auth Users</CardTitle>
+                  <Users className="h-4 w-4 text-blue-400" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-white">{userStats?.supabaseStats?.totalAuthUsers || 0}</div>
+                  <p className="text-xs text-white/60">Registered users</p>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-white/10 backdrop-blur-sm border-white/20 hover:bg-white/15 transition-colors">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-white/90">Recently Active</CardTitle>
+                  <UserCheck className="h-4 w-4 text-green-400" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-white">{userStats?.supabaseStats?.recentlyActiveUsers || 0}</div>
+                  <p className="text-xs text-white/60">Last 30 days</p>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-white/10 backdrop-blur-sm border-white/20 hover:bg-white/15 transition-colors">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-white/90">Confirmed Users</CardTitle>
+                  <UserCheck className="h-4 w-4 text-emerald-400" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-white">{userStats?.supabaseStats?.confirmedUsers || 0}</div>
+                  <p className="text-xs text-white/60">Email verified</p>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-white/10 backdrop-blur-sm border-white/20 hover:bg-white/15 transition-colors">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-white/90">Unconfirmed Users</CardTitle>
+                  <UserX className="h-4 w-4 text-yellow-400" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-white">{userStats?.supabaseStats?.unconfirmedUsers || 0}</div>
+                  <p className="text-xs text-white/60">Email not verified</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Chart Section */}
+            <Card className="bg-white/10 backdrop-blur-sm border-white/20">
+              <CardHeader>
+                <CardTitle className="font-cabinet-grotesk-variable text-xl font-bold text-white">
+                  Plan Distribution
+                </CardTitle>
+                <p className="text-white/70">
+                  Overview of user subscription plans
+                </p>
               </CardHeader>
               <CardContent>
                 <ChartContainer
@@ -231,13 +267,37 @@ export default function AdminDashboard() {
                 </ChartContainer>
               </CardContent>
             </Card>
-          </div>
-        </TabsContent>
+          </TabsContent>
 
-        <TabsContent value="chat" className="mt-6 -mx-4 -mb-4 sm:-mx-6 sm:-mb-6">
-          <AdminChat />
-        </TabsContent>
+          <TabsContent value="chat" className="space-y-6">
+            <Card className="bg-white/10 backdrop-blur-sm border-white/20">
+              <CardHeader>
+                <CardTitle className="font-cabinet-grotesk-variable text-xl font-bold text-white flex items-center">
+                  <MessageSquare className="h-5 w-5 mr-2" />
+                  Customer Support Chat
+                </CardTitle>
+                <p className="text-white/70">
+                  Manage customer conversations and support tickets
+                </p>
+              </CardHeader>
+              <CardContent className="p-0">
+                <AdminChat />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </main>
-    </Tabs>
+
+      {/* Footer */}
+      <footer className="border-t border-white/10 bg-white/5 backdrop-blur-sm mt-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="text-center">
+            <p className="text-white/60 text-sm">
+              ReviseTax Admin Portal &copy; 2024 | Protected by Microsoft Authenticator
+            </p>
+          </div>
+        </div>
+      </footer>
+    </div>
   )
-} 
+}
