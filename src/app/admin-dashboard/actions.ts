@@ -38,7 +38,6 @@ export interface GetAdminChatsSuccessResponse {
     updatedAt: Date;
     chatType: ChatTypes;
     status: ChatStatus;
-    isAiChat: boolean;
     closedAt: Date | null;
     closedBy: string | null;
     closeReason: string | null;
@@ -132,13 +131,7 @@ export async function getAdminChats(): Promise<GetAdminChatsSuccessResponse|Erro
 
     return {
       success: true,
-      chats: chats.map(chat => {
-        const { isAiChat, ...rest } = chat as any;
-        return {
-          ...rest,
-          isAiChat: isAiChat || false,
-        };
-      }),
+      chats: chats,
     }
 
   } catch (error) {
