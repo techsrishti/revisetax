@@ -154,10 +154,19 @@ export default function AdminChat() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const selectedChatRef = useRef(selectedChat)
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null)
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(true)
 
   useEffect(() => {
     selectedChatRef.current = selectedChat
   }, [selectedChat])
+
+  // Only scroll to bottom when user sends a message
+  const scrollToBottom = () => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
+    }
+  }
 
   // Fetch admin details from API
   const fetchAdminDetails = async (): Promise<AdminDetails | null> => {
@@ -496,6 +505,9 @@ export default function AdminChat() {
     })
 
     setMessage("")
+    
+    // Force scroll to bottom when user sends a message
+    scrollToBottom()
   }
 
   const handleTyping = () => {
@@ -717,7 +729,8 @@ export default function AdminChat() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-              <div className="flex-1 h-full min-h-0 p-6 overflow-y-auto space-y-6 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent" style={{ minHeight: 0 }}>
+              <div className="flex-1 h-full min-h-0 p-6 overflow-y-auto space-y-6 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent" 
+                   style={{ minHeight: 0 }}>
                 {/* Message bubbles */}
                 {messages.length === 0 ? (
                   <div className="text-center text-white/60 py-8">
