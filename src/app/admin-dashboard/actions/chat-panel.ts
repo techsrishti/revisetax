@@ -51,21 +51,6 @@ export async function getUserDocuments(userId: string) {
   }
 }
 
-// Action to toggle AI chat for a conversation
-export async function toggleAiChat(chatId: string, isAiChat: boolean) {
-  try {
-    await prisma.chat.update({
-      where: { id: chatId },
-      data: { isAiChat },
-    })
-    revalidatePath("/admin-dashboard")
-    return { success: true }
-  } catch (error) {
-    console.error("Error in toggleAiChat:", error)
-    return { success: false, error: "Failed to update AI chat status." }
-  }
-}
-
 // Action to create a ticket in osTicket
 export async function createOsTicket(params: {
   name: string

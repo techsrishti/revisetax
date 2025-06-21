@@ -78,11 +78,9 @@ interface BaseChat {
 }
 
 interface Chat extends BaseChat {
-  isAiChat: boolean
 }
 
 interface ChatDetails extends Chat {
-  isAiChat: boolean
   user: {
     name: string | null
     email: string | null
@@ -231,7 +229,6 @@ export default function AdminChat() {
             const mappedChats = data.chats.map((c: any) => ({
               ...c,
               socketIORoomId: c.roomId || c.socketIORoomId, // Map roomId to socketIORoomId
-              isAiChat: c.isAiChat || false,
               updatedAt: c.updatedAt ? new Date(c.updatedAt) : new Date(),
               user: c.user || { name: '', email: '', phoneNumber: '' }
             }))
@@ -276,7 +273,6 @@ export default function AdminChat() {
               closeReason: null,
               isActive: true,
               messages: [],
-              isAiChat: false
             }
             
             return [newChat, ...prev]
