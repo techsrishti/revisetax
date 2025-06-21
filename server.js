@@ -15,7 +15,7 @@ const io = new Server(server, {
   cors: { 
     origin: process.env.NODE_ENV === "production" 
       ? ["https://yourdomain.com"] 
-      : ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000"],
+      : ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000", "http://127.0.0.1:3001"],
     credentials: true 
   },
   transports: ["websocket", "polling"],
@@ -390,17 +390,21 @@ async function init() {
       });
 
       // User authentication
-      socket.on("user_authenticate", async ({ userId }) => {
+      socket.on("user_authenticate", async ({ supabaseUserId }) => {
         try {
           const user = await prisma.user.findUnique({
-            where: { id: userId }
+            where: { supabaseUserId: supabaseUserId },
+            select: { 
+              id: true,
+              name: true,
+            }
           });
 
           if (!user) {
             socket.emit("auth_error", { message: "Invalid user credentials" });
             return;
           }
-
+          const userId = user.id;
           userSessions.set(socket.id, userId);
           socket.emit("user_authenticated", { userId, userName: user.name });
           

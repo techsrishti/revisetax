@@ -6,13 +6,23 @@ import styles from "./sidebar.module.css"
 import { createClient } from "@/utils/supabase/client"
 import { useRouter } from "next/navigation"
 
+interface Chat {
+  id: string
+  name: string
+  type: string
+  isActive: boolean
+}
+
 interface SidebarProps {
   activeModule: string
   setActiveModule: (module: string) => void
   children?: React.ReactNode
+  chats?: Chat[]
+  onChatSelect?: (chatId: string) => void
+  selectedChatId?: string | null
 }
 
-export default function Sidebar({ activeModule, setActiveModule, children }: SidebarProps) {
+export default function Sidebar({ activeModule, setActiveModule, children, chats = [], onChatSelect, selectedChatId }: SidebarProps) {
   const [isOverlayOpen, setIsOverlayOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -138,17 +148,42 @@ export default function Sidebar({ activeModule, setActiveModule, children }: Sid
               <SidebarItem
                 icon={<img src="/chat-icon.svg" alt="Chat" width={16.75} height={16.67} />}
                 label="Chat"
-                isActive={activeModule === "chat"}
+                isActive={activeModule === "chat" && !selectedChatId}
                 onClick={() => {
+                  console.log("Main Chat item clicked")
                   setActiveModule("chat");
+                  // Clear any selected chat to show the chat selection interface
+                  if (onChatSelect) {
+                    // We need to clear the selected chat, but onChatSelect expects a chatId
+                    // Let's handle this differently by passing a special value
+                    onChatSelect(""); // This will be handled in the dashboard
+                  }
                   setIsMobileMenuOpen(false);
                 }}
               />
+              
+              {/* Chat items */}
+              {chats.map((chat) => (
+                <SidebarChatItem
+                  key={chat.id}
+                  chat={chat}
+                  isSelected={selectedChatId === chat.id}
+                  onClick={() => {
+                    console.log("Chat item clicked:", chat.id, chat.name)
+                    if (onChatSelect) {
+                      onChatSelect(chat.id);
+                    }
+                    setIsMobileMenuOpen(false);
+                  }}
+                />
+              ))}
+              
               <SidebarItem
                 icon={<img src="/document-icon.svg" alt="Documents" width={16.75} height={16.67} />}
                 label="Documents"
                 isActive={activeModule === "documents"}
                 onClick={() => {
+                  console.log("Documents clicked")
                   setActiveModule("documents");
                   setIsMobileMenuOpen(false);
                 }}
@@ -158,6 +193,7 @@ export default function Sidebar({ activeModule, setActiveModule, children }: Sid
                 label={ "Plans"}
                 isActive={activeModule === "plans"}
                 onClick={() => {
+                  console.log("Plans clicked")
                   setActiveModule("plans");
                   setIsMobileMenuOpen(false);
                 }}
@@ -167,6 +203,7 @@ export default function Sidebar({ activeModule, setActiveModule, children }: Sid
                 label="Billing"
                 isActive={activeModule === "billing"}
                 onClick={() => {
+                  console.log("Billing clicked")
                   setActiveModule("billing");
                   setIsMobileMenuOpen(false);
                 }}
@@ -204,6 +241,31 @@ function SidebarItem({ icon, label, isActive, onClick }: SidebarItemProps) {
       <button onClick={onClick} className={`${styles.navItem} ${isActive ? styles.active : ""}`}>
         <span className={styles.navIcon}>{icon}</span>
         <span className={styles.navLabel}>{label}</span>
+      </button>
+    </li>
+  )
+}
+
+interface SidebarChatItemProps {
+  chat: Chat
+  isSelected: boolean
+  onClick: () => void
+}
+
+function SidebarChatItem({ chat, isSelected, onClick }: SidebarChatItemProps) {
+  return (
+    <li>
+      <button 
+        onClick={onClick} 
+        className={`${styles.navItem} ${styles.chatItem} ${isSelected ? styles.active : ""} ${chat.isActive ? styles.chatActive : ""}`}
+      >
+        <span className={styles.navIcon}>
+          <img src="/chat-icon.svg" alt="Chat" width={16.75} height={16.67} />
+        </span>
+        <div className={styles.chatInfo}>
+          <span className={styles.navLabel}>{chat.name}</span>
+          <span className={styles.chatType}>{chat.type}</span>
+        </div>
       </button>
     </li>
   )
