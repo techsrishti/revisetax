@@ -104,7 +104,7 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-800 to-slate-900">
       {/* Header */}
-      <header className="bg-white/5 backdrop-blur-sm border-b border-white/10 sticky top-0 z-10">
+      <header className="bg-slate-900 border-b border-slate-700 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
@@ -115,7 +115,7 @@ export default function AdminDashboard() {
                 <h1 className="font-cabinet-grotesk-variable text-2xl font-bold text-white">
                   Admin Dashboard
                 </h1>
-                <p className="text-white/60 text-sm">
+                <p className="text-white/70 text-sm">
                   ReviseTax Administration Portal
                 </p>
               </div>
@@ -137,7 +137,7 @@ export default function AdminDashboard() {
         <Tabs defaultValue="overview" className="space-y-8">
           {/* Navigation */}
           <div className="flex justify-center">
-            <TabsList className="bg-white/10 border border-white/20 backdrop-blur-sm">
+            <TabsList className="bg-slate-800 border border-slate-600">
               <TabsTrigger 
                 value="overview" 
                 className="data-[state=active]:bg-primary data-[state=active]:text-white text-white/80"

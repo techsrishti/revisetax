@@ -243,10 +243,8 @@ export default function AdminLoginPage() {
 
       if (signInError) throw signInError;
 
-      // Success - reset attempts and reCAPTCHA
+      // Success - reset attempts only (keep reCAPTCHA valid)
       resetAttempts();
-      setRecaptchaToken(null);
-      recaptchaRef.current?.reset();
 
       // Check for TOTP factors
       const { data: factorsData, error: factorsError } = await supabase.auth.mfa.listFactors();
@@ -302,8 +300,9 @@ export default function AdminLoginPage() {
       console.error('Login error:', error);
       setError(error instanceof Error ? error.message : 'Authentication failed');
       recordFailedAttempt();
+      // Reset reCAPTCHA only on authentication failure
       setRecaptchaToken(null);
-      recaptchaRef.current?.reset(); // Reset reCAPTCHA on error
+      recaptchaRef.current?.reset();
     } finally {
       setIsLoading(false);
     }
