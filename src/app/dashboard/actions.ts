@@ -628,7 +628,6 @@ export interface GetChatsSuccessResponse {
 //                 }
 //             }
 //         })
-
 //         if (!user) { 
 //             console.log("getChats: User not found in the db")
 //             return { 
@@ -638,18 +637,7 @@ export interface GetChatsSuccessResponse {
 //                 errorCode: 'USER_NOT_FOUND',
 //             }
 //         }
-
-        return { 
-            success: true,
-            chats: user.Chat.map((chat) => ({
-                id: chat.id,
-                chatName: chat.chatName,
-                socketIORoomId: chat.socketIORoomId,
-                adminId: chat.adminId,
-                updatedAt: chat.updatedAt,
-                chatType: chat.chatType.toString(),
-            }))
-        }
+        // }
 
 //     } catch (error) { 
 //         console.log("getChats: Error getting chats: ", error)

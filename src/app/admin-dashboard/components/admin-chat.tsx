@@ -299,31 +299,40 @@ export default function AdminChat() {
         // Listen for new messages
         socketInstance.on("new_message", (msg: any) => {
           // msg should contain { id, content, createdAt, isAdmin, chatId }
+          
+          // Ensure the message has the correct structure with proper timestamp
+          const formattedMsg = {
+            id: msg.id,
+            content: msg.content || msg.message || '',
+            createdAt: msg.createdAt ? new Date(msg.createdAt) : new Date(),
+            isAdmin: msg.isAdmin || false,
+            chatId: msg.chatId
+          }
 
           // Update the message list if it's for the currently selected chat
-          if (msg.chatId === selectedChatRef.current?.id) {
+          if (formattedMsg.chatId === selectedChatRef.current?.id) {
             setMessages(prev => {
               // Check if message already exists to prevent duplicates
-              const messageExists = prev.some(existingMsg => existingMsg.id === msg.id)
+              const messageExists = prev.some(existingMsg => existingMsg.id === formattedMsg.id)
               if (messageExists) {
                 return prev
               }
-              return [...prev, msg]
+              return [...prev, formattedMsg]
             })
           }
 
           // Update the chat list in the sidebar
           setChats(prevChats => {
             const updatedChats = prevChats.map(chat => {
-              if (chat.id === msg.chatId) {
+              if (chat.id === formattedMsg.chatId) {
                 // Check if message already exists in chat messages
                 const messageExists = Array.isArray(chat.messages) && 
-                  chat.messages.some(existingMsg => existingMsg.id === msg.id)
+                  chat.messages.some(existingMsg => existingMsg.id === formattedMsg.id)
                 
                 return {
                   ...chat,
-                  updatedAt: new Date(msg.createdAt),
-                  messages: messageExists ? chat.messages : [msg, ...(Array.isArray(chat.messages) ? chat.messages : [])],
+                  updatedAt: new Date(formattedMsg.createdAt),
+                  messages: messageExists ? chat.messages : [formattedMsg, ...(Array.isArray(chat.messages) ? chat.messages : [])],
                 }
               }
               return chat
