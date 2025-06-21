@@ -614,6 +614,8 @@ async function init() {
             socket.emit("chat_started", {
               chatId: chat.id,
               roomId: chat.socketIORoomId,
+              chatName: chat.chatName,
+              chatType: chat.chatType,
               status: "PENDING_ADMIN_JOIN"
             });
 
@@ -621,10 +623,12 @@ async function init() {
           } else {
             // No admin available - notify offline admins
             await NotificationService.notifyOfflineAdmins(chat);
-            
+
             socket.emit("chat_started", {
               chatId: chat.id,
               roomId: chat.socketIORoomId,
+              chatName: chat.chatName,
+              chatType: chat.chatType,
               status: "PENDING_ADMIN_AVAILABLE"
             });
 

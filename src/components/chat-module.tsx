@@ -8,7 +8,7 @@ import { createClient } from "@/utils/supabase/client"
 import styles from "./chat-module.module.css"
 
 interface ChatModuleProps {
-  onChatStarted?: (chatName: string, chatType: string) => void
+  onChatStarted?: (chatName: string, chatType: string, chatId: string, roomId: string) => void
   selectedChatId?: string
   onBackToChats?: () => void
   socket?: any
@@ -23,7 +23,7 @@ interface Message {
   senderName?: string
 }
 
-export default function ChatModule({ onChatStarted, selectedChatId, onBackToChats, socket, onJoinChat }: ChatModuleProps) {
+export default function ChatModule({ selectedChatId, onBackToChats, socket, onJoinChat, onChatStarted }: ChatModuleProps) {
   const [selectedChatTypes, setSelectedChatTypes] = useState<string[]>(['ITRTaxFiling'])
   const [isConnecting, setIsConnecting] = useState(false)
   const [user, setUser] = useState<any>(null)
@@ -32,6 +32,8 @@ export default function ChatModule({ onChatStarted, selectedChatId, onBackToChat
   const [newMessage, setNewMessage] = useState("")
   const [isLoadingMessages, setIsLoadingMessages] = useState(false)
   const [chatStatus, setChatStatus] = useState<string>('ACTIVE')
+  const [isTyping, setIsTyping] = useState(false)
+  const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -80,9 +82,10 @@ export default function ChatModule({ onChatStarted, selectedChatId, onBackToChat
 
     socket.on("chat_started", (data: any) => {
       console.log("Chat started in ChatModule:", data)
-      const chatName = getSelectedChatName()
-      if (onChatStarted && chatName) {
-        onChatStarted(chatName, selectedChatTypes[0])
+      if (onChatStarted && data.chatName && data.chatType && data.chatId && data.roomId) {
+        onChatStarted(data.chatName, data.chatType, data.chatId, data.roomId)
+      } else {
+        console.warn("Missing required data in chat_started event:", data)
       }
     })
 
@@ -120,14 +123,33 @@ export default function ChatModule({ onChatStarted, selectedChatId, onBackToChat
       setChatStatus(data.status || 'ACTIVE')
     })
 
+    // Typing indicators
+    socket.on("user_typing", (data: any) => {
+      console.log("User typing received:", data)
+      if (data.chatId === selectedChatId) {
+        console.log("Setting typing indicator to true for chat:", selectedChatId)
+        setIsTyping(true)
+      }
+    })
+
+    socket.on("user_stopped_typing", (data: any) => {
+      console.log("User stopped typing received:", data)
+      if (data.chatId === selectedChatId) {
+        console.log("Setting typing indicator to false for chat:", selectedChatId)
+        setIsTyping(false)
+      }
+    })
+
     return () => {
       socket.off("chat_started")
       socket.off("chat_history")
       socket.off("new_message")
       socket.off("chat_closed")
       socket.off("chat_reopened")
+      socket.off("user_typing")
+      socket.off("user_stopped_typing")
     }
-  }, [socket, onChatStarted, selectedChatTypes, getSelectedChatName])
+  }, [socket, getSelectedChatName, onChatStarted, selectedChatId])
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -135,6 +157,15 @@ export default function ChatModule({ onChatStarted, selectedChatId, onBackToChat
       messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight
     }
   }, [messages])
+
+  // Cleanup typing timeout on unmount or chat change
+  useEffect(() => {
+    return () => {
+      if (typingTimeout) {
+        clearTimeout(typingTimeout)
+      }
+    }
+  }, [typingTimeout])
 
   const handleChatTypeChange = (chatType: string, checked: boolean) => {
     if (checked) {
@@ -181,6 +212,31 @@ export default function ChatModule({ onChatStarted, selectedChatId, onBackToChat
       if (chatStatus !== 'CLOSED') {
         handleSendMessage()
       }
+    }
+  }
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setNewMessage(value)
+    
+    // Handle typing indicators
+    if (socket && selectedChatId && chatStatus !== 'CLOSED') {
+      // Clear existing timeout
+      if (typingTimeout) {
+        clearTimeout(typingTimeout)
+      }
+      
+      // Send typing start event
+      console.log("Sending start_typing event for chat:", selectedChatId)
+      socket.emit("start_typing", { chatId: selectedChatId })
+      
+      // Set timeout to stop typing after 2 seconds of inactivity
+      const timeout = setTimeout(() => {
+        console.log("Sending stop_typing event for chat:", selectedChatId)
+        socket.emit("stop_typing", { chatId: selectedChatId })
+      }, 2000)
+      
+      setTypingTimeout(timeout)
     }
   }
 
@@ -249,6 +305,25 @@ export default function ChatModule({ onChatStarted, selectedChatId, onBackToChat
                 </div>
               ))
             )}
+            
+            {/* Typing indicator */}
+            {isTyping && (
+              <div className={`${styles.message} ${styles.adminMessage}`}>
+                <div className={styles.messageContent}>
+                  <div className={styles.messageSender}>
+                    Admin
+                  </div>
+                  <div className={styles.typingIndicator}>
+                    <div className={styles.typingDots}>
+                      <div className={styles.typingDot}></div>
+                      <div className={styles.typingDot}></div>
+                      <div className={styles.typingDot}></div>
+                    </div>
+                    <span className={styles.typingText}>typing...</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           
           {chatStatus === 'CLOSED' ? (
@@ -262,24 +337,24 @@ export default function ChatModule({ onChatStarted, selectedChatId, onBackToChat
               </Button>
             </div>
           ) : (
-            <div className={styles.messageInput}>
-              <input
-                type="text"
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Type your message..."
-                className={styles.input}
+          <div className={styles.messageInput}>
+            <input
+              type="text"
+              value={newMessage}
+              onChange={handleInputChange}
+              onKeyPress={handleKeyPress}
+              placeholder="Type your message..."
+              className={styles.input}
                 disabled={chatStatus === 'CLOSED'}
-              />
-              <button
-                onClick={handleSendMessage}
+            />
+            <button
+              onClick={handleSendMessage}
                 disabled={!newMessage.trim() || chatStatus === 'CLOSED'}
-                className={styles.sendButton}
-              >
-                <Send size={16} />
-              </button>
-            </div>
+              className={styles.sendButton}
+            >
+              <Send size={16} />
+            </button>
+          </div>
           )}
         </div>
       </div>

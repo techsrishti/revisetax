@@ -70,10 +70,10 @@ export default function Dashboard() {
       setJoinedChats(existingChatIds)
     })
 
-    socketInstance.on("chat_started", (data) => {
-      console.log("Chat started:", data)
-      // The chat will be added to the list when we receive the existing_chats event
-    })
+    // socketInstance.on("chat_started", (data) => {
+    //   console.log("Chat started:", data)
+    //   // This is now handled via the callback from ChatModule
+    // })
 
     socketInstance.on("admin_joined", (data) => {
       console.log("Admin joined:", data)
@@ -92,15 +92,23 @@ export default function Dashboard() {
     }
   }, [user])
 
-  const handleChatStarted = useCallback((chatName: string, chatType: string) => {
-    // Create a temporary chat entry
-    const tempChat: Chat = {
-      id: `temp_${Date.now()}`,
+  const handleChatStarted = useCallback((chatName: string, chatType: string, chatId: string, roomId: string) => {
+    // Create a new chat entry
+    //This will add it to the sidebar.
+    const newChat: Chat = {
+      id: chatId,
       name: chatName,
       type: chatType,
       isActive: false
     }
-    setChats(prevChats => [...prevChats, tempChat])
+    setChats(prevChats => [...prevChats, newChat])
+    
+    // Mark the chat as joined
+    setJoinedChats(prev => new Set([...prev, chatId]))
+    
+    // Automatically select the new chat
+    setSelectedChatId(chatId)
+    setActiveModule("chat")
   }, [])
 
   const handleChatSelect = (chatId: string) => {

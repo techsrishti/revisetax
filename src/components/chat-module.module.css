@@ -543,8 +543,81 @@
 
 @media (min-width: 768px) {
   .reopenButton {
-    height: 48px;
-    padding: 12px 32px;
-    font-size: 14px;
+    padding: 12px 24px;
+    font-size: 16px;
+  }
+}
+
+/* Typing Indicator Styles */
+.typingIndicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #F4F4F5;
+  border-radius: 12px;
+  max-width: 120px;
+  margin-top: 4px;
+}
+
+.typingDots {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.typingDot {
+  width: 6px;
+  height: 6px;
+  background: #71717A;
+  border-radius: 50%;
+  animation: typingAnimation 1.4s infinite ease-in-out;
+}
+
+.typingDot:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.typingDot:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+.typingDot:nth-child(3) {
+  animation-delay: 0s;
+}
+
+.typingText {
+  font-family: "Inter Variable";
+  font-size: 12px;
+  font-weight: 400;
+  color: #71717A;
+  font-feature-settings: 'ss01' on, 'cv05' on, 'cv08' on, 'cv11' on;
+}
+
+@keyframes typingAnimation {
+  0%, 80%, 100% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Mobile responsive typing indicator */
+@media (max-width: 767px) {
+  .typingIndicator {
+    padding: 6px 10px;
+    max-width: 100px;
+  }
+  
+  .typingDot {
+    width: 5px;
+    height: 5px;
+  }
+  
+  .typingText {
+    font-size: 11px;
   }
 }
