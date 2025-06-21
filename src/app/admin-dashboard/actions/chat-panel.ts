@@ -181,4 +181,40 @@ export async function createHubspotTicket(params: {
     console.error("Error in createHubspotTicket:", error)
     return { success: false, error: "Failed to create HubSpot ticket." }
   }
+}
+
+// Action to assign a chat to an admin
+export async function assignChatToAdmin(chatId: string, adminId: string) {
+  try {
+    const chat = await prisma.chat.update({
+      where: { id: chatId },
+      data: { 
+        adminId: adminId,
+        status: 'ACTIVE',
+        updatedAt: new Date()
+      },
+      include: {
+        user: {
+          select: {
+            name: true,
+            email: true,
+            phoneNumber: true
+          }
+        },
+        admin: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        }
+      }
+    })
+    
+    revalidatePath("/admin-dashboard")
+    return { success: true, chat }
+  } catch (error) {
+    console.error("Error in assignChatToAdmin:", error)
+    return { success: false, error: "Failed to assign chat to admin." }
+  }
 } 

@@ -6,6 +6,7 @@ import { getAdminChats } from "../actions"
 import {
   getChatDetails,
   getUserDocuments,
+  assignChatToAdmin,
   createOsTicket,
   createHubspotTicket,
 } from "../actions/chat-panel"
@@ -41,13 +42,24 @@ interface BaseChat {
   chatName: string
   socketIORoomId: string
   userId: string
+  adminId: string | null
   user: {
     name: string | null
     email: string | null
     phoneNumber: string
   }
+  admin?: {
+    id: string
+    name: string
+    email: string
+  } | null
   updatedAt: Date
   chatType: string
+  status: string
+  closedAt: Date | null
+  closedBy: string | null
+  closeReason: string | null
+  isActive: boolean
   messages: {
     id: string
     content: string | null
@@ -110,6 +122,7 @@ export default function AdminChat() {
   const [isTyping, setIsTyping] = useState(false)
   const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [currentAdminId, setCurrentAdminId] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchChats = async () => {
@@ -119,6 +132,12 @@ export default function AdminChat() {
         if (response.success && Array.isArray(response.chats)) {
           const augmentedChats = response.chats.map(c => ({ ...c, isAiChat: c.isAiChat || false }))
           setChats(augmentedChats)
+          
+          // Extract current admin ID from the first chat that has an admin (if any)
+          const adminChat = augmentedChats.find(chat => chat.adminId && chat.admin);
+          if (adminChat?.admin?.id) {
+            setCurrentAdminId(adminChat.admin.id);
+          }
         }
       } catch (error) {
         console.error("Error fetching chats:", error)
@@ -189,6 +208,7 @@ export default function AdminChat() {
             chatName: name || "Anonymous",
             socketIORoomId: roomCode,
             userId,
+            adminId: null,
             user: {
               name: name || "Anonymous",
               email: null,
@@ -196,6 +216,11 @@ export default function AdminChat() {
             },
             updatedAt: new Date(),
             chatType: "anonymous",
+            status: "active",
+            closedAt: null,
+            closedBy: null,
+            closeReason: null,
+            isActive: true,
             messages: [],
             isAiChat: false
           }
@@ -225,22 +250,47 @@ export default function AdminChat() {
     startTransition(async () => {
       setSelectedChat(null) // Clear previous selection immediately
       setUserDocs([]) // Clear docs
-      const detailsRes = await getChatDetails(chat.id)
-      if (detailsRes.success && detailsRes.chat) {
-        // Manually add the isAiChat property to satisfy the ChatDetails type
-        const chatDetails: ChatDetails = {
-            ...(detailsRes.chat as any), // Use 'as any' to bypass strict checks here
-            isAiChat: (detailsRes.chat as any).isAiChat || false
+      
+      try {
+        // If this is a PENDING chat and not assigned to anyone, assign it to current admin
+        if (chat.status === 'PENDING' && !chat.adminId && currentAdminId) {
+          const assignResult = await assignChatToAdmin(chat.id, currentAdminId)
+          if (assignResult.success && assignResult.chat) {
+            // Update the chat in the local state
+            setChats(prevChats => 
+              prevChats.map(c => 
+                c.id === chat.id 
+                  ? { ...c, adminId: currentAdminId, status: 'ACTIVE', admin: assignResult.chat.admin }
+                  : c
+              )
+            )
+            toast({ title: "Success", description: "Chat assigned to you." })
+          } else {
+            toast({ title: "Error", description: "Failed to assign chat.", variant: "destructive" })
+            return
+          }
         }
-        setSelectedChat(chatDetails)
         
-        // Also fetch user documents
-        const docsRes = await getUserDocuments(detailsRes.chat.userId)
-        if(docsRes.success && docsRes.folders) {
-          setUserDocs(docsRes.folders)
+        const detailsRes = await getChatDetails(chat.id)
+        if (detailsRes.success && detailsRes.chat) {
+          // Manually add the isAiChat property to satisfy the ChatDetails type
+          const chatDetails: ChatDetails = {
+              ...(detailsRes.chat as any), // Use 'as any' to bypass strict checks here
+              isAiChat: (detailsRes.chat as any).isAiChat || false
+          }
+          setSelectedChat(chatDetails)
+          
+          // Also fetch user documents
+          const docsRes = await getUserDocuments(detailsRes.chat.userId)
+          if(docsRes.success && docsRes.folders) {
+            setUserDocs(docsRes.folders)
+          }
+        } else {
+          toast({ title: "Error", description: "Could not load chat details.", variant: "destructive" })
         }
-      } else {
-        toast({ title: "Error", description: "Could not load chat details.", variant: "destructive" })
+      } catch (error) {
+        console.error("Error in handleSelectChat:", error)
+        toast({ title: "Error", description: "Failed to process chat selection.", variant: "destructive" })
       }
     })
   }
@@ -378,38 +428,94 @@ export default function AdminChat() {
             </div>
           </div>
           <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-            {chats.map(chat => (
-              <div
-                key={chat.id}
-                className={cn(
-                  "p-4 border-b flex items-start gap-4 cursor-pointer hover:bg-gray-50",
-                  { "bg-gray-100": selectedChat?.id === chat.id }
-                )}
-                onClick={() => handleSelectChat(chat)}
-              >
-                <Avatar>
-                  <AvatarFallback>{(chat.user.name || "U")[0]}</AvatarFallback>
-                </Avatar>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold">
-                      {chat.user.name || chat.user.email || chat.user.phoneNumber}
-                    </h3>
-                    <span className="text-xs text-muted-foreground">
-                      {formatTimestamp(chat.updatedAt)}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground capitalize">
-                    {chat.chatType.replace(/([A-Z])/g, ' $1').trim()}
-                  </p>
-                  {chat.messages[0] && (
-                    <p className="text-sm text-muted-foreground truncate mt-1">
-                      {chat.messages[0].content}
-                    </p>
+            {chats.map(chat => {
+              const isNewRequest = chat.status === 'PENDING' && !chat.adminId;
+              const isReopened = chat.status === 'CLOSED' && chat.closedAt && 
+                (new Date().getTime() - new Date(chat.closedAt).getTime()) < 24 * 60 * 60 * 1000;
+              const isAssignedToMe = chat.adminId && currentAdminId && chat.adminId === currentAdminId;
+              
+              return (
+                <div
+                  key={chat.id}
+                  className={cn(
+                    "p-4 border-b flex items-start gap-4 cursor-pointer hover:bg-gray-50 transition-all duration-200",
+                    { 
+                      "bg-gray-100": selectedChat?.id === chat.id,
+                      "border-l-4 border-l-orange-500 bg-orange-50": isNewRequest,
+                      "border-l-4 border-l-blue-500 bg-blue-50": isReopened,
+                      "border-l-4 border-l-green-500": isAssignedToMe && chat.status === 'ACTIVE'
+                    }
                   )}
+                  onClick={() => handleSelectChat(chat)}
+                >
+                  <Avatar>
+                    <AvatarFallback>{(chat.user.name || "U")[0]}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <h3 className="font-semibold truncate">
+                        {chat.user.name || chat.user.email || chat.user.phoneNumber}
+                      </h3>
+                      <span className="text-xs text-muted-foreground">
+                        {formatTimestamp(chat.updatedAt)}
+                      </span>
+                    </div>
+                    
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs text-muted-foreground capitalize">
+                        {chat.chatType.replace(/([A-Z])/g, ' $1').trim()}
+                      </span>
+                      
+                      {/* Status Badge */}
+                      <span className={cn(
+                        "text-xs px-2 py-1 rounded-full font-medium",
+                        {
+                          "bg-yellow-100 text-yellow-800": chat.status === 'PENDING',
+                          "bg-green-100 text-green-800": chat.status === 'ACTIVE',
+                          "bg-red-100 text-red-800": chat.status === 'CLOSED',
+                          "bg-gray-100 text-gray-800": chat.status === 'ARCHIVED'
+                        }
+                      )}>
+                        {chat.status}
+                      </span>
+                      
+                      {/* Special badges */}
+                      {isNewRequest && (
+                        <span className="text-xs px-2 py-1 rounded-full font-medium bg-orange-100 text-orange-800">
+                          NEW
+                        </span>
+                      )}
+                      {isReopened && (
+                        <span className="text-xs px-2 py-1 rounded-full font-medium bg-blue-100 text-blue-800">
+                          REOPENED
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* Admin assignment info */}
+                    {chat.admin && (
+                      <p className="text-xs text-muted-foreground mb-1">
+                        Assigned to: {chat.admin.name}
+                      </p>
+                    )}
+                    
+                    {/* Last message preview */}
+                    {chat.messages[0] && (
+                      <p className="text-sm text-muted-foreground truncate">
+                        {chat.messages[0].content}
+                      </p>
+                    )}
+                    
+                    {/* Close reason for closed chats */}
+                    {chat.status === 'CLOSED' && chat.closeReason && (
+                      <p className="text-xs text-red-600 mt-1">
+                        Closed: {chat.closeReason}
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
