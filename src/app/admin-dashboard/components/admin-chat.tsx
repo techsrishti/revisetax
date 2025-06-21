@@ -6,7 +6,6 @@ import { getAdminChats } from "../actions"
 import {
   getChatDetails,
   getUserDocuments,
-  toggleAiChat,
   createOsTicket,
   createHubspotTicket,
 } from "../actions/chat-panel"
@@ -28,7 +27,6 @@ import {
   Send,
   FileText,
   Ticket,
-  Bot,
   User,
   Power,
   Loader2,
@@ -37,8 +35,6 @@ import {
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
-import { Switch } from "@/components/ui/switch"
-import { Label } from "@/components/ui/label"
 
 interface BaseChat {
   id: string
@@ -113,13 +109,22 @@ export default function AdminChat() {
   const [socket, setSocket] = useState<any>(null)
   const [isTyping, setIsTyping] = useState(false)
   const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     const fetchChats = async () => {
-      const response = await getAdminChats()
-      if (response.success && Array.isArray(response.chats)) {
-        const augmentedChats = response.chats.map(c => ({ ...c, isAiChat: c.isAiChat || false }))
-        setChats(augmentedChats)
+      try {
+        setIsLoading(true)
+        const response = await getAdminChats()
+        if (response.success && Array.isArray(response.chats)) {
+          const augmentedChats = response.chats.map(c => ({ ...c, isAiChat: c.isAiChat || false }))
+          setChats(augmentedChats)
+        }
+      } catch (error) {
+        console.error("Error fetching chats:", error)
+        toast({ title: "Error", description: "Failed to load chats.", variant: "destructive" })
+      } finally {
+        setIsLoading(false)
       }
     }
 
@@ -133,7 +138,7 @@ export default function AdminChat() {
     return () => {
       socketInstance.disconnect()
     }
-  }, [])
+  }, [toast])
 
   useEffect(() => {
     if (!socket || !selectedChat) return
@@ -240,19 +245,6 @@ export default function AdminChat() {
     })
   }
 
-  const handleToggleAiChat = async () => {
-    if (!selectedChat) return
-    startTransition(async () => {
-      const res = await toggleAiChat(selectedChat.id, !selectedChat.isAiChat)
-      if (res.success) {
-        setSelectedChat(prev => prev ? { ...prev, isAiChat: !prev.isAiChat } : null)
-        toast({ title: "Success", description: `AI Chat has been ${!selectedChat.isAiChat ? "enabled" : "disabled"}.` })
-      } else {
-        toast({ title: "Error", description: res.error })
-      }
-    })
-  }
-
   const handleCreateTicket = (ticketingSystem: "osticket" | "hubspot") => {
     if (!selectedChat) return
     
@@ -346,6 +338,18 @@ export default function AdminChat() {
     setTypingTimeout(timeout)
   }
 
+  if (isLoading) {
+    return (
+      <Card className="h-[80vh] flex items-center justify-center rounded-none border-0 md:border-x">
+        <div className="text-center text-muted-foreground p-8">
+          <Loader2 className="animate-spin mx-auto h-12 w-12 mb-4" />
+          <h2 className="text-xl font-semibold">Loading...</h2>
+          <p>Please wait while we load the chat data.</p>
+        </div>
+      </Card>
+    )
+  }
+
   if (chats.length === 0) {
     return (
       <Card className="h-[80vh] flex items-center justify-center rounded-none border-0 md:border-x">
@@ -373,7 +377,7 @@ export default function AdminChat() {
               <Input placeholder="Search chats..." className="pl-8" />
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
             {chats.map(chat => (
               <div
                 key={chat.id}
@@ -410,7 +414,7 @@ export default function AdminChat() {
         </div>
 
         {/* Chat Area */}
-        <div className="col-span-2 flex flex-col">
+        <div className={cn("flex flex-col", selectedChat ? "col-span-2" : "col-span-3")}>
           {selectedChat ? (
             <>
               <div className="p-4 border-b flex items-center justify-between">
@@ -437,7 +441,7 @@ export default function AdminChat() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-              <div className="flex-1 p-6 overflow-y-auto space-y-6">
+              <div className="flex-1 p-6 overflow-y-auto space-y-6 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                 {/* Message bubbles */}
                 {selectedChat.messages.slice().reverse().map(msg => (
                   <div
@@ -499,7 +503,7 @@ export default function AdminChat() {
               </div>
             </>
           ) : (
-            <div className="col-span-3 flex items-center justify-center h-full text-muted-foreground bg-gray-50/50">
+            <div className="flex items-center justify-center h-full text-muted-foreground bg-gray-50/50">
               <div className="text-center">
                 <MessageSquare className="mx-auto h-16 w-16 mb-4" />
                 <p className="text-lg">Select a chat to start messaging</p>
@@ -508,62 +512,56 @@ export default function AdminChat() {
           )}
         </div>
         
-        {/* Agent Panel */}
-        <div className="col-span-1 border-l flex flex-col">
-          <div className="p-4 border-b text-center">
-            <h2 className="text-xl font-bold">Agent Panel</h2>
-          </div>
-          {isPending && <Loader2 className="animate-spin m-auto" />}
-          {selectedChat && !isPending && (
-            <div className="p-4 space-y-6 flex-1 overflow-y-auto">
-              {/* User Info */}
-              <div className="space-y-2">
-                <h3 className="font-semibold">User Information</h3>
-                <p className="text-sm"><strong>Plan:</strong> {selectedChat.user.Subscription?.planName || "No active plan"}</p>
-              </div>
-
-              {/* AI Chat Toggle */}
-              <div className="space-y-2">
-                <h3 className="font-semibold">AI Assistant</h3>
-                <div className="flex items-center space-x-2">
-                    <Switch
-                        id="ai-chat-toggle"
-                        checked={selectedChat.isAiChat}
-                        onCheckedChange={handleToggleAiChat}
-                    />
-                    <Label htmlFor="ai-chat-toggle">{selectedChat.isAiChat ? "AI Active" : "AI Inactive"}</Label>
-                </div>
-              </div>
-
-              {/* Ticketing */}
-              <div className="space-y-2">
-                <h3 className="font-semibold">Create Ticket</h3>
-                <div className="flex flex-col space-y-2">
-                    <Button onClick={() => handleCreateTicket('hubspot')}><Ticket className="mr-2 h-4 w-4"/>HubSpot</Button>
-                    <Button onClick={() => handleCreateTicket('osticket')}><Ticket className="mr-2 h-4 w-4"/>osTicket</Button>
-                </div>
-              </div>
-
-              {/* Documents */}
-              <div className="space-y-2">
-                <h3 className="font-semibold">Uploaded Documents</h3>
-                <div className="space-y-2">
-                    {userDocs.length > 0 ? userDocs.map(folder => (
-                        <div key={folder.id}>
-                            <h4 className="font-medium text-sm">{folder.name}</h4>
-                            {folder.File.map(file => (
-                                <a key={file.id} href={`/path/to/documents/${file.storageName}`} target="_blank" rel="noopener noreferrer" className="flex items-center text-sm text-blue-600 hover:underline">
-                                    <FileText className="mr-2 h-4 w-4"/>
-                                    {file.originalName}
-                                </a>
-                            ))}
-                        </div>
-                    )) : <p className="text-sm text-muted-foreground">No documents uploaded.</p>}
-                </div>
-              </div>
+        {/* Agent Panel - Only visible when chat is selected */}
+        {selectedChat && (
+          <div className="col-span-1 border-l flex flex-col">
+            <div className="p-4 border-b text-center">
+              <h2 className="text-xl font-bold">Agent Panel</h2>
             </div>
-          )}
-        </div>
+            {isPending && <Loader2 className="animate-spin m-auto" />}
+            {!isPending && (
+              <div className="p-4 space-y-6 flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                {/* User Info */}
+                <div className="space-y-2">
+                  <h3 className="font-semibold">User Information</h3>
+                  <div className="space-y-1 text-sm">
+                    <p><strong>Name:</strong> {selectedChat.user.name || "Not provided"}</p>
+                    <p><strong>Email:</strong> {selectedChat.user.email || "Not provided"}</p>
+                    <p><strong>Phone:</strong> {selectedChat.user.phoneNumber || "Not provided"}</p>
+                    <p><strong>Plan:</strong> {selectedChat.user.Subscription?.planName || "No active plan"}</p>
+                  </div>
+                </div>
+
+                {/* Ticketing */}
+                <div className="space-y-2">
+                  <h3 className="font-semibold">Create Ticket</h3>
+                  <div className="flex flex-col space-y-2">
+                      <Button onClick={() => handleCreateTicket('hubspot')}><Ticket className="mr-2 h-4 w-4"/>HubSpot</Button>
+                      <Button onClick={() => handleCreateTicket('osticket')}><Ticket className="mr-2 h-4 w-4"/>osTicket</Button>
+                  </div>
+                </div>
+
+                {/* Documents */}
+                <div className="space-y-2">
+                  <h3 className="font-semibold">Uploaded Documents</h3>
+                  <div className="space-y-2">
+                      {userDocs.length > 0 ? userDocs.map(folder => (
+                          <div key={folder.id}>
+                              <h4 className="font-medium text-sm">{folder.name}</h4>
+                              {folder.File.length > 0 ? folder.File.map(file => (
+                                  <a key={file.id} href={`https://hykxpxglhoyjbodkvoxx.supabase.co/storage/v1/object/public/documents/${file.storageName}`} target="_blank" rel="noopener noreferrer" className="flex items-center text-sm text-blue-600 hover:underline">
+                                      <FileText className="mr-2 h-4 w-4"/>
+                                      {file.originalName}
+                                  </a>
+                              )) : <p className="text-sm text-muted-foreground">No Files in this folder</p>}
+                          </div>
+                      )) : <p className="text-sm text-muted-foreground">No documents uploaded.</p>}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </CardContent>
       <Toaster />
     </Card>
