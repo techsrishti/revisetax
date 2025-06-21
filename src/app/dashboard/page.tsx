@@ -43,7 +43,7 @@ export default function Dashboard() {
     if (!user) return
 
     // Initialize socket connection
-    const socketInstance = io("http://18.60.99.199:3001")
+    const socketInstance = io("https://socket.alpha.revisetax.com")
     console.log("socketInstance in dashboard")
     setSocket(socketInstance)
 
