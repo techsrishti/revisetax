@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useTransition, useRef } from "react"
+import { useEffect, useState, useTransition, useRef, useMemo, useCallback } from "react"
 import { io } from "socket.io-client"
 import { getAdminChats } from "../actions"
 import {
@@ -42,6 +42,7 @@ interface AdminDetails {
   name: string
   email: string
   authId: string
+  maxChats?: number
 }
 
 interface BaseChat {
@@ -150,36 +151,110 @@ export default function AdminChat() {
   const [joinedRooms, setJoinedRooms] = useState<string[]>([])
   const [adminDetails, setAdminDetails] = useState<AdminDetails | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const messagesEndRef = useRef<HTMLDivElement | null>(null)
+  const [failedAssignments, setFailedAssignments] = useState<Set<string>>(new Set())
+  const [authError, setAuthError] = useState<string | null>(null)
   const selectedChatRef = useRef(selectedChat)
-  const messagesContainerRef = useRef<HTMLDivElement | null>(null)
-  const [shouldAutoScroll, setShouldAutoScroll] = useState(true)
 
   useEffect(() => {
     selectedChatRef.current = selectedChat
   }, [selectedChat])
 
-  // Only scroll to bottom when user sends a message
-  const scrollToBottom = () => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
-    }
+  // Memoized chat filtering to prevent unnecessary re-renders
+  const pendingChats = useMemo(() => 
+    chats.filter(chat => chat.status === 'PENDING'), [chats]
+  )
+  
+  const activeChats = useMemo(() => 
+    chats.filter(chat => chat.status !== 'PENDING'), [chats]
+  )
+
+  // Calculate current chat count and check if admin can join more chats
+  const getCurrentChatCount = () => {
+    const activeChats = chats.filter(chat => 
+      chat.adminId === currentAdminId && 
+      chat.status === 'ACTIVE'
+    )
+    return activeChats.length
+  }
+
+  const canJoinMoreChats = () => {
+    if (!adminDetails) return false
+    const currentCount = getCurrentChatCount()
+    return currentCount < (adminDetails.maxChats || 5)
+  }
+
+  const getMaxChats = () => {
+    return adminDetails?.maxChats || 5
+  }
+
+  // Calculate how long a chat has been pending
+  const getPendingDuration = (chat: Chat) => {
+    if (chat.status !== 'PENDING') return null
+    const createdAt = new Date(chat.createdAt)
+    const now = new Date()
+    const diffMs = now.getTime() - createdAt.getTime()
+    const diffMins = Math.floor(diffMs / (1000 * 60))
+    
+    if (diffMins < 1) return 'Just now'
+    if (diffMins < 60) return `${diffMins}m ago`
+    const diffHours = Math.floor(diffMins / 60)
+    if (diffHours < 24) return `${diffHours}h ago`
+    const diffDays = Math.floor(diffHours / 24)
+    return `${diffDays}d ago`
+  }
+
+  // Check if a chat has been pending for more than 5 minutes (auto-assignment threshold)
+  const isLongPending = (chat: Chat) => {
+    if (chat.status !== 'PENDING') return false
+    const createdAt = new Date(chat.createdAt)
+    const now = new Date()
+    const diffMs = now.getTime() - createdAt.getTime()
+    const diffMins = diffMs / (1000 * 60)
+    return diffMins > 5
   }
 
   // Fetch admin details from API
   const fetchAdminDetails = async (): Promise<AdminDetails | null> => {
     try {
+      console.log('Fetching admin details...')
       const response = await fetch('/api/admin/current')
+      console.log('Response status:', response.status)
+      
       if (!response.ok) {
-        throw new Error('Failed to fetch admin details')
+        const errorData = await response.json().catch(() => ({}))
+        console.error('API Error:', errorData)
+        
+        let errorMessage = 'Failed to fetch admin details'
+        if (response.status === 401) {
+          errorMessage = 'Authentication required. Please log in as an admin.'
+        } else if (response.status === 403) {
+          errorMessage = 'Access denied. You must be an admin to access this page.'
+        } else if (response.status === 404) {
+          errorMessage = 'Admin account not found. Please contact support.'
+        } else {
+          errorMessage = `Failed to fetch admin details: ${errorData.error || response.statusText}`
+        }
+        
+        setAuthError(errorMessage)
+        throw new Error(errorMessage)
       }
+      
       const data = await response.json()
+      console.log('Admin data received:', data)
+      
       if (data.success && data.admin) {
+        setAuthError(null) // Clear any previous errors
         return data.admin
       }
-      throw new Error('Admin details not found')
+      
+      const errorMessage = 'Admin details not found in response'
+      setAuthError(errorMessage)
+      throw new Error(errorMessage)
     } catch (error) {
       console.error('Error fetching admin details:', error)
+      if (!authError) {
+        setAuthError(error instanceof Error ? error.message : 'Failed to fetch admin details')
+      }
       return null
     }
   }
@@ -199,8 +274,37 @@ export default function AdminChat() {
         setAdminDetails(admin)
         setCurrentAdminId(admin.id)
 
+        // Fetch all chats using the server action
+        try {
+          const chatsResponse = await getAdminChats()
+          if (chatsResponse.success) {
+            // Map the chats to match the Chat interface
+            const mappedChats = chatsResponse.chats.map((chat: any) => ({
+              ...chat,
+              socketIORoomId: chat.socketIORoomId,
+              isAiChat: chat.isAiChat || false,
+              updatedAt: chat.updatedAt ? new Date(chat.updatedAt) : new Date(),
+              createdAt: chat.createdAt ? new Date(chat.createdAt) : new Date(),
+              lastMessageAt: chat.lastMessageAt ? new Date(chat.lastMessageAt) : null,
+              user: chat.user || { name: '', email: '', phoneNumber: '' },
+              admin: chat.admin || null,
+              messages: chat.messages || []
+            }))
+            setChats(mappedChats)
+          } else {
+            console.error('Failed to fetch chats:', chatsResponse.error)
+            setChats([])
+          }
+        } catch (error) {
+          console.error('Error fetching chats:', error)
+          setChats([])
+        }
+
+        // Set loading to false after fetching chats
+        setIsLoading(false)
+
         // Initialize socket connection
-        const socketInstance = io("https://socket.alpha.revisetax.com")
+        const socketInstance = io("http://18.60.99.199:5000")
         setSocket(socketInstance)
 
         // Authenticate admin on connect
@@ -223,27 +327,10 @@ export default function AdminChat() {
           setIsAuthenticated(false)
         })
 
-        // Listen for chat list
+        // Listen for chat list (this will be used for real-time updates only)
         socketInstance.on("existing_admin_chats", (data: any) => {
-          if (data.chats && Array.isArray(data.chats)) {
-            const mappedChats = data.chats.map((c: any) => ({
-              ...c,
-              socketIORoomId: c.roomId || c.socketIORoomId, // Map roomId to socketIORoomId
-              updatedAt: c.updatedAt ? new Date(c.updatedAt) : new Date(),
-              user: c.user || { name: '', email: '', phoneNumber: '' }
-            }))
-            // Remove duplicates based on chat ID
-            const uniqueChats = mappedChats.filter((chat: any, index: number, self: any[]) => 
-              index === self.findIndex((c: any) => c.id === chat.id)
-            )
-            setChats(uniqueChats)
-            // Set current admin id from first chat with admin
-            const adminChat = data.chats.find((chat: any) => chat.adminId && chat.admin)
-            if (adminChat?.admin?.id) setCurrentAdminId(adminChat.admin.id)
-          } else {
-            setChats([])
-          }
-          setIsLoading(false)
+          // We'll use this for real-time updates, but we already have all chats from getAdminChats
+          console.log("Received existing admin chats from socket:", data.chats?.length || 0)
         })
 
         // Listen for new chat requests (add to chat list)
@@ -261,10 +348,11 @@ export default function AdminChat() {
               chatName: data.chatName || 'New Chat',
               socketIORoomId: data.roomId || data.socketIORoomId,
               userId: data.userId,
-              adminId: admin.id,
+              adminId: null, // Pending chats have no admin assigned yet
               user: data.user || { name: data.userName || '', email: data.userEmail || '', phoneNumber: '' },
-              updatedAt: data.updatedAt ? new Date(data.updatedAt) : new Date(),
+              admin: null, // No admin assigned yet
               createdAt: data.createdAt ? new Date(data.createdAt) : new Date(),
+              updatedAt: data.updatedAt ? new Date(data.updatedAt) : new Date(),
               lastMessageAt: data.lastMessageAt ? new Date(data.lastMessageAt) : null,
               chatType: data.chatType,
               status: "PENDING",
@@ -348,6 +436,104 @@ export default function AdminChat() {
           })
         })
 
+        // Listen for admin joined event (when admin joins a chat)
+        socketInstance.on("admin_joined", (data: any) => {
+          console.log("Admin joined chat:", data)
+          // Update the chat status to ACTIVE in the local state
+          setChats(prevChats => 
+            prevChats.map(chat => 
+              chat.id === data.chatId 
+                ? { ...chat, status: 'ACTIVE', adminId: admin.id }
+                : chat
+            )
+          )
+          
+        })
+
+        // Listen for admin joined confirmation (sent to the admin who joined)
+        socketInstance.on("admin_joined_confirmation", (data: any) => {
+          console.log("Admin joined confirmation:", data)
+          console.log("Current admin ID:", admin.id)
+          
+          // Clear any failed assignment for this chat
+          setFailedAssignments(prev => {
+            const newSet = new Set(prev)
+            newSet.delete(data.chatId)
+            return newSet
+          })
+          
+          // Update the chat status to ACTIVE in the local state
+          setChats(prevChats => {
+            const updatedChats = prevChats.map(chat => 
+              chat.id === data.chatId 
+                ? { ...chat, status: data.status, adminId: admin.id }
+                : chat
+            )
+            console.log("Updated chats after admin joined confirmation:", updatedChats)
+            return updatedChats
+          })
+          
+        })
+
+        // Listen for chat status updates
+        socketInstance.on("chat_status_updated", (data: any) => {
+          console.log("Chat status updated:", data)
+          setChats(prevChats => 
+            prevChats.map(chat => 
+              chat.id === data.chatId 
+                ? { ...chat, status: data.status }
+                : chat
+            )
+          )
+        })
+
+        // Listen for assignment concurrency error
+        socketInstance.on("error", (data: any) => {
+          if (typeof data === 'object' && data.message === "Chat was already assigned to another admin.") {
+            // Track this failed assignment
+            setFailedAssignments(prev => new Set(prev).add(data.chatId || 'unknown'))
+            
+            toast({
+              title: "Assignment Failed",
+              description: "This chat was already picked up by another admin. Please refresh your chat list.",
+              variant: "destructive"
+            })
+            setIsLoadingChat(false)
+            
+            // Clear the selected chat if it was the failed one
+            if (selectedChatRef.current?.id === data.chatId) {
+              setSelectedChat(null)
+            }
+          }
+        })
+
+        // Listen for chat assigned to another admin
+        socketInstance.on("chat_assigned", (data: any) => {
+          console.log("Chat assigned to another admin:", data)
+          
+          // Only remove the chat if it's assigned to a different admin
+          if (data.assignedAdminId !== admin.id) {
+            // Track this as a failed assignment for this admin
+            setFailedAssignments(prev => new Set(prev).add(data.chatId))
+            
+            setChats(prevChats => 
+              prevChats.filter(chat => chat.id !== data.chatId)
+            )
+            
+            // Clear the selected chat if it was the assigned one
+            if (selectedChatRef.current?.id === data.chatId) {
+              setSelectedChat(null)
+            }
+            
+            // Show a toast notification
+            toast({
+              title: "Chat Claimed",
+              description: `${data.assignedAdminName} picked up this chat.`,
+              variant: "default"
+            })
+          }
+        })
+
         return () => {
           socketInstance.disconnect()
         }
@@ -360,15 +546,30 @@ export default function AdminChat() {
     initializeSocket()
   }, [])
 
-  useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
-    }
-  }, [messages])
-
   // Join room handler
   const handleJoinRoom = async (chat: Chat) => {
     if (!socket || !isAuthenticated || !adminDetails) return
+    
+    // Check if this chat assignment failed
+    if (failedAssignments.has(chat.id)) {
+      toast({
+        title: "Assignment Failed",
+        description: "This chat was already assigned to another admin.",
+        variant: "destructive"
+      })
+      return
+    }
+    
+    // Additional check: prevent joining chats assigned to other admins
+    if (chat.adminId && chat.adminId !== currentAdminId) {
+      toast({
+        title: "Access Denied",
+        description: `This chat is assigned to ${chat.admin?.name || 'another admin'}.`,
+        variant: "destructive"
+      })
+      return
+    }
+    
     setIsLoadingChat(true)
     socket.emit("admin_join_chat", { chatId: chat.id })
     setJoinedRooms([chat.socketIORoomId]) // Only keep the current joined room
@@ -384,6 +585,7 @@ export default function AdminChat() {
 
     socket.once("chat_history", () => {
       clearTimeout(loadingTimeout);
+      // Don't update chat status here - wait for admin_joined_confirmation
     });
     
     // Fetch detailed chat information including user details
@@ -392,6 +594,9 @@ export default function AdminChat() {
       if (chatDetailsResult.success && chatDetailsResult.chat) {
         const detailedChat = chatDetailsResult.chat as ChatDetails;
         setSelectedChat(detailedChat);
+        
+        // Don't update chat status here - let socket events handle it
+        // The admin_joined_confirmation event will update the status properly
         
         // Fetch user documents if user exists
         if (detailedChat.userId) {
@@ -420,6 +625,16 @@ export default function AdminChat() {
   const handleSelectChat = async (chat: Chat) => {
     if (!joinedRooms.includes(chat.socketIORoomId) || !isAuthenticated || !adminDetails) return;
     
+    // Additional check: prevent selecting chats assigned to other admins
+    if (chat.adminId && chat.adminId !== currentAdminId) {
+      toast({
+        title: "Access Denied",
+        description: `This chat is assigned to ${chat.admin?.name || 'another admin'}.`,
+        variant: "destructive"
+      })
+      return;
+    }
+    
     setIsLoadingChat(true);
     setMessages([]);
 
@@ -442,6 +657,9 @@ export default function AdminChat() {
       if (chatDetailsResult.success && chatDetailsResult.chat) {
         const detailedChat = chatDetailsResult.chat as ChatDetails;
         setSelectedChat(detailedChat);
+        
+        // Don't update chat status here - let socket events handle it
+        // The chat status should already be correct from the initial load
         
         // Fetch user documents if user exists
         if (detailedChat.userId) {
@@ -509,6 +727,16 @@ export default function AdminChat() {
   const handleSendMessage = () => {
     if (!message.trim() || !selectedChat || !socket || !isAuthenticated || !adminDetails) return
 
+    // Additional check: prevent sending messages to chats not assigned to this admin
+    if (selectedChat.adminId && selectedChat.adminId !== currentAdminId) {
+      toast({
+        title: "Access Denied",
+        description: "You can only send messages to chats assigned to you.",
+        variant: "destructive"
+      })
+      return
+    }
+
     // Send the correct payload expected by the server
     socket.emit("send_message", {
       chatId: selectedChat.id,
@@ -516,13 +744,15 @@ export default function AdminChat() {
     })
 
     setMessage("")
-    
-    // Force scroll to bottom when user sends a message
-    scrollToBottom()
   }
 
   const handleTyping = () => {
     if (!selectedChat || !socket || !isAuthenticated || !adminDetails) return
+
+    // Additional check: prevent typing indicators in chats not assigned to this admin
+    if (selectedChat.adminId && selectedChat.adminId !== currentAdminId) {
+      return
+    }
 
     socket.emit("start_typing", {
       roomCode: selectedChat.socketIORoomId,
@@ -561,7 +791,37 @@ export default function AdminChat() {
         <div className="text-center text-white/80 p-8">
           <Power className="mx-auto h-12 w-12 mb-4 text-red-400" />
           <h2 className="text-xl font-semibold text-white">Authentication Required</h2>
-          <p className="text-white/70">Please log in as an admin to access the chat dashboard.</p>
+          <p className="text-white/70">
+            {authError || "Please log in as an admin to access the chat dashboard."}
+          </p>
+          <div className="mt-4 space-x-2">
+            {authError && (
+              <Button 
+                onClick={() => window.location.href = '/admin/login'} 
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                Go to Admin Login
+              </Button>
+            )}
+            <Button 
+              onClick={() => {
+                setAuthError(null)
+                setIsLoading(true)
+                // Retry fetching admin details
+                fetchAdminDetails().then(admin => {
+                  if (admin) {
+                    setAdminDetails(admin)
+                    setCurrentAdminId(admin.id)
+                  }
+                  setIsLoading(false)
+                })
+              }} 
+              variant="outline"
+              className="border-white/20 text-white hover:bg-white/10"
+            >
+              Retry
+            </Button>
+          </div>
         </div>
       </div>
     )
@@ -580,14 +840,25 @@ export default function AdminChat() {
   }
 
   return (
-    <div className="h-[80vh] flex flex-col bg-white/5 backdrop-blur-sm border border-white/20 rounded-lg overflow-hidden">
+    <div className="h-[80vh] flex flex-col bg-white/5 backdrop-blur-sm border border-white/20 rounded-lg overflow-hidden" key="admin-chat-container">
       <div className="p-0 grid grid-cols-1 md:grid-cols-4 h-full min-h-0">
         {/* Chat List Sidebar */}
         <div className="col-span-1 border-r border-white/20 flex flex-col bg-white/5 h-full min-h-0">
           <div className="p-4 border-b border-white/20 flex flex-col justify-center h-28">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-white">Chats</h2>
-              {/* Add any header controls here, e.g., filters */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-white/60">Active:</span>
+                <span className={cn(
+                  "text-xs font-semibold px-2 py-1 rounded-full",
+                  {
+                    "bg-green-500/20 text-green-300 border border-green-500/30": getCurrentChatCount() < getMaxChats(),
+                    "bg-red-500/20 text-red-300 border border-red-500/30": getCurrentChatCount() >= getMaxChats()
+                  }
+                )}>
+                  {getCurrentChatCount()}/{getMaxChats()}
+                </span>
+              </div>
             </div>
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-white/60" />
@@ -601,102 +872,276 @@ export default function AdminChat() {
             {chats.length === 0 ? (
               <div className="text-center text-white/60 py-8">No previous chat history</div>
             ) : (
-              chats.map(chat => {
-                const isNewRequest = chat.status === 'PENDING' && !chat.adminId;
-                const isReopened = chat.status === 'CLOSED' && chat.closedAt && 
-                  (new Date().getTime() - new Date(chat.closedAt).getTime()) < 24 * 60 * 60 * 1000;
-                const isAssignedToMe = chat.adminId && currentAdminId && chat.adminId === currentAdminId;
-                const isJoined = joinedRooms.includes(chat.socketIORoomId) && selectedChat?.id === chat.id;
-                const userName = chat.user && chat.user.name ? chat.user.name : (chat.user && chat.user.email ? chat.user.email : (chat.user && chat.user.phoneNumber ? chat.user.phoneNumber : 'User'));
-                const userInitial = userName[0] || 'U';
-                const lastMessage = chat.messages && chat.messages[0] ? chat.messages[0].content : '';
-                
-                return (
-                  <div
-                    key={chat.id}
-                    onClick={async () => {
-                      if (isJoined) {
-                        await handleSelectChat(chat)
-                      } else {
-                        await handleJoinRoom(chat)
-                      }
-                    }}
-                    className={cn(
-                      "p-3 border-b border-white/10 flex items-start gap-3 cursor-pointer hover:bg-white/10 transition-all duration-200",
-                      {
-                        "bg-white/15": selectedChat?.id === chat.id,
-                        "border-l-4 border-l-orange-500 bg-orange-500/10": isNewRequest,
-                        "border-l-4 border-l-blue-500 bg-blue-500/10": isReopened,
-                        "border-l-4 border-l-green-500 bg-green-500/10": isAssignedToMe && chat.status === 'ACTIVE'
-                      }
-                    )}
-                  >
-                    <Avatar className="mt-1">
-                      <AvatarFallback className="bg-white/20 text-white">{userInitial}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between mb-1">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-white truncate">{chat.chatName || 'Chat'}</p>
-                          <p className="text-sm text-white/70 truncate">{userName}</p>
-                        </div>
-                        <span className="text-xs text-white/60 whitespace-nowrap ml-2">
-                          {chat.lastMessageAt ? formatSidebarTimestamp(chat.lastMessageAt) : formatSidebarTimestamp(chat.createdAt)}
+              <>
+                {/* Pending Chats Section */}
+                {pendingChats.length > 0 && (
+                  <div className="p-3 border-b border-orange-500/30 bg-orange-500/5">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+                      <h3 className="text-sm font-semibold text-orange-300">Pending Requests</h3>
+                      <span className="text-xs bg-orange-500/20 text-orange-300 px-2 py-0.5 rounded-full">
+                        {pendingChats.length}
+                      </span>
+                      {pendingChats.filter(chat => isLongPending(chat)).length > 0 && (
+                        <span className="text-xs bg-red-500/20 text-red-300 px-2 py-0.5 rounded-full">
+                          {pendingChats.filter(chat => isLongPending(chat)).length} urgent
                         </span>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs text-white/60 capitalize">
-                            {chat.chatType.replace(/([A-Z])/g, ' $1').trim()}
-                          </span>
-                          <span className={cn(
-                            "text-xs px-2 py-0.5 rounded-full font-medium",
-                            {
-                              "bg-yellow-500/20 text-yellow-300 border border-yellow-500/30": chat.status === 'PENDING',
-                              "bg-green-500/20 text-green-300 border border-green-500/30": chat.status === 'ACTIVE',
-                              "bg-red-500/20 text-red-300 border border-red-500/30": chat.status === 'CLOSED',
-                              "bg-gray-500/20 text-gray-300 border border-gray-500/30": chat.status === 'ARCHIVED'
-                            }
-                          )}>
-                            {chat.status}
-                          </span>
-                          {isNewRequest && (
-                            <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-orange-500/20 text-orange-300 border border-orange-500/30">
-                              NEW
-                            </span>
-                          )}
-                          {isReopened && (
-                            <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                              REOPENED
-                            </span>
-                          )}
-                        </div>
-
-                        {!isJoined && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-auto px-3 py-1 text-sm bg-primary text-primary-foreground hover:bg-primary/90"
-                            onClick={(e) => { e.stopPropagation(); handleJoinRoom(chat); }}
-                          >
-                            Join
-                          </Button>
-                        )}
-                        {isJoined && selectedChat?.id === chat.id && (
-                          <span className="text-xs font-semibold text-green-400">Joined</span>
-                        )}
-                      </div>
-
-                      {lastMessage && (
-                        <p className="text-sm text-white/70 truncate mt-1">
-                          {lastMessage}
-                        </p>
+                      )}
+                      {!canJoinMoreChats() && (
+                        <span className="text-xs bg-red-500/20 text-red-300 px-2 py-0.5 rounded-full">
+                          Limit Reached
+                        </span>
                       )}
                     </div>
+                    {pendingChats
+                      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) // Sort by oldest first
+                      .map(chat => {
+                        const userName = chat.user && chat.user.name ? chat.user.name : (chat.user && chat.user.email ? chat.user.email : (chat.user && chat.user.phoneNumber ? chat.user.phoneNumber : 'User'));
+                        const userInitial = userName[0] || 'U';
+                        const pendingDuration = getPendingDuration(chat);
+                        const longPending = isLongPending(chat);
+                        const isAssignedToOther = !!(chat.adminId && currentAdminId && chat.adminId !== currentAdminId);
+                        const hasFailedAssignment = failedAssignments.has(chat.id);
+                        
+                        return (
+                          <div
+                            key={chat.id}
+                            onClick={async () => {
+                              if (isAssignedToOther) {
+                                toast({
+                                  title: "Chat Already Assigned",
+                                  description: `This chat is assigned to ${chat.admin?.name || 'another admin'}.`,
+                                  variant: "destructive"
+                                });
+                              } else if (canJoinMoreChats()) {
+                                await handleJoinRoom(chat)
+                              } else {
+                                toast({
+                                  title: "Chat Limit Reached",
+                                  description: `You can only handle ${getMaxChats()} concurrent chats. Please close some active chats first.`,
+                                  variant: "destructive"
+                                });
+                              }
+                            }}
+                            className={cn(
+                              "p-2 border rounded-lg mb-2 cursor-pointer transition-all duration-200",
+                              isAssignedToOther
+                                ? "border-blue-500/50 bg-blue-500/10 hover:bg-blue-500/20"
+                                : longPending 
+                                  ? "border-red-500/50 bg-red-500/10 hover:bg-red-500/20" 
+                                  : "border-orange-500/30 hover:bg-orange-500/10",
+                              (!canJoinMoreChats() || isAssignedToOther) && "opacity-50 cursor-not-allowed"
+                            )}
+                          >
+                            <div className="flex items-center gap-2">
+                              <Avatar className="h-6 w-6">
+                                <AvatarFallback className={cn(
+                                  "text-xs",
+                                  isAssignedToOther ? "bg-blue-500/20 text-blue-300" : (longPending ? "bg-red-500/20 text-red-300" : "bg-orange-500/20 text-orange-300")
+                                )}>{userInitial}</AvatarFallback>
+                              </Avatar>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1">
+                                  <p className="text-xs font-medium text-orange-300 truncate">{chat.chatName || 'Chat'}</p>
+                                  {longPending && (
+                                    <span className="text-xs bg-red-500/20 text-red-300 px-1 py-0.5 rounded text-[10px]">
+                                      URGENT
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-orange-400/70 truncate">{userName}</p>
+                                {pendingDuration && (
+                                  <p className={cn(
+                                    "text-xs",
+                                    isAssignedToOther ? "text-blue-400/80" : (longPending ? "text-red-400/80" : "text-orange-400/60")
+                                  )}>
+                                    Pending: {pendingDuration}
+                                  </p>
+                                )}
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className={cn(
+                                  "h-6 px-2 text-xs",
+                                  (!canJoinMoreChats() || isAssignedToOther || hasFailedAssignment)
+                                    ? "bg-gray-500/50 text-gray-400 cursor-not-allowed"
+                                    : isAssignedToOther
+                                      ? "bg-blue-500 text-blue-300 hover:bg-blue-600"
+                                      : longPending 
+                                        ? "bg-red-500 text-red-300 hover:bg-red-600"
+                                        : "bg-orange-500 text-orange-300 hover:bg-orange-600"
+                                )}
+                                disabled={Boolean(!canJoinMoreChats() || isAssignedToOther || hasFailedAssignment)}
+                                onClick={(e) => { 
+                                  e.stopPropagation(); 
+                                  if (hasFailedAssignment) {
+                                    toast({
+                                      title: "Assignment Failed",
+                                      description: "This chat was already assigned to another admin.",
+                                      variant: "destructive"
+                                    });
+                                  } else if (isAssignedToOther) {
+                                    toast({
+                                      title: "Chat Already Assigned",
+                                      description: `This chat is assigned to ${chat.admin?.name || 'another admin'}.`,
+                                      variant: "destructive"
+                                    });
+                                  } else if (canJoinMoreChats()) {
+                                    handleJoinRoom(chat); 
+                                  } else {
+                                    toast({
+                                      title: "Chat Limit Reached",
+                                      description: `You can only handle ${getMaxChats()} concurrent chats. Please close some active chats first.`,
+                                      variant: "destructive"
+                                    });
+                                  }
+                                }}
+                              >
+                                {hasFailedAssignment ? "Failed" : isAssignedToOther ? "Assigned" : canJoinMoreChats() ? "Join" : "Limit"}
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
                   </div>
-                );
-              })
+                )}
+
+                {/* All Other Chats */}
+                {activeChats
+                  .map(chat => {
+                    const isNewRequest = chat.status === 'PENDING' && !chat.adminId;
+                    const isReopened = chat.status === 'CLOSED' && chat.closedAt && 
+                      (new Date().getTime() - new Date(chat.closedAt).getTime()) < 24 * 60 * 60 * 1000;
+                    const isAssignedToMe = chat.adminId && currentAdminId && chat.adminId === currentAdminId;
+                    const isAssignedToOther = !!(chat.adminId && currentAdminId && chat.adminId !== currentAdminId);
+                    const isJoined = joinedRooms.includes(chat.socketIORoomId) && selectedChat?.id === chat.id;
+                    const hasFailedAssignment = failedAssignments.has(chat.id);
+                    const userName = chat.user && chat.user.name ? chat.user.name : (chat.user && chat.user.email ? chat.user.email : (chat.user && chat.user.phoneNumber ? chat.user.phoneNumber : 'User'));
+                    const userInitial = userName[0] || 'U';
+                    const lastMessage = chat.messages && chat.messages[0] ? chat.messages[0].content : '';
+                    
+                    return (
+                      <div
+                        key={chat.id}
+                        onClick={async () => {
+                          if (isJoined) {
+                            await handleSelectChat(chat)
+                          } else {
+                            await handleJoinRoom(chat)
+                          }
+                        }}
+                        className={cn(
+                          "p-3 border-b border-white/10 flex items-start gap-3 cursor-pointer hover:bg-white/10 transition-all duration-200",
+                          {
+                            "bg-white/15": selectedChat?.id === chat.id,
+                            "border-l-4 border-l-orange-500 bg-orange-500/10": isNewRequest,
+                            "border-l-4 border-l-blue-500 bg-blue-500/10": isReopened,
+                            "border-l-4 border-l-green-500 bg-green-500/10": isAssignedToMe && chat.status === 'ACTIVE'
+                          }
+                        )}
+                      >
+                        <Avatar className="mt-1">
+                          <AvatarFallback className="bg-white/20 text-white">{userInitial}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between mb-1">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-white truncate">{chat.chatName || 'Chat'}</p>
+                              <p className="text-sm text-white/70 truncate">{userName}</p>
+                            </div>
+                            <span className="text-xs text-white/60 whitespace-nowrap ml-2">
+                              {chat.lastMessageAt ? formatSidebarTimestamp(chat.lastMessageAt) : formatSidebarTimestamp(chat.createdAt)}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs text-white/60 capitalize">
+                                {chat.chatType.replace(/([A-Z])/g, ' $1').trim()}
+                              </span>
+                              <span className={cn(
+                                "text-xs px-2 py-0.5 rounded-full font-medium",
+                                {
+                                  "bg-yellow-500/20 text-yellow-300 border border-yellow-500/30": chat.status === 'PENDING',
+                                  "bg-green-500/20 text-green-300 border border-green-500/30": chat.status === 'ACTIVE',
+                                  "bg-red-500/20 text-red-300 border border-red-500/30": chat.status === 'CLOSED',
+                                  "bg-gray-500/20 text-gray-300 border border-gray-500/30": chat.status === 'ARCHIVED'
+                                }
+                              )}>
+                                {chat.status}
+                              </span>
+                              {isAssignedToOther && (
+                                <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                                  {chat.admin?.name || 'Other Admin'}
+                                </span>
+                              )}
+                              {isNewRequest && (
+                                <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-orange-500/20 text-orange-300 border border-orange-500/30">
+                                  NEW
+                                </span>
+                              )}
+                              {isReopened && (
+                                <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                                  REOPENED
+                                </span>
+                              )}
+                            </div>
+
+                            {!isJoined && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className={cn(
+                                  "h-auto px-3 py-1 text-sm",
+                                  canJoinMoreChats() && !isAssignedToOther && !hasFailedAssignment
+                                    ? "bg-primary text-primary-foreground hover:bg-primary/90" 
+                                    : "bg-gray-500/50 text-gray-400 cursor-not-allowed"
+                                )}
+                                disabled={Boolean(!canJoinMoreChats() || isAssignedToOther || hasFailedAssignment)}
+                                onClick={(e) => { 
+                                  e.stopPropagation(); 
+                                  if (hasFailedAssignment) {
+                                    toast({
+                                      title: "Assignment Failed",
+                                      description: "This chat was already assigned to another admin.",
+                                      variant: "destructive"
+                                    });
+                                  } else if (isAssignedToOther) {
+                                    toast({
+                                      title: "Chat Already Assigned",
+                                      description: `This chat is assigned to ${chat.admin?.name || 'another admin'}.`,
+                                      variant: "destructive"
+                                    });
+                                  } else if (canJoinMoreChats()) {
+                                    handleJoinRoom(chat); 
+                                  } else {
+                                    toast({
+                                      title: "Chat Limit Reached",
+                                      description: `You can only handle ${getMaxChats()} concurrent chats. Please close some active chats first.`,
+                                      variant: "destructive"
+                                    });
+                                  }
+                                }}
+                              >
+                                {hasFailedAssignment ? "Failed" : isAssignedToOther ? "Assigned" : canJoinMoreChats() ? "Join" : "Limit"}
+                              </Button>
+                            )}
+                            {isJoined && selectedChat?.id === chat.id && (
+                              <span className="text-xs font-semibold text-green-400">Joined</span>
+                            )}
+                          </div>
+
+                          {lastMessage && (
+                            <p className="text-sm text-white/70 truncate mt-1">
+                              {lastMessage}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </>
             )}
           </div>
         </div>
@@ -741,6 +1186,7 @@ export default function AdminChat() {
                 </DropdownMenu>
               </div>
               <div className="flex-1 h-full min-h-0 p-6 overflow-y-auto space-y-6 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent" 
+                   key={`messages-${selectedChat?.id || 'none'}`}
                    style={{ minHeight: 0 }}>
                 {/* Message bubbles */}
                 {messages.length === 0 ? (
@@ -783,7 +1229,6 @@ export default function AdminChat() {
                     </div>
                   ))
                 )}
-                <div ref={messagesEndRef} />
               </div>
               <div className="p-4 border-t border-white/20 bg-white/5">
                 {isTyping && <p className="text-xs text-white/60 mb-2">User is typing...</p>}

@@ -171,31 +171,41 @@ export async function createHubspotTicket(params: {
 // Action to assign a chat to an admin
 export async function assignChatToAdmin(chatId: string, adminId: string) {
   try {
-    const chat = await prisma.chat.update({
-      where: { id: chatId },
-      data: { 
-        adminId: adminId,
-        status: 'ACTIVE',
-        updatedAt: new Date()
-      },
-      include: {
-        user: {
-          select: {
-            name: true,
-            email: true,
-            phoneNumber: true
-          }
-        },
-        admin: {
-          select: {
-            id: true,
-            name: true,
-            email: true
+    const [updateResult, chat] = await prisma.$transaction([
+      prisma.chat.updateMany({
+        where: { id: chatId, status: 'PENDING', adminId: null },
+        data: { 
+          adminId: adminId,
+          status: 'ACTIVE',
+          updatedAt: new Date()
+        }
+      }),
+      prisma.chat.findUnique({
+        where: { id: chatId },
+        include: {
+          user: {
+            select: {
+              name: true,
+              email: true,
+              phoneNumber: true
+            }
+          },
+          admin: {
+            select: {
+              id: true,
+              name: true,
+              email: true
+            }
           }
         }
-      }
-    })
-    
+      })
+    ]);
+
+    if (updateResult.count === 0) {
+      // Someone else already assigned this chat
+      return { success: false, error: "Chat was already assigned to another admin." }
+    }
+
     revalidatePath("/admin-dashboard")
     return { success: true, chat }
   } catch (error) {

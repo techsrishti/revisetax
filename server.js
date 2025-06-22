@@ -93,26 +93,53 @@ class AdminAllocationService {
 
   static async assignAdminToChat(chatId, adminId) {
     try {
-      await prisma.chat.update({
-        where: { id: chatId },
-        data: {
-          adminId,
-          status: "ACTIVE",
-          updatedAt: new Date(),
+      // Use a transaction to prevent race conditions
+      const result = await prisma.$transaction(async (tx) => {
+        // First, check if the chat is still available for assignment
+        const chat = await tx.chat.findUnique({
+          where: { id: chatId },
+          select: { adminId: true, status: true }
+        });
+
+        if (!chat) {
+          throw new Error("Chat not found");
         }
+
+        // If chat is already assigned to another admin, throw an error
+        if (chat.adminId && chat.adminId !== adminId) {
+          throw new Error("Chat was already assigned to another admin");
+        }
+
+        // If chat is already assigned to this admin and active, no need to update
+        if (chat.adminId === adminId && chat.status === "ACTIVE") {
+          return { updated: false, chat };
+        }
+
+        // Update the chat with the new admin assignment
+        const updatedChat = await tx.chat.update({
+          where: { id: chatId },
+          data: {
+            adminId,
+            status: "ACTIVE",
+            updatedAt: new Date(),
+          }
+        });
+
+        // Update admin's last seen timestamp
+        await tx.admin.update({
+          where: { id: adminId },
+          data: {
+            lastSeenAt: new Date(),
+          }
+        });
+
+        return { updated: true, chat: updatedChat };
       });
 
-      await prisma.admin.update({
-        where: { id: adminId },
-        data: {
-          lastSeenAt: new Date(),
-        }
-      });
-
-      return true;
+      return result;
     } catch (error) {
       console.error("Error assigning admin to chat:", error);
-      return false;
+      throw error; // Re-throw to handle in the calling function
     }
   }
 }
@@ -238,37 +265,87 @@ class NotificationService {
 
 // Helper: Allocate pending chats to available admins
 async function allocatePendingChats() {
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000); // 5 minutes ago
+  
   const pendingChats = await prisma.chat.findMany({
-    where: { status: 'PENDING', isActive: true },
+    where: { 
+      status: 'PENDING', 
+      isActive: true,
+      createdAt: {
+        lt: fiveMinutesAgo // Only auto-assign chats that have been pending for more than 5 minutes
+      }
+    },
     include: {
       user: { select: { name: true, email: true } },
       admin: { select: { name: true, email: true } },
     }
   });
+  
+  console.log(`🔄 Checking ${pendingChats.length} long-pending chats for auto-assignment`);
+  
   for (const chat of pendingChats) {
     const availableAdmin = await AdminAllocationService.findAvailableAdmin(chat.chatType);
     if (availableAdmin) {
-      await AdminAllocationService.assignAdminToChat(chat.id, availableAdmin.id);
-      // Notify admin
-      const adminSocketIds = Array.from(adminSessions.entries())
-        .filter(([_, adminId]) => adminId === availableAdmin.id)
-        .map(([socketId, _]) => socketId);
-      adminSocketIds.forEach(adminSocketId => {
-        io.to(adminSocketId).emit("new_chat_request", {
-          chatId: chat.id,
-          roomId: chat.socketIORoomId,
-          chatType: chat.chatType,
-          chatName: chat.chatName,
-          userName: chat.user?.name,
-          userEmail: chat.user?.email,
+      try {
+        await AdminAllocationService.assignAdminToChat(chat.id, availableAdmin.id);
+        
+        // Notify admin
+        const adminSocketIds = Array.from(adminSessions.entries())
+          .filter(([_, adminId]) => adminId === availableAdmin.id)
+          .map(([socketId, _]) => socketId);
+        adminSocketIds.forEach(adminSocketId => {
+          // First add the chat to the admin's list
+          io.to(adminSocketId).emit("new_chat_request", {
+            chatId: chat.id,
+            roomId: chat.socketIORoomId,
+            chatType: chat.chatType,
+            chatName: chat.chatName,
+            userName: chat.user?.name,
+            userEmail: chat.user?.email,
+            createdAt: chat.createdAt,
+            updatedAt: chat.updatedAt,
+            lastMessageAt: chat.lastMessageAt,
+          });
+          
+          // Then immediately confirm the assignment (with a small delay to ensure proper ordering)
+          setTimeout(() => {
+            io.to(adminSocketId).emit("admin_joined_confirmation", {
+              chatId: chat.id,
+              status: "ACTIVE",
+              adminName: availableAdmin.name,
+            });
+          }, 100);
         });
-      });
-      // Notify user
-      io.to(chat.socketIORoomId).emit("admin_joined", {
-        chatId: chat.id,
-        adminName: availableAdmin.name,
-      });
-      console.log(`✅ Pending chat ${chat.id} assigned to admin ${availableAdmin.name}`);
+        
+        // Notify user
+        io.to(chat.socketIORoomId).emit("admin_joined", {
+          chatId: chat.id,
+          adminName: availableAdmin.name,
+        });
+        
+        // Broadcast to all other admins that this chat is no longer pending
+        const allAdminSocketIds = Array.from(adminSessions.keys());
+        allAdminSocketIds.forEach(adminSocketId => {
+          if (!adminSocketIds.includes(adminSocketId)) { // Don't send to the assigned admin
+            io.to(adminSocketId).emit("chat_assigned", {
+              chatId: chat.id,
+              assignedAdminId: availableAdmin.id,
+              assignedAdminName: availableAdmin.name,
+              status: "ACTIVE"
+            });
+          }
+        });
+        
+        console.log(`✅ Long-pending chat ${chat.id} auto-assigned to admin ${availableAdmin.name}`);
+      } catch (assignmentError) {
+        if (assignmentError.message === "Chat was already assigned to another admin") {
+          console.log(`⏳ Chat ${chat.id} was already assigned to another admin during auto-assignment`);
+        } else {
+          console.error(`❌ Error auto-assigning chat ${chat.id}:`, assignmentError);
+        }
+      }
+    } else {
+      console.log(`⏳ No available admin for long-pending chat ${chat.id}`);
     }
   }
 }
@@ -335,7 +412,7 @@ async function init() {
           // Get admin's existing active chats
           const existingChats = await prisma.chat.findMany({
             where: {
-              adminId,
+              adminId: adminId, // Only get chats assigned to THIS admin
               isActive: true,
               status: 'ACTIVE'
             },
@@ -349,24 +426,52 @@ async function init() {
             }
           });
 
-          if (existingChats.length > 0) {
-            console.log(`🔄 Admin ${admin.name} has ${existingChats.length} existing chats`);
+          // Also get all pending chats that the admin can potentially pick up
+          const pendingChats = await prisma.chat.findMany({
+            where: {
+              status: 'PENDING',
+              isActive: true
+            },
+            include: {
+              user: {
+                select: {
+                  name: true,
+                  email: true,
+                }
+              }
+            }
+          });
+
+          const allChats = [...existingChats, ...pendingChats];
+
+          if (allChats.length > 0) {
+            console.log(`🔄 Admin ${admin.name} has ${existingChats.length} existing chats and ${pendingChats.length} pending chats available`);
             
-            // Rejoin all existing chat rooms
+            // Rejoin all existing chat rooms (only for assigned chats)
             for (const chat of existingChats) {
-              socket.join(chat.socketIORoomId);
+              // Double-check that the chat is still assigned to this admin
+              const currentChat = await prisma.chat.findUnique({
+                where: { id: chat.id },
+                select: { adminId: true, status: true }
+              });
               
-              // Update room participants tracking
-              const participants = roomParticipants.get(chat.socketIORoomId) || new Set();
-              participants.add(socket.id);
-              roomParticipants.set(chat.socketIORoomId, participants);
-              
-              console.log(`✅ Admin rejoined chat room: ${chat.socketIORoomId}`);
+              if (currentChat && currentChat.adminId === adminId && currentChat.status === 'ACTIVE') {
+                socket.join(chat.socketIORoomId);
+                
+                // Update room participants tracking
+                const participants = roomParticipants.get(chat.socketIORoomId) || new Set();
+                participants.add(socket.id);
+                roomParticipants.set(chat.socketIORoomId, participants);
+                
+                console.log(`✅ Admin ${adminId} rejoined chat room: ${chat.socketIORoomId}`);
+              } else {
+                console.log(`⚠️ Admin ${adminId} tried to rejoin chat ${chat.id} but it's no longer assigned to them (current adminId: ${currentChat?.adminId}, status: ${currentChat?.status})`);
+              }
             }
 
-            // Send existing chats to admin
+            // Send all chats to admin (both existing and pending)
             socket.emit("existing_admin_chats", {
-              chats: existingChats.map(chat => ({
+              chats: allChats.map(chat => ({
                 id: chat.id,
                 chatName: chat.chatName,
                 chatType: chat.chatType,
@@ -375,14 +480,15 @@ async function init() {
                 userName: chat.user?.name,
                 userEmail: chat.user?.email,
                 lastMessageAt: chat.lastMessageAt,
+                adminId: chat.adminId,
+                admin: chat.admin
               }))
             });
           }
           
           console.log(`👨‍💼 Admin '${admin.name}' authenticated: ${socket.id}`);
 
-          // After admin authenticates and is set online:
-          await allocatePendingChats();
+          // Removed automatic allocation - admins will manually pick up pending chats
         } catch (error) {
           console.error("Admin authentication error:", error);
           socket.emit("auth_error", { message: "Authentication failed" });
@@ -469,26 +575,56 @@ async function init() {
           const userId = userSessions.get(socket.id);
           const adminId = adminSessions.get(socket.id);
           
+          console.log(`🔍 DEBUG: get_chat_history called for chat ${chatId} - userId: ${userId}, adminId: ${adminId}`);
+          
           if (!userId && !adminId) {
+            console.log(`❌ DEBUG: Not authenticated for get_chat_history`);
             socket.emit("error", { message: "Not authenticated" });
             return;
           }
 
           const chat = await ChatService.getChatWithMessages(chatId);
           if (!chat) {
+            console.log(`❌ DEBUG: Chat ${chatId} not found in get_chat_history`);
             socket.emit("error", { message: "Chat not found" });
             return;
           }
 
+          console.log(`🔍 DEBUG: Chat ${chatId} found - userId: ${chat.userId}, adminId: ${chat.adminId}`);
+
           // Verify user has access to this chat
           if (userId && chat.userId !== userId) {
+            console.log(`❌ DEBUG: User access denied for chat history - chat userId: ${chat.userId}, requesting userId: ${userId}`);
             socket.emit("error", { message: "Access denied" });
             return;
           }
 
-          if (adminId && chat.adminId !== adminId) {
-            socket.emit("error", { message: "Access denied" });
-            return;
+          // For admins: only allow access to chats assigned to them
+          if (adminId) {
+            console.log(`🔍 DEBUG: Admin access check for chat history - chat adminId: ${chat.adminId}, requesting adminId: ${adminId}`);
+            if (!chat.adminId) {
+              console.log(`❌ DEBUG: Admin ${adminId} trying to access unassigned chat ${chatId} history`);
+              // Remove admin from room if they shouldn't be there
+              socket.leave(chat.socketIORoomId);
+              console.log(`🚫 DEBUG: Removed admin ${adminId} from room ${chat.socketIORoomId}`);
+              socket.emit("error", { 
+                message: "You can only access chats that are assigned to you.",
+                chatId: chatId 
+              });
+              return;
+            }
+            if (chat.adminId !== adminId) {
+              console.log(`❌ DEBUG: Admin ${adminId} trying to access chat ${chatId} history assigned to ${chat.adminId}`);
+              // Remove admin from room if they shouldn't be there
+              socket.leave(chat.socketIORoomId);
+              console.log(`🚫 DEBUG: Removed admin ${adminId} from room ${chat.socketIORoomId}`);
+              socket.emit("error", { 
+                message: "Access denied - this chat is assigned to another admin.",
+                chatId: chatId 
+              });
+              return;
+            }
+            console.log(`✅ DEBUG: Admin ${adminId} authorized to access chat ${chatId} history`);
           }
 
           socket.emit("chat_history", {
@@ -513,7 +649,10 @@ async function init() {
           const userId = userSessions.get(socket.id);
           const adminId = adminSessions.get(socket.id);
           
+          console.log(`🔍 DEBUG: join_existing_chat called for chat ${chatId} - userId: ${userId}, adminId: ${adminId}`);
+          
           if (!userId && !adminId) {
+            console.log(`❌ DEBUG: Not authenticated for join_existing_chat`);
             socket.emit("error", { message: "Not authenticated" });
             return;
           }
@@ -537,26 +676,49 @@ async function init() {
           });
 
           if (!chat) {
+            console.log(`❌ DEBUG: Chat ${chatId} not found in join_existing_chat`);
             socket.emit("error", { message: "Chat not found" });
             return;
           }
 
+          console.log(`🔍 DEBUG: Chat ${chatId} found - userId: ${chat.userId}, adminId: ${chat.adminId}`);
+
           // Verify access
           if (userId && chat.userId !== userId) {
+            console.log(`❌ DEBUG: User access denied - chat userId: ${chat.userId}, requesting userId: ${userId}`);
             socket.emit("error", { message: "Access denied" });
             return;
           }
 
-          if (adminId && chat.adminId !== adminId) {
-            socket.emit("error", { message: "Access denied" });
-            return;
+          // For admins: only allow joining chats that are assigned to them
+          if (adminId) {
+            console.log(`🔍 DEBUG: Admin access check - chat adminId: ${chat.adminId}, requesting adminId: ${adminId}`);
+            if (!chat.adminId) {
+              console.log(`❌ DEBUG: Admin ${adminId} trying to join unassigned chat ${chatId}`);
+              socket.emit("error", { 
+                message: "You can only join chats that are assigned to you. Use 'Join' button to claim pending chats.",
+                chatId: chatId 
+              });
+              return;
+            }
+            if (chat.adminId !== adminId) {
+              console.log(`❌ DEBUG: Admin ${adminId} trying to join chat ${chatId} assigned to ${chat.adminId}`);
+              socket.emit("error", { 
+                message: "Access denied - this chat is assigned to another admin.",
+                chatId: chatId 
+              });
+              return;
+            }
+            console.log(`✅ DEBUG: Admin ${adminId} authorized to join chat ${chatId}`);
           }
 
           // Join the room
+          console.log(`🔍 DEBUG: Joining room ${chat.socketIORoomId} for chat ${chatId}`);
           socket.join(chat.socketIORoomId);
           const participants = roomParticipants.get(chat.socketIORoomId) || new Set();
           participants.add(socket.id);
           roomParticipants.set(chat.socketIORoomId, participants);
+          console.log(`✅ DEBUG: Successfully joined room ${chat.socketIORoomId}`);
 
           // Notify other participants that user joined
           socket.to(chat.socketIORoomId).emit("user_joined_chat", {
@@ -588,52 +750,28 @@ async function init() {
           socket.join(chat.socketIORoomId);
           roomParticipants.set(chat.socketIORoomId, new Set([socket.id]));
 
-          // Try to find available admin
-          const availableAdmin = await AdminAllocationService.findAvailableAdmin(chatType);
-          
-          if (availableAdmin) {
-            // Assign admin and notify
-            await AdminAllocationService.assignAdminToChat(chat.id, availableAdmin.id);
-            
-            // Notify admin about new chat
-            const adminSocketIds = Array.from(adminSessions.entries())
-              .filter(([_, adminId]) => adminId === availableAdmin.id)
-              .map(([socketId, _]) => socketId);
-
-            adminSocketIds.forEach(adminSocketId => {
-              io.to(adminSocketId).emit("new_chat_request", {
-                chatId: chat.id,
-                roomId: chat.socketIORoomId,
-                chatType,
-                chatName,
-                userName: chat.user.name,
-                userEmail: chat.user.email,
-              });
-            });
-
-            socket.emit("chat_started", {
+          // Notify all online admins about the new pending chat
+          const adminSocketIds = Array.from(adminSessions.keys());
+          adminSocketIds.forEach(adminSocketId => {
+            io.to(adminSocketId).emit("new_chat_request", {
               chatId: chat.id,
               roomId: chat.socketIORoomId,
-              chatName: chat.chatName,
-              chatType: chat.chatType,
-              status: "PENDING_ADMIN_JOIN"
+              chatType,
+              chatName,
+              userName: chat.user.name,
+              userEmail: chat.user.email,
             });
+          });
 
-            console.log(`💬 Chat started: ${chat.id} - Admin assigned: ${availableAdmin.name}`);
-          } else {
-            // No admin available - notify offline admins
-            await NotificationService.notifyOfflineAdmins(chat);
+          socket.emit("chat_started", {
+            chatId: chat.id,
+            roomId: chat.socketIORoomId,
+            chatName: chat.chatName,
+            chatType: chat.chatType,
+            status: "PENDING"
+          });
 
-            socket.emit("chat_started", {
-              chatId: chat.id,
-              roomId: chat.socketIORoomId,
-              chatName: chat.chatName,
-              chatType: chat.chatType,
-              status: "PENDING_ADMIN_AVAILABLE"
-            });
-
-            console.log(`⏳ Chat started: ${chat.id} - No admin available`);
-          }
+          console.log(`💬 Chat started: ${chat.id} - Waiting for admin to pick up`);
         } catch (error) {
           console.error("Error starting chat:", error);
           socket.emit("error", { message: "Failed to start chat" });
@@ -644,32 +782,86 @@ async function init() {
       socket.on("admin_join_chat", async ({ chatId }) => {
         try {
           const adminId = adminSessions.get(socket.id);
+          console.log(`🔍 DEBUG: admin_join_chat called for chat ${chatId} by admin ${adminId}`);
+          
           if (!adminId) {
+            console.log(`❌ DEBUG: Admin not authenticated for admin_join_chat`);
             socket.emit("error", { message: "Admin not authenticated" });
             return;
           }
 
           const chat = await ChatService.getChatWithMessages(chatId);
           if (!chat) {
+            console.log(`❌ DEBUG: Chat ${chatId} not found`);
             socket.emit("error", { message: "Chat not found" });
             return;
           }
 
-          // Join the room
+          console.log(`🔍 DEBUG: Chat ${chatId} found - adminId: ${chat.adminId}, requesting admin: ${adminId}`);
+
+          // Check if chat is already assigned to another admin BEFORE joining
+          if (chat.adminId && chat.adminId !== adminId) {
+            console.log(`❌ DEBUG: Chat ${chatId} already assigned to ${chat.adminId}, not ${adminId}`);
+            socket.emit("error", { 
+              message: "Chat was already assigned to another admin.",
+              chatId: chatId 
+            });
+            return;
+          }
+
+          // Try to assign admin to chat using transactional approach FIRST
+          let assignmentResult;
+          try {
+            console.log(`🔍 DEBUG: Attempting to assign admin ${adminId} to chat ${chatId}`);
+            assignmentResult = await AdminAllocationService.assignAdminToChat(chatId, adminId);
+            console.log(`✅ DEBUG: Successfully assigned admin ${adminId} to chat ${chatId}`);
+          } catch (assignmentError) {
+            console.log(`❌ DEBUG: Assignment failed for chat ${chatId}: ${assignmentError.message}`);
+            if (assignmentError.message === "Chat was already assigned to another admin") {
+              // Remove admin from room if they somehow got in
+              socket.leave(chat.socketIORoomId);
+              console.log(`🚫 DEBUG: Removed admin ${adminId} from room ${chat.socketIORoomId} after failed assignment`);
+              socket.emit("error", { 
+                message: "Chat was already assigned to another admin.",
+                chatId: chatId 
+              });
+              return;
+            }
+            throw assignmentError; // Re-throw other errors
+          }
+
+          // Only join the room AFTER successful assignment
+          console.log(`🔍 DEBUG: Joining room ${chat.socketIORoomId} for chat ${chatId}`);
           socket.join(chat.socketIORoomId);
           const participants = roomParticipants.get(chat.socketIORoomId) || new Set();
           participants.add(socket.id);
           roomParticipants.set(chat.socketIORoomId, participants);
-
-          // Update chat status if not already active
-          if (chat.status !== "ACTIVE") {
-            await AdminAllocationService.assignAdminToChat(chatId, adminId);
-          }
+          console.log(`✅ DEBUG: Successfully joined room ${chat.socketIORoomId}`);
 
           // Notify user that admin has joined
           socket.to(chat.socketIORoomId).emit("admin_joined", {
             chatId,
             adminName: chat.admin?.name || "Admin",
+          });
+
+          // Notify the admin that they successfully joined
+          socket.emit("admin_joined_confirmation", {
+            chatId,
+            status: "ACTIVE",
+            adminName: chat.admin?.name || "Admin",
+          });
+
+          // Broadcast to all admins that this chat is no longer pending
+          const allAdminSocketIds = Array.from(adminSessions.keys());
+          allAdminSocketIds.forEach(adminSocketId => {
+            if (adminSocketId !== socket.id) { // Don't send to the admin who joined
+              io.to(adminSocketId).emit("chat_assigned", {
+                chatId,
+                assignedAdminId: adminId,
+                assignedAdminName: chat.admin?.name || "Admin",
+                status: "ACTIVE"
+              });
+            }
           });
 
           // Send chat history to admin
@@ -1049,14 +1241,14 @@ async function init() {
       });
     });
 
-    // Periodic allocation (failsafe)
+    // Periodic allocation (failsafe for long-pending chats)
     setInterval(async () => {
       try {
         await allocatePendingChats();
       } catch (e) {
         console.error('Error in periodic pending chat allocation:', e);
       }
-    }, 30000); // every 30 seconds
+    }, 120000); // every 2 minutes (instead of 30 seconds)
 
     // Graceful shutdown
     process.on("SIGTERM", async () => {

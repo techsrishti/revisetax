@@ -53,7 +53,8 @@ export async function GET(request: NextRequest) {
         id: admin.id,
         name: admin.name,
         email: admin.email,
-        authId: admin.authId
+        authId: admin.authId,
+        maxChats: admin.maxChats
       }
     });
   } catch (error) {

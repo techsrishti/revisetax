@@ -74,26 +74,19 @@ export async function getAdminChats(): Promise<GetAdminChatsSuccessResponse|Erro
       }
     }
 
-    // Get chats that should be visible to this admin:
-    // 1. Chats assigned to this admin (ACTIVE or CLOSED)
-    // 2. PENDING chats (new requests)
-    // 3. Recently closed chats that might be reopened
+    // Get chats assigned to this admin, plus pending chats that can be picked up
     const chats = await prisma.chat.findMany({
       where: {
+        isActive: true,
         OR: [
           // Chats assigned to this admin
           { adminId: admin.id },
-          // New chat requests (PENDING status)
-          { status: 'PENDING' },
-          // Recently closed chats (within last 24 hours) that might be reopened
-          {
-            status: 'CLOSED',
-            closedAt: {
-              gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
-            }
+          // Pending chats that can be picked up
+          { 
+            status: 'PENDING',
+            adminId: null 
           }
-        ],
-        isActive: true
+        ]
       },
       include: {
         user: {
