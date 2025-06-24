@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ExternalLink, Send, ArrowLeft, Paperclip } from "lucide-react"
 import { createClient } from "@/utils/supabase/client"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
+import ChatAttachments from "./chatattachments"
 import styles from "./chat-module.module.css"
 
 interface ChatModuleProps {
@@ -468,9 +469,14 @@ export default function ChatModule({ selectedChatId, onBackToChats, socket, onJo
             </div>
           ) : (
             <div className={styles.messageInput}>
-              <button className={styles.attachButton}>
-                <Paperclip size={20} />
-              </button>
+              <ChatAttachments 
+                selectedChatId={selectedChatId}
+                socket={socket}
+                onFilesSent={() => {
+                  // Optional: Add any additional logic after files are sent
+                  console.log("Files sent successfully")
+                }}
+              />
               <input
                 type="text"
                 value={newMessage}

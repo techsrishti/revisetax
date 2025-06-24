@@ -145,7 +145,7 @@ export default function Sidebar({ activeModule, setActiveModule, children, chats
   const uploadImage = async (file: File): Promise<string | null> => {
     try {
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('profileImage', file);
       formData.append('name', editFormData.name.trim());
       formData.append('email', editFormData.email.trim());
 
@@ -198,7 +198,7 @@ export default function Sidebar({ activeModule, setActiveModule, children, chats
       
       // Add image if selected
       if (selectedImage) {
-        formData.append('file', selectedImage);
+        formData.append('profileImage', selectedImage);
       }
 
       const response = await fetch('/api/user-profile', {

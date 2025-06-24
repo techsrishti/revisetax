@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { createClient } from '@/utils/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -21,7 +20,6 @@ import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
 import { interLocal, cabinetGrotesk } from '@/app/fonts';
 import styles from './documents-module.module.css';
-import { v4 as uuidv4 } from 'uuid';
 
 interface FolderItem {
   name: string;
@@ -97,7 +95,6 @@ export default function Documents() {
   const [editFileName, setEditFileName] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState<{id: string, name: string, type: 'file' | 'folder', fileCount?: number} | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const supabase = createClient();
 
   const fetchData = async () => {
     try {

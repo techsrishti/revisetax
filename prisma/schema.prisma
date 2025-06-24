@@ -13,7 +13,7 @@ model User {
   name        String?
   email       String?  @unique
   phoneNumber String   @unique
-  profileImage String? @db.Text  // URL to the user's profile image in Supabase storage
+  profileImage String? @db.Text  // URL to the user's profile image in S3 storage
 
   provider    String?  // The auth provider (google, linkedin, etc)
   providerId  String?  // The provider's user ID
@@ -110,6 +110,7 @@ model File {
   folderId     String
   originalName String
   storageName  String   @unique // Unique name for object storage
+  s3Key        String?  // S3 object key for AWS storage
   size         BigInt
   mimeType     String
   createdAt    DateTime @default(now())
@@ -118,6 +119,7 @@ model File {
 
   @@index([folderId])
   @@index([storageName])
+  @@index([s3Key])
 }
 
 model Chat { 

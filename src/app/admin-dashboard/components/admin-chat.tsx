@@ -873,7 +873,7 @@ export default function AdminChat() {
                               <div key={folder.id}>
                                   <h4 className="font-medium text-sm text-white">{folder.name}</h4>
                                   {folder.File.length > 0 ? folder.File.map(file => (
-                                      <a key={file.id} href={`https://hykxpxglhoyjbodkvoxx.supabase.co/storage/v1/object/public/documents/${file.storageName}`} target="_blank" rel="noopener noreferrer" className="flex items-center text-sm text-primary hover:text-primary/80 transition-colors">
+                                      <a key={file.id} href={`/api/admin/files?fileId=${file.id}`} target="_blank" rel="noopener noreferrer" className="flex items-center text-sm text-primary hover:text-primary/80 transition-colors">
                                           <FileText className="mr-2 h-4 w-4"/>
                                           {file.originalName}
                                       </a>
