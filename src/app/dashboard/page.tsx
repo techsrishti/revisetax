@@ -43,7 +43,7 @@ export default function Dashboard() {
     if (!user) return
 
     // Initialize socket connection
-    const socketInstance = io("https://socket.alpha.revisetax.com")
+    const socketInstance = io("http://18.60.99.199:3002")
     console.log("socketInstance in dashboard")
     setSocket(socketInstance)
 
@@ -57,13 +57,20 @@ export default function Dashboard() {
 
     socketInstance.on("existing_chats", (data) => {
       console.log("Existing chats received:", data)
-      const formattedChats = data.chats.map((chat: any) => ({
-        id: chat.id,
-        name: chat.chatName,
-        type: chat.chatType,
-        isActive: chat.status === 'ACTIVE'
-      }))
-      setChats(formattedChats)
+      // Create a Map to store unique chats by ID
+      const uniqueChats = new Map()
+      
+      data.chats.forEach((chat: any) => {
+        uniqueChats.set(chat.id, {
+          id: chat.id,
+          name: chat.chatName,
+          type: chat.chatType,
+          isActive: chat.status === 'ACTIVE'
+        })
+      })
+      
+      // Convert Map values back to array
+      setChats(Array.from(uniqueChats.values()))
       
       // Mark all existing chats as joined since the server automatically joins them
       const existingChatIds = new Set<string>(data.chats.map((chat: any) => chat.id as string))
@@ -78,13 +85,16 @@ export default function Dashboard() {
     socketInstance.on("admin_joined", (data) => {
       console.log("Admin joined:", data)
       // Update chat status to active
-      setChats(prevChats => 
-        prevChats.map(chat => 
+      setChats(prevChats => {
+        const updatedChats = prevChats.map(chat => 
           chat.id === data.chatId 
             ? { ...chat, isActive: true }
             : chat
         )
-      )
+        // Remove any duplicates
+        const uniqueChats = new Map(updatedChats.map(chat => [chat.id, chat]))
+        return Array.from(uniqueChats.values())
+      })
     })
 
     return () => {
@@ -94,14 +104,21 @@ export default function Dashboard() {
 
   const handleChatStarted = useCallback((chatName: string, chatType: string, chatId: string, roomId: string) => {
     // Create a new chat entry
-    //This will add it to the sidebar.
     const newChat: Chat = {
       id: chatId,
       name: chatName,
       type: chatType,
       isActive: false
     }
-    setChats(prevChats => [...prevChats, newChat])
+    
+    setChats(prevChats => {
+      // Check if chat already exists
+      const chatExists = prevChats.some(chat => chat.id === chatId)
+      if (chatExists) {
+        return prevChats
+      }
+      return [...prevChats, newChat]
+    })
     
     // Mark the chat as joined
     setJoinedChats(prev => new Set([...prev, chatId]))

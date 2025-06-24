@@ -257,69 +257,103 @@
 
 .callTitle {
   font-family: "Cabinet Grotesk Variable";
+  font-size: 20px;
   font-weight: 700;
-  font-size: 24px;
   line-height: 100%;
-  color: hsl(var(--brand-dark));
-  margin: 0 0 8px 0;
+  color: #18181B;
+  margin: 0;
 }
 
 .callDescription {
   font-family: "Inter Variable";
-  font-weight: 400;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 20px;
-  color: hsl(var(--brand-text-dark));
-  margin: 0 0 16px 0;
+  color: #3F3F46;
+  margin: 8px 0 16px 0;
 }
 
 .scheduleButton {
   display: flex;
-  height: 40px;
-  padding: 10px 24px;
-  justify-content: center;
   align-items: center;
-  gap: 12px;
-  align-self: stretch;
-  background: var(--Extended-gray-900,#0e0e0e);
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 8px 16px;
+  background: #18181B;
   border-radius: 4px;
-  font-family: "Inter Variable";
-  font-size: 14px;
-  font-style: normal;
-  font-weight: 700;
-  line-height: 100%;
-  color: var(--Default-white, #FFF);
-  font-feature-settings: 'ss01' on, 'cv05' on, 'cv08' on, 'cv11' on;
   border: none;
   cursor: pointer;
-}
-
-@media (min-width: 768px) {
-  .scheduleButton {
-    height: 48px;
-    padding: 12px 32px;
-    font-size: 16px;
-  }
+  width: 100%;
+  transition: all 0.2s ease;
+  color: #FFFFFF !important;
 }
 
 .scheduleButton:hover {
-  background: hsl(var(--brand-dark));
-  color: #FFFFFF;
+  background: #27272A;
+  color: #FFFFFF !important;
+}
+
+.scheduleButton:hover .scheduleIcon,
+.scheduleButton:hover span {
+  color: #FFFFFF !important;
 }
 
 .scheduleIcon {
   width: 16px;
   height: 16px;
+  color: #FFFFFF !important;
+}
+
+.scheduleButton span {
+  font-family: "Inter Variable";
+  font-size: 14px;
+  font-weight: 500;
+  color: #FFFFFF !important;
 }
 
 .chatHeader {
   display: flex;
   align-items: center;
-  gap: 16px;
+  justify-content: space-between;
   padding: 16px 24px;
   background: #FFFFFF;
   border-bottom: 1px solid #E4E4E7;
   box-shadow: 0px 1px 3px 0px rgba(0, 0, 0, 0.1);
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+}
+
+.headerInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chatTitle {
+  font-family: "Cabinet Grotesk Variable";
+  font-size: 18px;
+  font-weight: 600;
+  color: #18181B;
+  margin: 0;
+  font-weight: 600;
+}
+
+.lastActivity {
+  font-family: "Inter Variable";
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 100%;
+  letter-spacing: 0%;
+  color: #71717A;
 }
 
 .backButton {
@@ -340,14 +374,6 @@
 .backButton:hover {
   background: #F4F4F5;
   border-color: #D4D4D8;
-}
-
-.chatTitle {
-  font-family: "Cabinet Grotesk Variable";
-  font-size: 18px;
-  font-weight: 600;
-  color: #18181B;
-  margin: 0;
 }
 
 .messagesContainer {
@@ -374,75 +400,200 @@
 
 .message {
   display: flex;
-  width: 100%;
+  align-items: flex-start;
   gap: 12px;
-  padding: 24px 24px 12px 24px;
+  margin-bottom: 24px;
+  width: 100%;
+  position: relative;
+  padding: 16px 24px;
 }
 
 .userMessage {
+  flex-direction: row;
   justify-content: flex-end;
+  background: #F4F4F5;
+  margin: 0 -24px;
+  width: calc(100% + 48px);
 }
 
 .adminMessage {
+  flex-direction: row;
   justify-content: flex-start;
+  background: #FFFFFF;
+  margin: 0 -24px;
+  width: calc(100% + 48px);
+  border-bottom: 1px solid #F4F4F5;
 }
 
 .messageContent {
-  width: 100%;
-  padding: 12px 16px;
-  border-radius: 18px;
-  position: relative;
   display: flex;
   flex-direction: column;
+  gap: 6px;
+  max-width: 65%;
+  padding: 0;
 }
 
-.userMessage .messageContent {
-  background: transparent;
-  color: #18181B;
-  border-bottom-right-radius: 4px;
-}
-
-.adminMessage .messageContent {
-  background: rgba(242, 243, 245, 1);
-  border-radius: 8px;
-  color: #18181B;
+.messageHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .messageSender {
-  font-size: 12px;
-  font-weight: 600;
-  margin-bottom: 4px;
-  opacity: 0.8;
-}
-
-.messageText {
+  font-family: "Inter Variable";
   font-size: 14px;
-  line-height: 1.4;
-  word-wrap: break-word;
-  flex: 1;
-  overflow-y: auto;
+  font-weight: 500;
+  color: var(--Extended-gray-900, #18181B);
+  order: 2;
 }
 
 .messageTime {
-  font-size: 11px;
-  opacity: 0.7;
-  margin-top: 4px;
-  text-align: right;
+  font-family: "Inter Variable";
+  font-size: 12px;
+  color: var(--Extended-gray-500, #71717A);
+  order: 1;
+}
+
+.messageText {
+  font-family: "Inter Variable";
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--Extended-gray-700, #3F3F46);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.messageAvatar {
+  width: 2rem !important;
+  height: 2rem !important;
+  border-radius: 4px !important;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.messageAvatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* File attachment styles */
+.fileAttachment {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #FFFFFF;
+  border-radius: 8px;
+  margin-top: 8px;
+  border: 1px solid #E4E4E7;
+}
+
+.fileIcon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #DC2626;
+  border-radius: 4px;
+  color: #FFFFFF;
+}
+
+.fileInfo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fileName {
+  font-size: 14px;
+  font-weight: 500;
+  color: #18181B;
+}
+
+.fileTime {
+  font-size: 12px;
+  color: #71717A;
+}
+
+.downloadButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #18181B;
+}
+
+.downloadButton:hover {
+  color: #E9420C;
 }
 
 /* Mobile responsive adjustments */
 @media (max-width: 767px) {
   .message {
-    padding: 16px 16px 8px 16px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
     gap: 8px;
   }
   
-  .messageContent {
-    padding: 10px 12px;
+  .userMessage, .adminMessage {
+    margin: 0 -12px;
+    width: calc(100% + 24px);
   }
   
+  .messageContent {
+    max-width: 85%;
+  }
+
   .messageText {
-    font-size: 13px;
+    font-size: 15px;
+    line-height: 22px;
+  }
+
+  .messageHeader {
+    gap: 6px;
+  }
+
+  .messageSender {
+    display: none;
+  }
+
+  .messageTime {
+    font-size: 11px;
+    opacity: 0.7;
+  }
+
+  .messageAvatar {
+    width: 1.75rem !important;
+    height: 1.75rem !important;
+  }
+
+  .userMessage .messageHeader,
+  .adminMessage .messageHeader {
+    justify-content: flex-end;
+    margin-bottom: 4px;
+  }
+
+  .messageInput {
+    padding: 8px 12px;
+  }
+  
+  .input {
+    height: 40px;
+    padding: 8px 12px;
+    font-size: 14px;
+  }
+  
+  .attachButton,
+  .sendButton {
+    width: 36px;
+    height: 36px;
   }
 }
 
@@ -452,52 +603,6 @@
     padding: 20px 20px 10px 20px;
     gap: 10px;
   }
-}
-
-.messageInput {
-  display: flex;
-  gap: 12px;
-  padding: 16px 24px;
-  background: #FFFFFF;
-  border-top: 1px solid #E4E4E7;
-}
-
-.input {
-  flex: 1;
-  padding: 12px 16px;
-  border: 1px solid #E4E4E7;
-  border-radius: 24px;
-  font-size: 14px;
-  outline: none;
-  transition: border-color 0.2s ease;
-}
-
-.input:focus {
-  border-color: #E9420C;
-}
-
-.sendButton {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  background: #E9420C;
-  border: none;
-  border-radius: 50%;
-  color: #FFFFFF;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.sendButton:hover:not(:disabled) {
-  background: #D13A0A;
-  transform: scale(1.05);
-}
-
-.sendButton:disabled {
-  background: #E4E4E7;
-  cursor: not-allowed;
 }
 
 .closedChatActions {
@@ -621,3 +726,188 @@
     font-size: 11px;
   }
 }
+
+/* Date Separator Styles */
+.dateSeparator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px 0;
+  width: 100%;
+}
+
+.dateSeparatorText {
+  width: 74px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border-radius: 100px;
+  border: 1px solid #E4E4E7;
+  background: #ffffff;
+  font-family: "Inter Variable";
+  font-size: 12px;
+  font-weight: 500;
+  color: #71717A;
+  text-transform: uppercase;
+}
+
+.dateSeparatorLine {
+  flex: 1;
+  height: 1px;
+  background: #E4E4E7;
+}
+
+/* Mobile responsive date separator */
+@media (max-width: 767px) {
+  .dateSeparator {
+    padding: 12px 0;
+  }
+  
+  .dateSeparatorText {
+    font-size: 11px;
+    padding: 8px 12px;
+    height: 30px;
+    width: 68px;
+  }
+}
+
+/* Add new styles for user and admin message headers */
+.userMessage .messageHeader {
+  justify-content: flex-end;
+}
+
+.adminMessage .messageHeader {
+  justify-content: flex-start;
+}
+
+/* Add new styles for user and admin message text alignment */
+.userMessage .messageText {
+  text-align: right;
+}
+
+.adminMessage .messageText {
+  text-align: left;
+}
+
+/* Add new styles for user and admin avatars */
+.userMessage .messageAvatar {
+  order: 2; /* Move avatar to the right for user messages */
+  margin-left: 12px;
+}
+
+.adminMessage .messageAvatar {
+  order: 1; /* Keep avatar on the left for admin messages */
+  margin-right: 12px;
+}
+
+/* Add new styles for user and admin message content */
+.userMessage .messageContent {
+  order: 1; /* Move content to the left of the avatar for user messages */
+}
+
+.adminMessage .messageContent {
+  order: 2; /* Keep content to the right of the avatar for admin messages */
+}
+
+.messageInput {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 24px;
+  background: #FFFFFF;
+  border-top: 1px solid #E4E4E7;
+  position: sticky;
+  bottom: 0;
+  width: 100%;
+}
+
+.input {
+  flex: 1;
+  height: 48px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: #F4F4F5;
+  border: none;
+  font-family: "Inter Variable";
+  font-size: 15px;
+  color: #18181B;
+}
+
+.input:focus {
+  outline: none;
+  background: #FAFAFA;
+}
+
+.input::placeholder {
+  color: #71717A;
+}
+
+.attachButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #71717A;
+  transition: all 0.2s ease;
+}
+
+.attachButton:hover {
+  background: #F4F4F5;
+  color: #18181B;
+}
+
+.sendButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  border: none;
+  background: #18181B;
+  cursor: pointer;
+  color: #FFFFFF;
+  transition: all 0.2s ease;
+}
+
+.sendButton:hover {
+  background: #27272A;
+}
+
+.sendButton:disabled {
+  background: #E4E4E7;
+  cursor: not-allowed;
+  color: #A1A1AA;
+}
+
+@media (max-width: 767px) {
+  .messageInput {
+    padding: 12px 16px;
+  }
+  
+  .input {
+    height: 40px;
+    padding: 8px 12px;
+    font-size: 14px;
+  }
+  
+  .attachButton,
+  .sendButton {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+.messageHeader .messageSender {
+  margin-right: 8px;
+}
+

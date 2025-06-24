@@ -5,6 +5,7 @@ import type React from "react"
 import styles from "./sidebar.module.css"
 import { createClient } from "@/utils/supabase/client"
 import { useRouter } from "next/navigation"
+import { useToast } from "@/hooks/use-toast"
 
 interface Chat {
   id: string
@@ -28,6 +29,14 @@ export default function Sidebar({ activeModule, setActiveModule, children, chats
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
+  const [userProfile, setUserProfile] = useState<any>(null);
+  const [editFormData, setEditFormData] = useState({ name: '', email: '' });
+  const [isSaving, setIsSaving] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const { toast } = useToast();
   const router = useRouter();
   
   useEffect(() => {
@@ -36,6 +45,16 @@ export default function Sidebar({ activeModule, setActiveModule, children, chats
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
         setUser(user);
+        
+        // Also fetch user profile from database
+        if (user) {
+          const response = await fetch('/api/user-profile');
+          if (response.ok) {
+            const data = await response.json();
+            setUserProfile(data.user);
+            setEditFormData({ name: data.user?.name || '', email: data.user?.email || '' });
+          }
+        }
       } catch (error) {
         console.error('Error fetching user:', error);
       } finally {
@@ -51,8 +70,180 @@ export default function Sidebar({ activeModule, setActiveModule, children, chats
   };
   
   const handleEditProfileClick = () => {
+    setIsOverlayOpen(false);
     setIsModalOpen(true);
-    // This would typically open a modal with animation
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setEditFormData({ name: userProfile?.name || '', email: userProfile?.email || '' });
+    setSelectedImage(null);
+    setImagePreview(null);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleFileSelect = (file: File) => {
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Invalid file type",
+        description: "Please select an image file",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "File size must be less than 2MB",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setSelectedImage(file);
+    
+    // Create preview URL
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setImagePreview(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      handleFileSelect(file);
+    }
+  };
+
+  const handleImageInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleFileSelect(file);
+    }
+  };
+
+  const uploadImage = async (file: File): Promise<string | null> => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('name', editFormData.name.trim());
+      formData.append('email', editFormData.email.trim());
+
+      const response = await fetch('/api/user-profile', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.user.profileImage;
+      } else {
+        console.error('Failed to upload image');
+        return null;
+      }
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      return null;
+    }
+  };
+
+  const fetchUserProfile = async () => {
+    try {
+      const response = await fetch('/api/user-profile');
+      if (response.ok) {
+        const data = await response.json();
+        setUserProfile(data.user);
+        setEditFormData({ name: data.user?.name || '', email: data.user?.email || '' });
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editFormData.name.trim()) {
+      toast({
+        title: "Name required",
+        description: "Please enter your name",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const formData = new FormData();
+      formData.append('name', editFormData.name.trim());
+      formData.append('email', editFormData.email.trim());
+      
+      // Add image if selected
+      if (selectedImage) {
+        formData.append('file', selectedImage);
+      }
+
+      const response = await fetch('/api/user-profile', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Close all profile-related modals
+        setIsModalOpen(false);
+        setIsOverlayOpen(false);
+        
+        // Clear image selection states
+        setSelectedImage(null);
+        setImagePreview(null);
+        
+        // Fetch fresh user data
+        await fetchUserProfile();
+
+        // Show success message from API
+        toast({
+          title: "Profile Updated",
+          description: data.message || "Profile updated successfully",
+          variant: "default"
+        });
+      } else {
+        const error = await response.json();
+        toast({
+          title: "Update failed",
+          description: error.error || "Failed to update profile",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update profile",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -71,6 +262,16 @@ export default function Sidebar({ activeModule, setActiveModule, children, chats
 
   const handleBackdropClick = () => {
     setIsMobileMenuOpen(false);
+  };
+
+  const handleChatTabClick = () => {
+    setIsDropdownOpen(!isDropdownOpen);
+    if (!isDropdownOpen) {
+      setActiveModule("chat");
+      if (onChatSelect) {
+        onChatSelect("");
+      }
+    }
   };
   
   return (
@@ -103,7 +304,8 @@ export default function Sidebar({ activeModule, setActiveModule, children, chats
           <div className={styles.userProfile} onClick={handleProfileClick}>
             <div className={styles.avatar}>
               <img 
-                src={user?.user_metadata?.avatar_url || "/Alborz.svg"} 
+                src={userProfile?.profileImage || user?.user_metadata?.avatar_url || "/Alborz.svg"} 
+                alt={userProfile?.name || "User avatar"}
                 className={styles.avatarImage} 
               />
             </div>
@@ -112,7 +314,7 @@ export default function Sidebar({ activeModule, setActiveModule, children, chats
                 <div className={styles.loadingSpinner} />
               ) : (
                 <p className={styles.userName}>
-                  {user?.user_metadata?.full_name || user?.email || 'User'}
+                  {userProfile?.name || user?.user_metadata?.full_name || user?.email || 'User'}
                 </p>
               )}
               <img src="/chevron-down-icon.svg" alt="Expand" className={styles.chevron} width={8} height={8} />
@@ -141,69 +343,198 @@ export default function Sidebar({ activeModule, setActiveModule, children, chats
             </div>
           )}
 
-          {/* Modal would be implemented here */}
+          {/* Edit Profile Modal */}
+          {isModalOpen && (
+            <div className={styles.modalBackdrop} onClick={handleCloseModal}>
+              <div className={styles.modal} onClick={e => e.stopPropagation()}>
+                <div className={styles.modalHeader}>
+                  <h2>Edit Profile</h2>
+                  <p>Modify your profile based on the current status</p>
+                  <button className={styles.closeButton} onClick={handleCloseModal}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
+                </div>
+                
+                <div className={styles.modalContent}>
+                  {/* Profile Picture Upload */}
+                  <div 
+                    className={`${styles.profilePictureSection} ${isDragging ? styles.dragging : ''}`}
+                    onClick={() => document.getElementById('profile-image-input')?.click()}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                  >
+                    <input
+                      id="profile-image-input"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageInputChange}
+                      style={{ display: 'none' }}
+                    />
+                    <div className={styles.profilePictureContainer}>
+                      <div className={styles.profilePictureWrapper}>
+                        <img 
+                          src={imagePreview || userProfile?.profileImage || "/Avatar.svg"} 
+                          alt="Profile" 
+                          className={styles.profilePicture} 
+                        />
+                        <div className={styles.uploadIcon}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 16V8M8 12L12 8L16 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                    <div className={styles.uploadText}>
+                      <span className={styles.clickToUpload}>Click to upload</span>
+                      <span className={styles.dragDrop}>or drag and drop</span>
+                      <span className={styles.fileFormats}>SVG, PNG, JPG or GIF (max. 2MB)</span>
+                    </div>
+                  </div>
+
+                  {/* Form Fields */}
+                  <div className={styles.formFields}>
+                    <div className={styles.formGroup}>
+                      <label className={styles.label}>Full Name</label>
+                      <input
+                        type="text"
+                        className={styles.input}
+                        value={editFormData.name}
+                        onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                        placeholder="Enter your full name"
+                      />
+                    </div>
+
+                    <div className={styles.formGroup}>
+                      <label className={styles.label}>Phone Number</label>
+                      <input
+                        type="text"
+                        className={`${styles.input} ${styles.disabledInput}`}
+                        value={`+91    ${userProfile?.phoneNumber || ''}`}
+                        disabled
+                      />
+                      <span className={styles.fieldNote}>Changing phone number is not allowed at this time</span>
+                    </div>
+
+                    <div className={styles.formGroup}>
+                      <label className={styles.label}>Email</label>
+                      <input
+                        type="email"
+                        className={`${styles.input} ${styles.disabledInput}`}
+               
+                        value={editFormData.email}
+                        disabled
+                      />
+                      <span className={styles.fieldNote}>Changing email is not allowed at this time</span>
+                    </div>
+                  </div>
+
+                  {/* Modal Actions */}
+                  <div className={styles.modalActions}>
+                    <button 
+                      className={styles.cancelButton} 
+                      onClick={handleCloseModal}
+                      disabled={isSaving}
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      className={styles.saveButton} 
+                      onClick={handleSaveProfile}
+                      disabled={isSaving}
+                    >
+                      {isSaving ? 'Saving...' : 'Save Profile'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           <nav className={styles.nav}>
             <ul className={styles.navList}>
-              <SidebarItem
-                icon={<img src="/chat-icon.svg" alt="Chat" width={16.75} height={16.67} />}
-                label="Chat"
-                isActive={activeModule === "chat" && !selectedChatId}
-                onClick={() => {
-                  console.log("Main Chat item clicked")
-                  setActiveModule("chat");
-                  // Clear any selected chat to show the chat selection interface
-                  if (onChatSelect) {
-                    // We need to clear the selected chat, but onChatSelect expects a chatId
-                    // Let's handle this differently by passing a special value
-                    onChatSelect(""); // This will be handled in the dashboard
-                  }
-                  setIsMobileMenuOpen(false);
-                }}
-              />
-              
-              {/* Chat items */}
-              {chats.map((chat) => (
-                <SidebarChatItem
-                  key={chat.id}
-                  chat={chat}
-                  isSelected={selectedChatId === chat.id}
-                  onClick={() => {
-                    console.log("Chat item clicked:", chat.id, chat.name)
-                    if (onChatSelect) {
-                      onChatSelect(chat.id);
-                    }
-                    setIsMobileMenuOpen(false);
-                  }}
+              <li>
+                <SidebarItem
+                  icon={<img src="/chat-icon.svg" alt="Chat" width={16.75} height={16.67} />}
+                  label="Chat"
+                  isActive={activeModule === "chat" && !selectedChatId}
+                  onClick={handleChatTabClick}
+                  hasDropdown={true}
+                  isOpen={isDropdownOpen}
+                  className="chatParent"
                 />
-              ))}
-              
+                
+                {/* Show chat list only when dropdown is open and no chat is selected */}
+                {isDropdownOpen && !selectedChatId && (
+                  <ul className={styles.chatDropdown}>
+                    {chats.map((chat) => (
+                      <li key={chat.id}>
+                        <button 
+                          onClick={() => {
+                            if (onChatSelect) {
+                              onChatSelect(chat.id);
+                              setIsDropdownOpen(false);
+                            }
+                          }}
+                          className={`${styles.chatItem} ${chat.id === selectedChatId ? styles.active : ""}`}
+                        >
+                          <span className={styles.navLabel}>{chat.name}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                
+                {/* Show selected chat when one is selected */}
+                {selectedChatId && (
+                  <div className={styles.selectedChat}>
+                    {chats.map((chat) => (
+                      chat.id === selectedChatId && (
+                        <button 
+                          key={chat.id}
+                          className={`${styles.chatItem} ${styles.active}`}
+                          onClick={() => {
+                            if (onChatSelect) {
+                              onChatSelect("");
+                              setIsDropdownOpen(true);
+                            }
+                          }}
+                        >
+                          <span className={styles.navLabel}>{chat.name}</span>
+                        </button>
+                      )
+                    ))}
+                  </div>
+                )}
+              </li>
+
               <SidebarItem
-                icon={<img src="/document-icon.svg" alt="Documents" width={16.75} height={16.67} />}
+                icon={<img src="/document-icon.svg" alt="Documents" width={16} height={16} />}
                 label="Documents"
                 isActive={activeModule === "documents"}
                 onClick={() => {
-                  console.log("Documents clicked")
                   setActiveModule("documents");
                   setIsMobileMenuOpen(false);
                 }}
               />
+              
               <SidebarItem
-                icon={<img src="/plans-icon.svg" alt="Plans" width={16.75} height={16.67} />}
-                label={ "Plans"}
+                icon={<img src="/plans-icon.svg" alt="Plans" width={16} height={16} />}
+                label="Plans"
                 isActive={activeModule === "plans"}
                 onClick={() => {
-                  console.log("Plans clicked")
                   setActiveModule("plans");
                   setIsMobileMenuOpen(false);
                 }}
               />
+              
               <SidebarItem
-                icon={<img src="/billing-icon.svg" alt="Billing" width={16.75} height={16.67} />}
+                icon={<img src="/billing-icon.svg" alt="Billing" width={16} height={16} />}
                 label="Billing"
                 isActive={activeModule === "billing"}
                 onClick={() => {
-                  console.log("Billing clicked")
                   setActiveModule("billing");
                   setIsMobileMenuOpen(false);
                 }}
@@ -235,38 +566,23 @@ interface SidebarItemProps {
   onClick: () => void
 }
 
-function SidebarItem({ icon, label, isActive, onClick }: SidebarItemProps) {
+function SidebarItem({ icon, label, isActive, onClick, hasDropdown = false, isOpen = false, className = '' }: SidebarItemProps & { hasDropdown?: boolean; isOpen?: boolean; className?: string }) {
   return (
-    <li>
-      <button onClick={onClick} className={`${styles.navItem} ${isActive ? styles.active : ""}`}>
-        <span className={styles.navIcon}>{icon}</span>
-        <span className={styles.navLabel}>{label}</span>
-      </button>
-    </li>
-  )
-}
-
-interface SidebarChatItemProps {
-  chat: Chat
-  isSelected: boolean
-  onClick: () => void
-}
-
-function SidebarChatItem({ chat, isSelected, onClick }: SidebarChatItemProps) {
-  return (
-    <li>
-      <button 
-        onClick={onClick} 
-        className={`${styles.navItem} ${styles.chatItem} ${isSelected ? styles.active : ""} ${chat.isActive ? styles.chatActive : ""}`}
-      >
-        <span className={styles.navIcon}>
-          <img src="/chat-icon.svg" alt="Chat" width={16.75} height={16.67} />
-        </span>
-        <div className={styles.chatInfo}>
-          <span className={styles.navLabel}>{chat.name}</span>
-          <span className={styles.chatType}>{chat.type}</span>
-        </div>
-      </button>
-    </li>
+    <button
+      className={`${styles.navItem} ${isActive ? styles.active : ""} ${className ? styles[className] : ''}`}
+      onClick={onClick}
+    >
+      <span className={styles.navIcon}>{icon}</span>
+      <span className={styles.navLabel}>{label}</span>
+      {hasDropdown && (
+        <img 
+          src="/chevron-down-icon.svg" 
+          alt="Expand" 
+          className={`${styles.dropdownIcon} ${isOpen ? styles.open : ''}`}
+          width={12} 
+          height={12} 
+        />
+      )}
+    </button>
   )
 }

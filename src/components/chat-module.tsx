@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import React, { useState, useEffect, useCallback, useRef } from "react"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { ExternalLink, Send, ArrowLeft } from "lucide-react"
+import { ExternalLink, Send, ArrowLeft, Paperclip } from "lucide-react"
 import { createClient } from "@/utils/supabase/client"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import styles from "./chat-module.module.css"
 
 interface ChatModuleProps {
@@ -23,10 +24,39 @@ interface Message {
   senderName?: string
 }
 
+// Add date formatting helper
+const formatMessageDate = (date: Date) => {
+  const today = new Date()
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+
+  if (date.toDateString() === today.toDateString()) {
+    return "Today"
+  } else if (date.toDateString() === yesterday.toDateString()) {
+    return "Yesterday"
+  } else {
+    return date.toLocaleDateString('en-US', { 
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric'
+    })
+  }
+}
+
+// Add date separator component
+const DateSeparator = ({ date }: { date: string }) => (
+  <div className={styles.dateSeparator}>
+    <div className={styles.dateSeparatorLine} />
+    <span className={styles.dateSeparatorText}>{date}</span>
+    <div className={styles.dateSeparatorLine} />
+  </div>
+)
+
 export default function ChatModule({ selectedChatId, onBackToChats, socket, onJoinChat, onChatStarted }: ChatModuleProps) {
   const [selectedChatTypes, setSelectedChatTypes] = useState<string[]>(['ITRTaxFiling'])
   const [isConnecting, setIsConnecting] = useState(false)
   const [user, setUser] = useState<any>(null)
+  const [userProfile, setUserProfile] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState("")
@@ -42,6 +72,15 @@ export default function ChatModule({ selectedChatId, onBackToChats, socket, onJo
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
         setUser(user)
+        
+        // Also fetch user profile from database
+        if (user) {
+          const response = await fetch('/api/user-profile')
+          if (response.ok) {
+            const data = await response.json()
+            setUserProfile(data.user)
+          }
+        }
       } catch (error) {
         console.error('Error fetching user:', error)
       } finally {
@@ -58,7 +97,16 @@ export default function ChatModule({ selectedChatId, onBackToChats, socket, onJo
       'LoansProducts': 'Loans & Products',
       'FinancialAdvisory': 'Financial Advisory'
     }
-    return selectedChatTypes[0] ? chatTypeMap[selectedChatTypes[0]] : 'ITR Tax Filing'
+    // Ensure we only return one chat type
+    const chatType = selectedChatTypes[0] || 'ITRTaxFiling'
+    return chatTypeMap[chatType] || 'ITR Tax Filing'
+  }, [selectedChatTypes])
+
+  useEffect(() => {
+    // Ensure we only have one chat type selected
+    if (selectedChatTypes.length > 1) {
+      setSelectedChatTypes([selectedChatTypes[0]])
+    }
   }, [selectedChatTypes])
 
   useEffect(() => {
@@ -246,6 +294,98 @@ export default function ChatModule({ selectedChatId, onBackToChats, socket, onJo
     socket.emit("reopen_chat", { chatId: selectedChatId })
   }
 
+  const formatLastActivityTime = (timestamp: Date) => {
+    const now = new Date();
+    const diff = now.getTime() - timestamp.getTime();
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (minutes < 1) return 'just now';
+    if (minutes === 1) return '1 min ago';
+    if (minutes < 60) return `${minutes} mins ago`;
+    if (hours === 1) return '1 hour ago';
+    if (hours < 24) return `${hours} hours ago`;
+    if (days === 1) return '1 day ago';
+    return `${days} days ago`;
+  }
+
+  // Modify the messages rendering section to include date separators
+  const renderMessages = () => {
+    if (messages.length === 0) {
+      return (
+        <div className={styles.noMessages}>
+          <p>No messages yet. Start the conversation!</p>
+        </div>
+      )
+    }
+
+    let currentDate = ''
+    
+    return messages.map((message, index) => {
+      const messageDate = formatMessageDate(message.timestamp)
+      const showDateSeparator = messageDate !== currentDate
+      
+      if (showDateSeparator) {
+        currentDate = messageDate
+      }
+
+      return (
+        <React.Fragment key={message.id}>
+          {showDateSeparator && (
+            <div className={styles.dateSeparator}>
+              <div className={styles.dateSeparatorLine} />
+              <div className={styles.dateSeparatorText}>{messageDate}</div>
+              <div className={styles.dateSeparatorLine} />
+            </div>
+          )}
+          <div className={`${styles.message} ${message.isAdmin ? styles.adminMessage : styles.userMessage}`}>
+            {message.isAdmin ? (
+              <>
+                <div className={styles.messageContent}>
+                  <div className={styles.messageHeader}>
+                    <div className={styles.adminMessageHeader}>
+                      <span className={styles.messageSender}>ReviseTax</span>
+                      <span className={styles.messageTime}>
+                        {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  </div>
+                  <div className={styles.messageText}>{message.content}</div>
+                </div>
+                <Avatar className={styles.messageAvatar}>
+                  <AvatarImage src="/chatlogo.png" alt="ReviseTax" />
+                  <AvatarFallback>RT</AvatarFallback>
+                </Avatar>
+              </>
+            ) : (
+              <>
+                <div className={styles.messageContent}>
+                  <div className={styles.messageHeader}>
+                    <span className={styles.messageSender}>
+                      {message.senderName || userProfile?.name || 'User'}
+                    </span>
+                    <span className={styles.messageTime}>
+                      {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <div className={styles.messageText}>{message.content}</div>
+                </div>
+                <Avatar className={styles.messageAvatar}>
+                  {userProfile?.profileImage ? (
+                    <AvatarImage src={userProfile.profileImage} alt={userProfile.name || 'User'} />
+                  ) : (
+                    <AvatarFallback>{message.senderName?.[0]?.toUpperCase() || 'U'}</AvatarFallback>
+                  )}
+                </Avatar>
+              </>
+            )}
+          </div>
+        </React.Fragment>
+      )
+    })
+  }
+
   if (isLoading) {
     return (
       <div className={styles.container}>
@@ -266,14 +406,27 @@ export default function ChatModule({ selectedChatId, onBackToChats, socket, onJo
       <div className={styles.chatContainer}>
         <div className={styles.chatInterface}>
           <div className={styles.chatHeader}>
-            <button 
-              className={styles.backButton}
-              onClick={onBackToChats}
-            >
-              <ArrowLeft size={20} />
-              Back to Chats
-            </button>
-            <h2 className={styles.chatTitle}>Chat Support</h2>
+            <div className={styles.headerLeft}>
+              <div className={styles.headerInfo}>
+                <h2 className={styles.chatTitle}>
+                  {getSelectedChatName()}
+                </h2>
+                <div className={styles.lastActivity}>
+                  Last activity {messages.length > 0 
+                    ? formatLastActivityTime(messages[messages.length - 1].timestamp) 
+                    : '1 min ago'}
+                </div>
+              </div>
+            </div>
+            <div className={styles.headerRight}>
+              <Button 
+                className={`${buttonVariants({ variant: "outline" })} ${styles.scheduleButton}`}
+                onClick={() => window.open('https://book.revisetax.com/team/tax-experts/book-a-call', '_blank')}
+              >
+                <ExternalLink className={styles.scheduleIcon} />
+                Schedule a Call
+              </Button>
+            </div>
           </div>
           
           <div className={styles.messagesContainer} ref={messagesContainerRef}>
@@ -281,30 +434,7 @@ export default function ChatModule({ selectedChatId, onBackToChats, socket, onJo
               <div className={styles.noMessages}>
                 <p>Loading messages...</p>
               </div>
-            ) : messages.length === 0 ? (
-              <div className={styles.noMessages}>
-                <p>No messages yet. Start the conversation!</p>
-              </div>
-            ) : (
-              messages.map((message) => (
-                <div 
-                  key={message.id} 
-                  className={`${styles.message} ${message.isAdmin ? styles.adminMessage : styles.userMessage}`}
-                >
-                  <div className={styles.messageContent}>
-                    <div className={styles.messageSender}>
-                      {message.senderName || (message.isAdmin ? 'Admin' : 'You')}
-                    </div>
-                    <div className={styles.messageText}>
-                      {message.content}
-                    </div>
-                    <div className={styles.messageTime}>
-                      {message.timestamp.toLocaleTimeString()}
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
+            ) : renderMessages()}
             
             {/* Typing indicator */}
             {isTyping && (
@@ -337,24 +467,27 @@ export default function ChatModule({ selectedChatId, onBackToChats, socket, onJo
               </Button>
             </div>
           ) : (
-          <div className={styles.messageInput}>
-            <input
-              type="text"
-              value={newMessage}
-              onChange={handleInputChange}
-              onKeyPress={handleKeyPress}
-              placeholder="Type your message..."
-              className={styles.input}
+            <div className={styles.messageInput}>
+              <button className={styles.attachButton}>
+                <Paperclip size={20} />
+              </button>
+              <input
+                type="text"
+                value={newMessage}
+                onChange={handleInputChange}
+                onKeyPress={handleKeyPress}
+                placeholder="Type a message"
+                className={styles.input}
                 disabled={chatStatus === 'CLOSED'}
-            />
-            <button
-              onClick={handleSendMessage}
+              />
+              <button
+                onClick={handleSendMessage}
                 disabled={!newMessage.trim() || chatStatus === 'CLOSED'}
-              className={styles.sendButton}
-            >
-              <Send size={16} />
-            </button>
-          </div>
+                className={styles.sendButton}
+              >
+                <Send size={20} />
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -435,13 +568,13 @@ export default function ChatModule({ selectedChatId, onBackToChats, socket, onJo
           <p className={styles.callDescription}>
             For people who need tailored services based on your use case, please schedule a call with us.
           </p>
-            <Button 
-              className={`${buttonVariants({ variant: "outline" })} ${styles.scheduleButton}`}
-              onClick={() => window.open('https://book.revisetax.com/team/tax-experts/book-a-call', '_blank')}
-            >
-              <ExternalLink className={styles.scheduleIcon} />
-              Schedule a Call
-            </Button>
+          <Button 
+            className={styles.scheduleButton}
+            onClick={() => window.open('https://book.revisetax.com/team/tax-experts/book-a-call', '_blank')}
+          >
+            <ExternalLink className={styles.scheduleIcon} />
+            <span>Schedule a Call</span>
+          </Button>
         </div>
       </div>
     </div>

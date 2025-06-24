@@ -13,6 +13,8 @@ model User {
   name        String?
   email       String?  @unique
   phoneNumber String   @unique
+  profileImage String? @db.Text  // URL to the user's profile image in Supabase storage
+
   provider    String?  // The auth provider (google, linkedin, etc)
   providerId  String?  // The provider's user ID
   createdAt   DateTime @default(now())
