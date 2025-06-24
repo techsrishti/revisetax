@@ -241,7 +241,6 @@ async function allocatePendingChats() {
   const pendingChats = await prisma.chat.findMany({
     where: { status: 'PENDING', isActive: true },
     include: {
-      createdAt: true,
       user: { select: { name: true, email: true } },
       admin: { select: { name: true, email: true } },
     }
