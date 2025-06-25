@@ -241,6 +241,7 @@ async function allocatePendingChats() {
   const pendingChats = await prisma.chat.findMany({
     where: { status: 'PENDING', isActive: true },
     include: {
+      createdAt: true,
       user: { select: { name: true, email: true } },
       admin: { select: { name: true, email: true } },
     }
@@ -261,6 +262,7 @@ async function allocatePendingChats() {
           chatName: chat.chatName,
           userName: chat.user?.name,
           userEmail: chat.user?.email,
+          createdAt: chat.createdAt,
         });
       });
       // Notify user
@@ -379,7 +381,7 @@ async function init() {
             });
           }
           
-          console.log(`👨‍💼 Admin '${admin.name}' authenticated: ${socket.id}`);
+          console.log(` Admin '${admin.name}' authenticated: ${socket.id}`);
 
           // After admin authenticates and is set online:
           await allocatePendingChats();
@@ -608,6 +610,7 @@ async function init() {
                 chatName,
                 userName: chat.user.name,
                 userEmail: chat.user.email,
+                createdAt: chat.createdAt,
               });
             });
 
@@ -755,6 +758,25 @@ async function init() {
           socket.to(`chat_${chatId}`).emit("message_read", { messageId });
         } catch (error) {
           console.error("Error marking message as read:", error);
+        }
+      });
+
+      socket.on("get_pending_chats", async () => {
+        try {
+        const adminId = adminSessions.get(socket.id);
+        if (!adminId) {
+          socket.emit("error", { message: "Admin not authenticated" });
+          return;
+        }
+
+        const pendingChats = await prisma.chat.findMany({
+          where: { status: "PENDING" },
+          include: { id: true, chatName: true, chatType: true, status: true, socketIORoomId: true, user: true, admin: true, createdAt: true }
+          });
+          socket.emit("pending_chats", pendingChats);
+        } catch (error) {
+          console.error("Error getting pending chats:", error);
+          socket.emit("error", { message: "Failed to get pending chats" });
         }
       });
 
