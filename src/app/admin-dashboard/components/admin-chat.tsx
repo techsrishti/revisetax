@@ -175,6 +175,8 @@ export default function AdminChat() {
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
   const [showStatusDialog, setShowStatusDialog] = useState(false)
   const [pendingStatusChange, setPendingStatusChange] = useState<boolean | null>(null)
+  const [showWindowCloseDialog, setShowWindowCloseDialog] = useState(false)
+  const [pendingUnloadEvent, setPendingUnloadEvent] = useState<BeforeUnloadEvent | null>(null)
 
   useEffect(() => {
     selectedChatRef.current = selectedChat
@@ -187,46 +189,17 @@ export default function AdminChat() {
 
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (adminIsOnline) {
-        unloadAttempted = true;
         e.preventDefault();
-        e.returnValue = 'You must go offline before leaving. Please use the offline toggle in the top bar.';
-        // After a short delay, check if the page is still visible (user stayed)
-        offlineTimeout = setTimeout(async () => {
-          if (document.visibilityState === 'visible' && unloadAttempted) {
-            // User stayed, set status to offline (transactional)
-            try {
-              const result = await updateAdminStatus(false);
-              if (result.success) {
-                setAdminIsOnline(false);
-                toast({
-                  title: "Status Updated",
-                  description: "You are now offline. You can safely close the tab.",
-                  variant: "default"
-                });
-              } else {
-                toast({
-                  title: "Error",
-                  description: result.error || "Failed to go offline. Please try again.",
-                  variant: "destructive"
-                });
-              }
-            } catch (error) {
-              toast({
-                title: "Error",
-                description: "Failed to go offline. Please try again.",
-                variant: "destructive"
-              });
-            }
-            unloadAttempted = false;
-          }
-        }, 500); // 500ms is enough for most browsers
-        return e.returnValue;
+        e.returnValue = '';
+        setShowWindowCloseDialog(true);
+        setPendingUnloadEvent(e);
+        return '';
       }
     };
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
-        unloadAttempted = false; // User left, reset
+        unloadAttempted = false;
         if (offlineTimeout) clearTimeout(offlineTimeout);
       }
     };
@@ -239,7 +212,7 @@ export default function AdminChat() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (offlineTimeout) clearTimeout(offlineTimeout);
     };
-  }, [adminIsOnline, toast]);
+  }, [adminIsOnline]);
 
   // Fetch admin details from API
   const fetchAdminDetails = async (): Promise<AdminDetails | null> => {
@@ -278,6 +251,12 @@ export default function AdminChat() {
         const socketInstance = io("https://socket.alpha.revisetax.com")
         setSocket(socketInstance)
 
+        // Set a timeout to stop loading if socket doesn't respond
+        const loadingTimeout = setTimeout(() => {
+          console.warn('Socket loading timeout - stopping loading state')
+          setIsLoading(false)
+        }, 10000) // 10 second timeout
+
         // Authenticate admin on connect
         socketInstance.on("connect", () => {
           socketInstance.emit("admin_authenticate", { 
@@ -288,18 +267,21 @@ export default function AdminChat() {
 
         // Listen for authentication success
         socketInstance.on("admin_authenticated", (data: any) => {
-          console.log("Admin authenticated:", data)
           setIsAuthenticated(true)
+          // Admin is automatically set to online when they authenticate
+          setAdminIsOnline(true)
         })
 
         // Listen for authentication error
         socketInstance.on("auth_error", (data: any) => {
-          console.error("Admin authentication failed:", data)
           setIsAuthenticated(false)
+          clearTimeout(loadingTimeout)
+          setIsLoading(false)
         })
 
         // Listen for chat list
         socketInstance.on("existing_admin_chats", (data: any) => {
+          clearTimeout(loadingTimeout)
           if (data.chats && Array.isArray(data.chats)) {
             const mappedChats = data.chats.map((c: any) => ({
               ...c,
@@ -321,6 +303,19 @@ export default function AdminChat() {
           setIsLoading(false)
         })
 
+        // Handle socket connection errors
+        socketInstance.on("connect_error", (error: any) => {
+          console.error('Socket connection error:', error)
+          clearTimeout(loadingTimeout)
+          setIsLoading(false)
+        })
+
+        socketInstance.on("disconnect", (reason: string) => {
+          console.warn('Socket disconnected:', reason)
+          clearTimeout(loadingTimeout)
+          setIsLoading(false)
+        })
+
         // Listen for new chat requests (add to chat list)
         socketInstance.on("new_chat_request", (data: any) => {
           setChats(prev => {
@@ -337,7 +332,11 @@ export default function AdminChat() {
               socketIORoomId: data.roomId || data.socketIORoomId,
               userId: data.userId,
               adminId: admin.id,
-              user: data.user || { name: data.userName || '', email: data.userEmail || '', phoneNumber: '' },
+              user: {
+                name: data.userName || '',
+                email: data.userEmail || '',
+                phoneNumber: data.userPhoneNumber || ''
+              },
               updatedAt: data.updatedAt ? new Date(data.updatedAt) : new Date(),
               createdAt: data.createdAt ? new Date(data.createdAt) : new Date(),
               lastMessageAt: data.lastMessageAt ? new Date(data.lastMessageAt) : null,
@@ -350,8 +349,19 @@ export default function AdminChat() {
               messages: [],
             }
             
-            return [newChat, ...prev]
+            // Add to beginning of list and sort by most recent
+            const updatedChats = [newChat, ...prev];
+            const sortedChats = updatedChats.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+            
+            return sortedChats;
           })
+          
+          // Show notification for new chat
+          toast({
+            title: "New Chat Request",
+            description: `New ${data.chatType || 'chat'} request from ${data.userName || 'User'}`,
+            variant: "default"
+          });
         })
 
         // Listen for chat history
@@ -463,10 +473,19 @@ export default function AdminChat() {
         });
 
         return () => {
+          clearTimeout(loadingTimeout)
           socketInstance.disconnect()
           socketInstance.off("chat_closed")
           socketInstance.off("chat_archived")
           socketInstance.off("chat_reopened_admin")
+          socketInstance.off("new_chat_request")
+          socketInstance.off("new_message")
+          socketInstance.off("chat_history")
+          socketInstance.off("existing_admin_chats")
+          socketInstance.off("admin_authenticated")
+          socketInstance.off("auth_error")
+          socketInstance.off("connect_error")
+          socketInstance.off("disconnect")
         }
       } catch (error) {
         console.error('Error initializing socket:', error)
@@ -785,18 +804,6 @@ export default function AdminChat() {
     )
   }
 
-  if (chats.length === 0) {
-    return (
-      <div className="h-[80vh] flex items-center justify-center bg-white/5 backdrop-blur-sm border border-white/20 rounded-lg">
-        <div className="text-center text-white/80 p-8">
-          <MessageSquare className="mx-auto h-12 w-12 mb-4 text-primary" />
-          <h2 className="text-xl font-semibold text-white">No Active Chats</h2>
-          <p className="text-white/70">When a user starts a new conversation, it will appear here.</p>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="h-[80vh] flex flex-col bg-white/5 backdrop-blur-sm border border-white/20 rounded-lg overflow-hidden">
       {/* Teams-style Online/Offline Bar */}
@@ -859,7 +866,42 @@ export default function AdminChat() {
           </div>
           <div className="flex-1 h-full min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
             {chats.length === 0 ? (
-              <div className="text-center text-white/60 py-8">No previous chat history</div>
+              <div className="flex flex-col items-center justify-center h-full py-8 px-4">
+                <div className="text-center space-y-3">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-white/10 border border-white/20">
+                    <MessageSquare className="h-6 w-6 text-white/60" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-semibold text-white">No Chats</h3>
+                    <p className="text-xs text-white/60">
+                      Waiting for new chat requests...
+                    </p>
+                  </div>
+                  
+                  {/* Status indicator */}
+                  <div className="flex items-center justify-center gap-1.5">
+                    <div className={cn(
+                      "h-1.5 w-1.5 rounded-full",
+                      adminIsOnline ? "bg-green-400" : "bg-red-400"
+                    )} />
+                    <span className={cn(
+                      "text-xs font-medium",
+                      adminIsOnline ? "text-green-400" : "text-red-400"
+                    )}>
+                      {adminIsOnline ? "Online" : "Offline"}
+                    </span>
+                  </div>
+                  
+                  {/* Quick tip */}
+                  {!adminIsOnline && (
+                    <div className="mt-3 p-2 bg-red-500/10 rounded border border-red-500/20">
+                      <p className="text-xs text-red-300">
+                        Go online to receive new chats
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
             ) : (
               <>
                 {/* Offline Warning */}
@@ -872,6 +914,93 @@ export default function AdminChat() {
                     <p className="text-xs text-red-300/70 mt-1">
                       New chat requests will not be assigned to you. Go online to receive new chats.
                     </p>
+                  </div>
+                )}
+
+                {/* Pending Chats */}
+                {chats.filter(chat => chat.status === "PENDING").length > 0 && (
+                  <div className="mb-4">
+                    <h3 className="text-sm font-semibold text-white/80 px-3 py-2 bg-white/5 border-b border-white/10">Pending Chats</h3>
+                    {chats.filter(chat => chat.status === "PENDING").map(chat => {
+                      const isNewRequest = chat.status === 'PENDING' && !chat.adminId;
+                      const isAssignedToMe = chat.adminId && currentAdminId && chat.adminId === currentAdminId;
+                      const isJoined = joinedRooms.includes(chat.socketIORoomId) && selectedChat?.id === chat.id;
+                      const userName = chat.user && chat.user.name ? chat.user.name : (chat.user && chat.user.email ? chat.user.email : (chat.user && chat.user.phoneNumber ? chat.user.phoneNumber : 'User'));
+                      const userInitial = userName[0] || 'U';
+                      const lastMessage = chat.messages && chat.messages[0] ? chat.messages[0].content : '';
+                      
+                      return (
+                        <div
+                          key={chat.id}
+                          onClick={async () => {
+                            if (isJoined) {
+                              await handleSelectChat(chat)
+                            } else {
+                              await handleJoinRoom(chat)
+                            }
+                          }}
+                          className={cn(
+                            "p-3 border-b border-white/10 flex items-start gap-3 cursor-pointer hover:bg-white/10 transition-all duration-200",
+                            {
+                              "bg-white/15": selectedChat?.id === chat.id,
+                              "border-l-4 border-l-orange-500 bg-orange-500/10": isNewRequest,
+                              "border-l-4 border-l-green-500 bg-green-500/10": isAssignedToMe
+                            }
+                          )}
+                        >
+                          <Avatar className="mt-1">
+                            <AvatarFallback className="bg-white/20 text-white">{userInitial}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between mb-1">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-white truncate">{chat.chatName || 'Chat'}</p>
+                                <p className="text-sm text-white/70 truncate">{userName}</p>
+                              </div>
+                              <span className="text-xs text-white/60 whitespace-nowrap ml-2">
+                                {chat.lastMessageAt ? formatSidebarTimestamp(chat.lastMessageAt) : formatSidebarTimestamp(chat.createdAt)}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs text-white/60 capitalize">
+                                  {chat.chatType.replace(/([A-Z])/g, ' $1').trim()}
+                                </span>
+                                <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">
+                                  {chat.status}
+                                </span>
+                                {isNewRequest && (
+                                  <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-orange-500/20 text-orange-300 border border-orange-500/30">
+                                    NEW
+                                  </span>
+                                )}
+                              </div>
+
+                              {!isJoined && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-auto px-3 py-1 text-sm bg-primary text-primary-foreground hover:bg-primary/90"
+                                  onClick={(e) => { e.stopPropagation(); handleJoinRoom(chat); }}
+                                >
+                                  Join
+                                </Button>
+                              )}
+                              {isJoined && selectedChat?.id === chat.id && (
+                                <span className="text-xs font-semibold text-green-400">Joined</span>
+                              )}
+                            </div>
+
+                            {lastMessage && (
+                              <p className="text-sm text-white/70 truncate mt-1">
+                                {lastMessage}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 
@@ -1150,7 +1279,7 @@ export default function AdminChat() {
             </div>
           ) : selectedChat && joinedRooms.includes(selectedChat.socketIORoomId) ? (
             <>
-              <div className="p-4 border-b border-white/20 flex items-center justify-between bg-white/5 h-28">
+              <div className="p-4 border-b border-white/20 flex items-center justify-between bg-white/5 h-28 flex-shrink-0">
                 <div className="flex items-center gap-4">
                   <Avatar>
                     <AvatarFallback className="bg-white/20 text-white">{(selectedChat.user && selectedChat.user.name ? selectedChat.user.name[0] : "U")}</AvatarFallback>
@@ -1189,8 +1318,7 @@ export default function AdminChat() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-              <div className="flex-1 h-full min-h-0 p-6 overflow-y-auto space-y-6 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent" 
-                   style={{ minHeight: 0 }}>
+              <div className="flex-1 min-h-0 p-6 overflow-y-auto space-y-6 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
                 {/* Message bubbles */}
                 {messages.length === 0 ? (
                   <div className="text-center text-white/60 py-8">
@@ -1206,7 +1334,7 @@ export default function AdminChat() {
                       })}
                     >
                       {!msg.isAdmin && (
-                        <Avatar className="h-8 w-8">
+                        <Avatar className="h-8 w-8 flex-shrink-0">
                           <AvatarFallback className="bg-white/20 text-white">{(selectedChat.user && selectedChat.user.name ? selectedChat.user.name[0] : "U")}</AvatarFallback>
                         </Avatar>
                       )}
@@ -1219,13 +1347,13 @@ export default function AdminChat() {
                           }
                         )}
                       >
-                        <p className="text-sm">{msg.content}</p>
+                        <p className="text-sm break-words">{msg.content}</p>
                         <span className="text-xs text-white/60 mt-1 block text-right">
                           {formatTimestamp(msg.createdAt)}
                         </span>
                       </div>
                       {msg.isAdmin && (
-                        <Avatar className="h-8 w-8">
+                        <Avatar className="h-8 w-8 flex-shrink-0">
                           <AvatarFallback className="bg-primary text-white">A</AvatarFallback>
                         </Avatar>
                       )}
@@ -1234,7 +1362,7 @@ export default function AdminChat() {
                 )}
                 <div ref={messagesEndRef} />
               </div>
-              <div className="p-4 border-t border-white/20 bg-white/5">
+              <div className="p-4 border-t border-white/20 bg-white/5 flex-shrink-0">
                 {isTyping && <p className="text-xs text-white/60 mb-2">User is typing...</p>}
                 {selectedChat && (selectedChat.status === "CLOSED" || selectedChat.status === "ARCHIVED") && (
                   <div className="mb-3 p-2 bg-yellow-500/10 border border-yellow-500/20 rounded text-xs text-yellow-300">
@@ -1267,9 +1395,43 @@ export default function AdminChat() {
             </>
           ) : (
             <div className="flex items-center justify-center h-full text-white/80">
-              <div className="text-center">
-                <MessageSquare className="mx-auto h-16 w-16 mb-4 text-primary" />
-                <p className="text-lg text-white">Select a chat and join the room to start messaging</p>
+              <div className="text-center space-y-4">
+                <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white/10 border border-white/20">
+                  <MessageSquare className="h-10 w-10 text-primary" />
+                </div>
+                <div className="space-y-2">
+                  <h2 className="text-xl font-semibold text-white">Welcome to Admin Chat</h2>
+                  <p className="text-sm text-white/70 max-w-md">
+                    Select a chat from the sidebar to start helping customers. 
+                    New chat requests will appear automatically when customers need assistance.
+                  </p>
+                </div>
+                
+                {/* Status indicator */}
+                <div className="flex items-center justify-center gap-2">
+                  <div className={cn(
+                    "h-2 w-2 rounded-full",
+                    adminIsOnline ? "bg-green-400" : "bg-red-400"
+                  )} />
+                  <span className={cn(
+                    "text-sm font-medium",
+                    adminIsOnline ? "text-green-400" : "text-red-400"
+                  )}>
+                    {adminIsOnline ? "Online - Ready to help" : "Offline - Go online to receive chats"}
+                  </span>
+                </div>
+                
+                {/* Quick stats */}
+                {chats.length > 0 && (
+                  <div className="mt-6 p-4 bg-white/5 rounded-lg border border-white/10">
+                    <p className="text-xs text-white/60 mb-2">Chat Summary:</p>
+                    <div className="flex justify-center gap-4 text-xs">
+                      <span className="text-yellow-400">Pending: {chats.filter(c => c.status === 'PENDING').length}</span>
+                      <span className="text-green-400">Active: {chats.filter(c => c.status === 'ACTIVE').length}</span>
+                      <span className="text-red-400">Closed: {chats.filter(c => c.status === 'CLOSED').length}</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1277,8 +1439,8 @@ export default function AdminChat() {
         
         {/* Agent Panel - Only visible when chat is selected */}
         {selectedChat && (
-          <div className="col-span-1 border-l border-white/20 flex flex-col bg-white/5">
-            <div className="p-4 border-b border-white/20 text-center bg-white/5 flex items-center justify-center h-28">
+          <div className="col-span-1 border-l border-white/20 flex flex-col bg-white/5 min-h-0">
+            <div className="p-4 border-b border-white/20 text-center bg-white/5 flex items-center justify-center h-28 flex-shrink-0">
               <h2 className="text-xl font-bold text-white">Agent Panel</h2>
             </div>
             {isLoadingChat ? (
@@ -1289,7 +1451,7 @@ export default function AdminChat() {
               <>
                 {isPending && <Loader2 className="animate-spin m-auto text-primary" />}
                 {!isPending && (
-                  <div className="p-4 space-y-6 flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+                  <div className="p-4 space-y-6 flex-1 min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
                     {/* User Info */}
                     <div className="space-y-2">
                       <h3 className="font-semibold text-white">User Information</h3>
@@ -1428,6 +1590,67 @@ export default function AdminChat() {
         </DialogContent>
       </Dialog>
 
+      {/* Window Close Dialog */}
+      <Dialog open={showWindowCloseDialog} onOpenChange={setShowWindowCloseDialog}>
+        <DialogContent className="bg-slate-800 border-white/20 text-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <WifiOff className="h-5 w-5 text-red-400" />
+              Set Status to Offline?
+            </DialogTitle>
+            <DialogDescription className="text-white/70">
+              You must set your status to offline before leaving. Would you like to go offline now?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              onClick={async () => {
+                try {
+                  const result = await updateAdminStatus(false);
+                  if (result.success) {
+                    setAdminIsOnline(false);
+                    toast({
+                      title: "Status Updated",
+                      description: "You are now offline. You can safely close the tab.",
+                      variant: "default"
+                    });
+                    setShowWindowCloseDialog(false);
+                    setPendingUnloadEvent(null);
+                    // After status is set to offline, allow the window to close
+                    window.removeEventListener('beforeunload', () => {}); // Remove to avoid loop
+                    window.close();
+                  } else {
+                    toast({
+                      title: "Error",
+                      description: result.error || "Failed to go offline. Please try again.",
+                      variant: "destructive"
+                    });
+                  }
+                } catch (error) {
+                  toast({
+                    title: "Error",
+                    description: "Failed to go offline. Please try again.",
+                    variant: "destructive"
+                  });
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Set Offline
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowWindowCloseDialog(false);
+                setPendingUnloadEvent(null);
+              }}
+              className="bg-slate-700 text-white border-white/20 hover:bg-slate-600"
+            >
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Toaster />
     </div>
   )

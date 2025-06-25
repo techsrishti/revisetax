@@ -259,9 +259,11 @@ async function allocatePendingChats() {
           roomId: chat.socketIORoomId,
           chatType: chat.chatType,
           chatName: chat.chatName,
+          userId: chat.userId,
           userName: chat.user?.name,
           userEmail: chat.user?.email,
           createdAt: chat.createdAt,
+          updatedAt: chat.updatedAt,
         });
       });
       // Notify user
@@ -365,7 +367,7 @@ async function init() {
               console.log(`✅ Admin rejoined chat room: ${chat.socketIORoomId}`);
             }
 
-            // Send existing chats to admin
+            // Send existing chats to admin (always send, even if empty)
             socket.emit("existing_admin_chats", {
               chats: existingChats.map(chat => ({
                 id: chat.id,
@@ -607,9 +609,11 @@ async function init() {
                 roomId: chat.socketIORoomId,
                 chatType,
                 chatName,
+                userId: chat.userId,
                 userName: chat.user.name,
                 userEmail: chat.user.email,
                 createdAt: chat.createdAt,
+                updatedAt: chat.updatedAt,
               });
             });
 
@@ -996,6 +1000,7 @@ async function init() {
                 roomId: chat.socketIORoomId,
                 chatType: chat.chatType,
                 chatName: chat.chatName,
+                userId: chat.userId,
                 userName: chat.user.name,
                 userEmail: chat.user.email,
                 isReopened: isReopened,
