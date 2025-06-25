@@ -460,14 +460,14 @@ export default function Documents() {
 
       if (type === 'file') {
         // Delete file using API route (server handles both DB and storage cleanup)
-        const deleteResponse = await fetch(`/api/files?id=${encodeURIComponent(id)}`, {
+        const deleteResponse = await fetch(`/api/files?fileId=${encodeURIComponent(id)}`, {
           method: 'DELETE',
         });
         
         if (!deleteResponse.ok) {
           const errorData = await deleteResponse.json();
           console.error('Failed to delete file:', errorData);
-          toast.error('Failed to delete file');
+          toast.error(errorData.error || 'Failed to delete file');
           return;
         }
       } else {
@@ -723,7 +723,7 @@ export default function Documents() {
                           </div>
                           <div className={styles.folderRight}>
                             <span className={`${styles.folderCount} group-hover:opacity-0 transition-opacity`}>
-                              {itemCount === 0 ? 'Empty Folder' : `${itemCount} file${itemCount !== 1 ? 's' : ''}`}
+                              Last modified {formatDate(folder.updated_at)}
                             </span>
                             
                             <div className={`${styles.folderActions} opacity-0 group-hover:opacity-100 transition-opacity`}>

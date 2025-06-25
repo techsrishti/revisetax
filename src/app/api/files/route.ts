@@ -251,6 +251,7 @@ export async function GET(request: Request) {
           size: true,
           mimeType: true,
           createdAt: true,
+          updatedAt: true,
           folderId: true
         },
         orderBy: { createdAt: 'desc' }
@@ -275,6 +276,7 @@ export async function GET(request: Request) {
         size: true,
         mimeType: true,
         createdAt: true,
+        updatedAt: true,
         folderId: true
       },
       orderBy: { createdAt: 'desc' }
