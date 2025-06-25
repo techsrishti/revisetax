@@ -562,7 +562,11 @@ export default function ChatAttachments({ selectedChatId, socket, onFilesSent }:
                             <input 
                               type="checkbox" 
                               checked={selectedExistingFiles.includes(file.id)}
-                              onChange={() => toggleFileSelection(file.id)}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                toggleFileSelection(file.id);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
                             />
                           </div>
                           <div className={styles.fileIcon}>

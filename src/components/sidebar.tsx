@@ -145,18 +145,16 @@ export default function Sidebar({ activeModule, setActiveModule, children, chats
   const uploadImage = async (file: File): Promise<string | null> => {
     try {
       const formData = new FormData();
-      formData.append('profileImage', file);
-      formData.append('name', editFormData.name.trim());
-      formData.append('email', editFormData.email.trim());
+      formData.append('profilePhoto', file); // Changed from profileImage to profilePhoto for new endpoint
 
-      const response = await fetch('/api/user-profile', {
+      const response = await fetch('/api/profile-photo', {
         method: 'POST',
         body: formData
       });
 
       if (response.ok) {
         const data = await response.json();
-        return data.user.profileImage;
+        return data.profileImagePath;
       } else {
         console.error('Failed to upload image');
         return null;
@@ -174,9 +172,32 @@ export default function Sidebar({ activeModule, setActiveModule, children, chats
         const data = await response.json();
         setUserProfile(data.user);
         setEditFormData({ name: data.user?.name || '', email: data.user?.email || '' });
+        
+        // Check if we need to sync social profile picture
+        // Note: This is now automatically handled by /api/profile-photo?autoSync=true in the image src
+        await checkAndSyncSocialProfilePic();
       }
     } catch (error) {
       console.error('Error fetching user profile:', error);
+    }
+  };
+
+  const checkAndSyncSocialProfilePic = async () => {
+    // This function is now simplified since /api/profile-photo?autoSync=true 
+    // handles auto-sync automatically when the image is requested.
+    // We can still manually check sync status if needed.
+    try {
+      const checkResponse = await fetch('/api/profile-photo?action=sync-check');
+      if (checkResponse.ok) {
+        const checkData = await checkResponse.json();
+        
+        if (checkData.needsSync) {
+          console.log(`User can sync ${checkData.provider} profile picture if needed`);
+          // Auto-sync will happen automatically when image is displayed with autoSync=true
+        }
+      }
+    } catch (error) {
+      console.error('Error checking sync status:', error);
     }
   };
 
@@ -192,14 +213,27 @@ export default function Sidebar({ activeModule, setActiveModule, children, chats
 
     setIsSaving(true);
     try {
+      let profileImageUpdated = false;
+      
+      // First, upload image if selected using the new profile-photo endpoint
+      if (selectedImage) {
+        const imageUploadResult = await uploadImage(selectedImage);
+        if (imageUploadResult) {
+          profileImageUpdated = true;
+          console.log('Profile image uploaded successfully:', imageUploadResult);
+        } else {
+          toast({
+            title: "Image upload failed",
+            description: "Failed to upload profile image, but name/email will still be updated",
+            variant: "destructive"
+          });
+        }
+      }
+
+      // Then update name/email using user-profile endpoint (without image)
       const formData = new FormData();
       formData.append('name', editFormData.name.trim());
       formData.append('email', editFormData.email.trim());
-      
-      // Add image if selected
-      if (selectedImage) {
-        formData.append('profileImage', selectedImage);
-      }
 
       const response = await fetch('/api/user-profile', {
         method: 'POST',
@@ -220,10 +254,31 @@ export default function Sidebar({ activeModule, setActiveModule, children, chats
         // Fetch fresh user data
         await fetchUserProfile();
 
+        // Force refresh of profile image if it was updated
+        if (profileImageUpdated) {
+          // Add a small delay to ensure S3 upload is complete
+          setTimeout(() => {
+            // Force reload of profile images by updating the src with cache-busting timestamp
+            const avatarImages = document.querySelectorAll('.avatarImage, .profilePicture');
+            avatarImages.forEach((img: any) => {
+              if (img.src.includes('/api/profile-photo')) {
+                const timestamp = Date.now();
+                const url = new URL(img.src, window.location.origin);
+                url.searchParams.set('t', timestamp.toString());
+                img.src = url.toString();
+              }
+            });
+          }, 1000);
+        }
+
         // Show success message from API
+        const successMessage = profileImageUpdated 
+          ? "Profile and image updated successfully" 
+          : (data.message || "Profile updated successfully");
+        
         toast({
           title: "Profile Updated",
-          description: data.message || "Profile updated successfully",
+          description: successMessage,
           variant: "default"
         });
       } else {
@@ -303,10 +358,16 @@ export default function Sidebar({ activeModule, setActiveModule, children, chats
         <div className={`${styles.sidebar} ${isMobileMenuOpen ? styles.open : ''}`}>
           <div className={styles.userProfile} onClick={handleProfileClick}>
             <div className={styles.avatar}>
+              {/* Profile image ALWAYS served from S3 storage - NEVER from Supabase social links */}
               <img 
-                src={userProfile?.profileImage || user?.user_metadata?.avatar_url || "/Alborz.svg"} 
+                src="/api/profile-photo?autoSync=true" 
                 alt={userProfile?.name || "User avatar"}
-                className={styles.avatarImage} 
+                className={`${styles.avatarImage} avatarImage`}
+                onError={(e) => {
+                  // Fallback to default avatar if S3 profile photo fails to load
+                  console.log('S3 profile photo failed to load, using default avatar');
+                  (e.target as HTMLImageElement).src = "/Alborz.svg";
+                }}
               />
             </div>
             <div className={styles.userInfo}>
@@ -314,7 +375,7 @@ export default function Sidebar({ activeModule, setActiveModule, children, chats
                 <div className={styles.loadingSpinner} />
               ) : (
                 <p className={styles.userName}>
-                  {userProfile?.name || user?.user_metadata?.full_name || user?.email || 'User'}
+                  {userProfile?.name || user?.email?.split('@')[0] || 'User'}
                 </p>
               )}
               <img src="/chevron-down-icon.svg" alt="Expand" className={styles.chevron} width={8} height={8} />
@@ -376,9 +437,13 @@ export default function Sidebar({ activeModule, setActiveModule, children, chats
                     <div className={styles.profilePictureContainer}>
                       <div className={styles.profilePictureWrapper}>
                         <img 
-                          src={imagePreview || userProfile?.profileImage || "/Avatar.svg"} 
+                          src={imagePreview || (userProfile?.profileImage ? "/api/profile-photo" : "/Avatar.svg")} 
                           alt="Profile" 
-                          className={styles.profilePicture} 
+                          className={`${styles.profilePicture} profilePicture`}
+                          onError={(e) => {
+                            // Fallback to default avatar if S3 profile photo fails to load
+                            (e.target as HTMLImageElement).src = "/Avatar.svg";
+                          }}
                         />
                         <div className={styles.uploadIcon}>
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">

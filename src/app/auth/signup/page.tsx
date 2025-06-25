@@ -22,6 +22,7 @@ import styles from '@/app/auth/styles.module.css';
   const socialName = searchParams.get('name') || '';
   const socialProvider = searchParams.get('provider') || '';
   const socialProviderId = searchParams.get('providerId') || '';
+  const profilePictureUrl = searchParams.get('profilePictureUrl') || '';
   
   const [phoneNumber, setPhoneNumber] = useState(searchParams.get('phone') || '');
   const [fullName, setFullName] = useState(socialName);
@@ -224,7 +225,8 @@ import styles from '@/app/auth/styles.module.css';
           email,
           phoneNumber: formattedPhone,
           provider: socialProvider,
-          providerId: socialProviderId
+          providerId: socialProviderId,
+          profilePictureUrl: profilePictureUrl
         }),
       });
 

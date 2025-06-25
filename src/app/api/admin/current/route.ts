@@ -7,12 +7,12 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient();
     
     // Get the current session
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    const { data: { user: sessionUser }, error: sessionError } = await supabase.auth.getUser();
     if (sessionError) {
       console.error('Session error:', sessionError);
       return NextResponse.json({ error: 'Session error: ' + sessionError.message }, { status: 401 });
     }
-    if (!session) {
+    if (!sessionUser) {
       return NextResponse.json({ error: 'No session found' }, { status: 401 });
     }
 

@@ -26,8 +26,8 @@ export async function GET() {
     // If profile image is stored in S3, return our API endpoint URL
     let profileImageUrl = dbUser.profileImage;
     if (profileImageUrl && profileImageUrl.startsWith('s3://')) {
-      // Use our profile image API endpoint instead of signed URLs
-      profileImageUrl = `/api/profile-image?userId=${user.id}`;
+      // Use our new profile-photo API endpoint instead of the old profile-image endpoint
+      profileImageUrl = `/api/profile-photo?userId=${user.id}`;
     }
 
     // Remove +91 prefix from phone number if it exists
@@ -160,8 +160,8 @@ export async function POST(request: NextRequest) {
     // Generate API endpoint URL for response if image is in S3
     let responseProfileImage = updatedUser.profileImage;
     if (responseProfileImage && responseProfileImage.startsWith('s3://')) {
-      // Use our profile image API endpoint instead of signed URLs
-      responseProfileImage = `/api/profile-image?userId=${user.id}`;
+      // Use our new profile-photo API endpoint instead of the old profile-image endpoint
+      responseProfileImage = `/api/profile-photo?userId=${user.id}`;
     }
 
     // Remove +91 prefix from phone number if it exists

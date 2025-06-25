@@ -12,17 +12,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient();
     
-    // Get the current session
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError) {
-      console.error('Session error:', sessionError);
-      return NextResponse.json({ error: 'Session error: ' + sessionError.message }, { status: 401 });
-    }
-    if (!session) {
-      return NextResponse.json({ error: 'No session found' }, { status: 401 });
-    }
-
-    // Get user metadata from Supabase
+    // Get user metadata from Supabase - this authenticates the user by contacting the Supabase Auth server
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError) {
       console.error('User error:', userError);
@@ -60,7 +50,7 @@ export async function POST(request: NextRequest) {
     // Create or update admin session
     const adminSession = await prisma.adminSession.upsert({
       where: {
-        socketId: session.user.id,
+        socketId: user.id,
       },
       update: {
         isActive: true,
@@ -68,7 +58,7 @@ export async function POST(request: NextRequest) {
       },
       create: {
         adminId: admin.id,
-        socketId: session.user.id,
+        socketId: user.id,
         isActive: true,
       },
     });
