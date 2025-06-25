@@ -564,7 +564,7 @@ export async function getInvoice(invoiceId: string): Promise<GetInvoiceSuccessRe
             ResponseContentDisposition: `attachment; filename="revisetax-invoice-${invoiceId}.pdf"`
         });
 
-        const signedUrl = await getSignedUrl(s3, command, { expiresIn: 60 * 60  });
+        const signedUrl = await getSignedUrl(s3, command, { expiresIn: 12 * 60 * 60  });
 
         return { 
             success: true,

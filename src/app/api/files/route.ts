@@ -176,7 +176,7 @@ export async function GET(request: Request) {
       // If signed URL is requested, return JSON with signed URL
       if (signedUrl === 'true') {
         try {
-          const downloadUrl = await getSignedDownloadUrl(s3Key, 3600); // 1 hour expiry
+          const downloadUrl = await getSignedDownloadUrl(s3Key, 43200); // 12 hour expiry
           
           return NextResponse.json({ 
             success: true,

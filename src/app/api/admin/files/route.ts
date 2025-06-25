@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'File S3 key not found' }, { status: 404 });
       }
       
-      const signedUrl = await getSignedDownloadUrl(file.s3Key, 3600); // 1 hour expiry
+      const signedUrl = await getSignedDownloadUrl(file.s3Key, 43200); // 12 hour expiry
       
       return NextResponse.json({ 
         success: true,

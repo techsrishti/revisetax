@@ -40,7 +40,7 @@ export default function AdminFileViewer({ fileId, fileName, mimeType }: AdminFil
     fetchSignedUrl();
   }, []);
 
-  // Refresh URL every 11 hours to ensure continuous access
+  // Refresh URL every 11 hours to ensure continuous access (signed URLs expire in 12 hours)
   useEffect(() => {
     const interval = setInterval(fetchSignedUrl, 11 * 60 * 60 * 1000); // 11 hours in milliseconds
     return () => clearInterval(interval);

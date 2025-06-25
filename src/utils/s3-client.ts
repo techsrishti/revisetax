@@ -57,7 +57,7 @@ export async function getFileStream(key: string) {
   }
 }
 
-export async function getSignedDownloadUrl(key: string, expiresIn = 3600) {
+export async function getSignedDownloadUrl(key: string, expiresIn = 43200) {
   const command = new GetObjectCommand({
     Bucket: BUCKET_NAME,
     Key: key,
