@@ -358,9 +358,12 @@ export default function Sidebar({ activeModule, setActiveModule, children, chats
         <div className={`${styles.sidebar} ${isMobileMenuOpen ? styles.open : ''}`}>
           <div className={styles.userProfile} onClick={handleProfileClick}>
             <div className={styles.avatar}>
-              {/* Profile image ALWAYS served from S3 storage - NEVER from Supabase social links */}
+              {/* Profile image served from S3 storage only - NEVER from Supabase social links */}
               <img 
-                src="/api/profile-photo?autoSync=true" 
+                src={userProfile?.profileImage 
+                  ? `/api/profile-photo?t=${Date.now()}` 
+                  : "/api/profile-photo?autoSync=true"
+                } 
                 alt={userProfile?.name || "User avatar"}
                 className={`${styles.avatarImage} avatarImage`}
                 onError={(e) => {
@@ -437,12 +440,12 @@ export default function Sidebar({ activeModule, setActiveModule, children, chats
                     <div className={styles.profilePictureContainer}>
                       <div className={styles.profilePictureWrapper}>
                         <img 
-                          src={imagePreview || (userProfile?.profileImage ? "/api/profile-photo" : "/Avatar.svg")} 
+                          src={imagePreview || (userProfile?.profileImage ? `/api/profile-photo?t=${Date.now()}` : "/Alborz.svg")} 
                           alt="Profile" 
                           className={`${styles.profilePicture} profilePicture`}
                           onError={(e) => {
-                            // Fallback to default avatar if S3 profile photo fails to load
-                            (e.target as HTMLImageElement).src = "/Avatar.svg";
+                            // Fallback to Alborz avatar if S3 profile photo fails to load
+                            (e.target as HTMLImageElement).src = "/Alborz.svg";
                           }}
                         />
                         <div className={styles.uploadIcon}>
