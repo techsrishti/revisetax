@@ -112,7 +112,7 @@ export default function BillingModule() {
 
       const form = document.createElement('form')
       form.method = 'post'
-      form.action = 'https://test.payu.in/_payment'
+      form.action = 'https://secure.payu.in/_payment'
 
       const addInput = (name: string, value: string) => {
         const input = document.createElement('input')
