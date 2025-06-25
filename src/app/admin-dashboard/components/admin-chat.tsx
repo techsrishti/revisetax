@@ -36,6 +36,7 @@ import {
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
+import AdminFileViewer from '@/components/AdminFileViewer'
 
 interface AdminDetails {
   id: string
@@ -543,6 +544,16 @@ export default function AdminChat() {
     setTypingTimeout(timeout)
   }
 
+  const handleViewFile = (fileId: string, fileName: string, mimeType: string) => {
+    return (
+      <AdminFileViewer
+        fileId={fileId}
+        fileName={fileName}
+        mimeType={mimeType}
+      />
+    );
+  };
+
   if (isLoading) {
     return (
       <div className="h-[80vh] flex items-center justify-center bg-white/5 backdrop-blur-sm border border-white/20 rounded-lg">
@@ -873,7 +884,35 @@ export default function AdminChat() {
                               <div key={folder.id}>
                                   <h4 className="font-medium text-sm text-white">{folder.name}</h4>
                                   {folder.File.length > 0 ? folder.File.map(file => (
-                                      <a key={file.id} href={`/api/admin/files?fileId=${file.id}`} target="_blank" rel="noopener noreferrer" className="flex items-center text-sm text-primary hover:text-primary/80 transition-colors">
+                                      <a 
+                                        key={file.id} 
+                                        href="#"
+                                        className="flex items-center text-sm text-primary hover:text-primary/80 transition-colors"
+                                        onClick={async (e) => {
+                                          e.preventDefault();
+                                          try {
+                                            // First request to get signed URL
+                                            const response = await fetch(`/api/admin/files?fileId=${file.id}`);
+                                            if (!response.ok) {
+                                              throw new Error('Failed to get file access URL');
+                                            }
+                                            const data = await response.json();
+                                            if (data.success && data.downloadUrl) {
+                                              // Open file with signed URL
+                                              window.open(data.downloadUrl, '_blank');
+                                            } else {
+                                              throw new Error(data.error || 'Failed to get download URL');
+                                            }
+                                          } catch (error) {
+                                            console.error('Error accessing file:', error);
+                                            toast({
+                                              title: "Error",
+                                              description: "Failed to access file. Please try again.",
+                                              variant: "destructive"
+                                            });
+                                          }
+                                        }}
+                                      >
                                           <FileText className="mr-2 h-4 w-4"/>
                                           {file.originalName}
                                       </a>

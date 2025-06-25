@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { prisma } from '@/lib/prisma';
 import { v4 as uuidv4 } from 'uuid';
-import { uploadFile, deleteFile, getSignedDownloadUrl } from '@/utils/s3-client';
+import { uploadFile, deleteFile } from '@/utils/s3-client';
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
 
@@ -23,24 +23,25 @@ export async function GET() {
       return NextResponse.json({ error: 'User not found in database' }, { status: 404 });
     }
 
-    // If profile image is stored in S3, generate a signed URL
+    // If profile image is stored in S3, return our API endpoint URL
     let profileImageUrl = dbUser.profileImage;
     if (profileImageUrl && profileImageUrl.startsWith('s3://')) {
-      // Extract S3 key from the URL
-      const s3Key = profileImageUrl.replace('s3://', '');
-      try {
-        profileImageUrl = await getSignedDownloadUrl(s3Key, 3600); // 1 hour expiry
-      } catch (error) {
-        console.error('Error generating signed URL for profile image:', error);
-        profileImageUrl = null;
-      }
+      // Use our profile image API endpoint instead of signed URLs
+      profileImageUrl = `/api/profile-image?userId=${user.id}`;
+    }
+
+    // Remove +91 prefix from phone number if it exists
+    let phoneNumber = dbUser.phoneNumber;
+    if (phoneNumber && phoneNumber.startsWith('+91')) {
+      phoneNumber = phoneNumber.substring(3); // Remove +91 prefix
     }
 
     return NextResponse.json({ 
       success: true, 
       user: {
         ...dbUser,
-        profileImage: profileImageUrl
+        profileImage: profileImageUrl,
+        phoneNumber: phoneNumber
       }
     });
   } catch (error) {
@@ -156,23 +157,25 @@ export async function POST(request: NextRequest) {
       data: updateData
     });
 
-    // Generate signed URL for response if image is in S3
+    // Generate API endpoint URL for response if image is in S3
     let responseProfileImage = updatedUser.profileImage;
     if (responseProfileImage && responseProfileImage.startsWith('s3://')) {
-      try {
-        const s3Key = responseProfileImage.replace('s3://', '');
-        responseProfileImage = await getSignedDownloadUrl(s3Key, 3600);
-      } catch (error) {
-        console.error('Error generating signed URL for response:', error);
-        responseProfileImage = null;
-      }
+      // Use our profile image API endpoint instead of signed URLs
+      responseProfileImage = `/api/profile-image?userId=${user.id}`;
+    }
+
+    // Remove +91 prefix from phone number if it exists
+    let responsePhoneNumber = updatedUser.phoneNumber;
+    if (responsePhoneNumber && responsePhoneNumber.startsWith('+91')) {
+      responsePhoneNumber = responsePhoneNumber.substring(3); // Remove +91 prefix
     }
 
     return NextResponse.json({ 
       success: true, 
       user: {
         ...updatedUser,
-        profileImage: responseProfileImage
+        profileImage: responseProfileImage,
+        phoneNumber: responsePhoneNumber
       },
       message: 'Profile updated successfully'
     });

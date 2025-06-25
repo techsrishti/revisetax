@@ -237,9 +237,17 @@ export default function ChatAttachments({ selectedChatId, socket, onFilesSent }:
 
       // Send files to chat if upload successful
       if (uploadedFiles.length > 0 && !uploadError && socket && selectedChatId) {
+        // Create a styled message with file names
+        const fileNames = uploadedFiles.map(file => file.name).join(', ')
+        const fileList = uploadedFiles.map(file => `• ${file.name}`).join('\n')
+        
+        const content = uploadedFiles.length === 1 
+          ? `📎 Shared file: ${fileNames}`
+          : `📎 Shared ${uploadedFiles.length} files:\n${fileList}`
+        
         const messageData = {
           chatId: selectedChatId,
-          content: `Shared ${uploadedFiles.length} file${uploadedFiles.length > 1 ? 's' : ''}`,
+          content,
           attachments: uploadedFiles
         }
         
@@ -282,9 +290,17 @@ export default function ChatAttachments({ selectedChatId, socket, onFilesSent }:
         mimeType: file.mimeType
       }))
 
+      // Create a styled message with file names
+      const fileNames = filesToSend.map(file => file.originalName).join(', ')
+      const fileList = filesToSend.map(file => `• ${file.originalName}`).join('\n')
+      
+      const content = filesToSend.length === 1 
+        ? `📎 Shared file: ${fileNames}`
+        : `📎 Shared ${filesToSend.length} files:\n${fileList}`
+
       const messageData = {
         chatId: selectedChatId,
-        content: `Shared ${filesToSend.length} file(s)`,
+        content,
         attachments
       }
 

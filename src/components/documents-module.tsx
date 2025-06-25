@@ -172,14 +172,25 @@ export default function Documents() {
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    try {
+      if (!dateString) return 'Unknown';
+      
+      const date = new Date(dateString);
+      
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return 'Unknown';
+      }
+      
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Unknown';
+    }
   };
 
   const createFolder = async () => {
@@ -397,34 +408,49 @@ export default function Documents() {
 
   const handleDownload = async (file: FileItem) => {
     try {
-      // Use the files endpoint with fileId query parameter for download
+      // First try to get signed URL to open in new tab
+      const signedUrlResponse = await fetch(`/api/files?fileId=${encodeURIComponent(file.id)}&signedUrl=true`);
+      
+      if (signedUrlResponse.ok) {
+        const signedData = await signedUrlResponse.json();
+        if (signedData.success && signedData.downloadUrl) {
+          // Open file in new tab using signed URL
+          window.open(signedData.downloadUrl, '_blank');
+          
+          toast.success('File opened in new tab', {
+            icon: <Check className="w-4 h-4" style={{ color: '#E9420C' }} />
+          });
+          return;
+        }
+      }
+
+      // Fallback to direct download if signed URL fails
       const downloadResponse = await fetch(`/api/files?fileId=${encodeURIComponent(file.id)}`);
 
       if (!downloadResponse.ok) {
         const errorData = await downloadResponse.json();
-        toast.error(errorData.error || 'Failed to download file');
+        toast.error(errorData.error || 'Failed to open file');
         return;
       }
 
-      // Get the file blob from the response
+      // Get the file blob from the response and open in new tab
       const blob = await downloadResponse.blob();
       
-      // Create download link
+      // Create blob URL and open in new tab
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = file.name; // Use display name for download
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      window.open(url, '_blank');
       
-      toast.success('File downloaded successfully', {
+      // Clean up the URL after a delay to allow the tab to load
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 1000);
+      
+      toast.success('File opened in new tab', {
         icon: <Check className="w-4 h-4" style={{ color: '#E9420C' }} />
       });
     } catch (error) {
-      console.error('Error downloading file:', error);
-      toast.error('Failed to download file');
+      console.error('Error opening file:', error);
+      toast.error('Failed to open file');
     }
   };
 
@@ -772,7 +798,7 @@ export default function Documents() {
                         </div>
                         <div className={styles.fileRight}>
                           <span className={`${styles.fileDate} group-hover:opacity-0 transition-opacity`}>
-                            Uploaded on {formatDate(file.updated_at)}
+                            Last modified {formatDate(file.updated_at)}
                           </span>
                           
                           <div className={`${styles.fileActions} opacity-0 group-hover:opacity-100 transition-opacity`}>

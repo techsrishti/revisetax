@@ -147,6 +147,8 @@ export async function GET(request: Request) {
 
     // Handle file download
     if (fileId) {
+      const signedUrl = searchParams.get('signedUrl'); // Check if signed URL is requested
+      
       const file = await prisma.file.findUnique({
         where: { id: fileId },
         select: {
@@ -156,6 +158,7 @@ export async function GET(request: Request) {
           mimeType: true,
           s3Key: true,
           folderId: true,
+          size: true,
           Folder: { select: { userId: true } }
         }
       });
@@ -168,9 +171,28 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Access denied' }, { status: 403 });
       }
 
+      const s3Key = file.s3Key || generateFileKey(dbUser.id, file.folderId, file.storageName);
+
+      // If signed URL is requested, return JSON with signed URL
+      if (signedUrl === 'true') {
+        try {
+          const downloadUrl = await getSignedDownloadUrl(s3Key, 3600); // 1 hour expiry
+          
+          return NextResponse.json({ 
+            success: true,
+            downloadUrl,
+            fileName: file.originalName,
+            fileSize: file.size.toString(),
+            mimeType: file.mimeType
+          });
+        } catch (error) {
+          console.error('Error generating signed URL:', error);
+          return NextResponse.json({ error: 'Failed to generate download URL' }, { status: 500 });
+        }
+      }
+
       try {
-        // Get file stream from S3
-        const s3Key = file.s3Key || generateFileKey(dbUser.id, file.folderId, file.storageName);
+        // Get file stream from S3 for direct download
         const fileStream = await getFileStream(s3Key);
 
         if (!fileStream) {

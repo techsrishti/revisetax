@@ -6,18 +6,19 @@ if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY || !pro
 }
 
 export const s3Client = new S3Client({
-  region: process.env.AWS_REGION,
+  region: 'ap-south-2', // Hardcoding the region to match your bucket
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   },
+  forcePathStyle: false, // Use virtual hosted-style URLs
 });
 
 export const BUCKET_NAME = process.env.AWS_BUCKET_NAME;
 
 // Generate a standardized S3 key for file storage
 export function generateFileKey(userId: string, folderId: string, fileName: string): string {
-  return `users/${userId}/folders/${folderId}/${fileName}`;
+  return `documents/users/${userId}/folders/${folderId}/${fileName}`;
 }
 
 export async function uploadFile(key: string, file: Buffer, contentType?: string, metadata?: any) {
@@ -60,10 +61,15 @@ export async function getSignedDownloadUrl(key: string, expiresIn = 3600) {
   const command = new GetObjectCommand({
     Bucket: BUCKET_NAME,
     Key: key,
+    ResponseContentDisposition: `inline; filename="${key.split('/').pop()}"`,
+    ResponseContentType: 'application/pdf'
   });
 
   try {
-    return await getSignedUrl(s3Client, command, { expiresIn });
+    return await getSignedUrl(s3Client, command, { 
+      expiresIn,
+      // Remove signableHeaders to use default AWS signing process
+    });
   } catch (error) {
     console.error('Error generating signed URL:', error);
     throw error;
