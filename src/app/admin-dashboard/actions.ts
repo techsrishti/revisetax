@@ -45,7 +45,18 @@ export interface GetAdminChatsSuccessResponse {
   })[]
 }
 
-export async function getAdminChats(): Promise<GetAdminChatsSuccessResponse|ErrorResponse> {
+export interface GetAdminStatusSuccessResponse {
+  success: true,
+  isOnline: boolean,
+  adminId: string
+}
+
+export interface UpdateAdminStatusSuccessResponse {
+  success: true,
+  isOnline: boolean
+}
+
+export async function getAdminStatus(): Promise<GetAdminStatusSuccessResponse|ErrorResponse> {
   try {
     // Get current admin from Supabase auth
     const supabase = await createClient()
@@ -60,9 +71,13 @@ export async function getAdminChats(): Promise<GetAdminChatsSuccessResponse|Erro
       }
     }
 
-    // Find admin record
+    // Find admin record in Prisma using Supabase user id
     const admin = await prisma.admin.findUnique({
-      where: { authId: user.id }
+      where: { authId: user.id },
+      select: {
+        id: true,
+        isOnline: true
+      }
     })
 
     if (!admin) {
@@ -74,73 +89,64 @@ export async function getAdminChats(): Promise<GetAdminChatsSuccessResponse|Erro
       }
     }
 
-    // Get chats that should be visible to this admin:
-    // 1. Chats assigned to this admin (ACTIVE or CLOSED)
-    // 2. PENDING chats (new requests)
-    // 3. Recently closed chats that might be reopened
-    const chats = await prisma.chat.findMany({
-      where: {
-        OR: [
-          // Chats assigned to this admin
-          { adminId: admin.id },
-          // New chat requests (PENDING status)
-          { status: 'PENDING' },
-          // Recently closed chats (within last 24 hours) that might be reopened
-          {
-            status: 'CLOSED',
-            closedAt: {
-              gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
-            }
-          }
-        ],
-        isActive: true
+    return {
+      success: true,
+      isOnline: admin.isOnline,
+      adminId: admin.id
+    }
+
+  } catch (error) {
+    console.log("getAdminStatus: Error getting admin status: ", error)
+    return {
+      success: false,
+      error: 'Failed to get admin status',
+      errorMessage: 'An unknown error occurred',
+      errorCode: 'UNKNOWN_ERROR',
+    }
+  }
+}
+
+export async function updateAdminStatus(isOnline: boolean): Promise<UpdateAdminStatusSuccessResponse|ErrorResponse> {
+  try {
+    // Get current admin from Supabase auth
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      return {
+        success: false,
+        error: 'Not authenticated',
+        errorMessage: 'Admin not authenticated',
+        errorCode: 'AUTH_ERROR',
+      }
+    }
+
+    // Update admin status using Prisma
+    const admin = await prisma.admin.update({
+      where: { authId: user.id },
+      data: {
+        isOnline,
+        lastSeenAt: new Date(),
+        ...(isOnline && { lastLoginAt: new Date() })
       },
-      include: {
-        user: {
-          select: {
-            name: true,
-            email: true,
-            phoneNumber: true
-          }
-        },
-        admin: {
-          select: {
-            id: true,
-            name: true,
-            email: true
-          }
-        },
-        messages: {
-          orderBy: {
-            createdAt: 'desc'
-          },
-          take: 1
-        }
-      },
-      orderBy: [
-        // Order by status priority: PENDING first, then ACTIVE, then CLOSED
-        {
-          status: 'asc'
-        },
-        // Then by last activity (most recent first)
-        {
-          updatedAt: 'desc'
-        }
-      ]
+      select: {
+        id: true,
+        isOnline: true
+      }
     })
 
     return {
       success: true,
-      chats: chats,
+      isOnline: admin.isOnline
     }
 
   } catch (error) {
-    console.log("getAdminChats: Error getting chats: ", error)
+    console.log("updateAdminStatus: Error updating admin status: ", error)
     return {
       success: false,
-      error: 'Failed to get chats',
+      error: 'Failed to update admin status',
       errorMessage: 'An unknown error occurred',
-      errorCode: 'UNKNOWN_error',
+      errorCode: 'UNKNOWN_ERROR',
     }
   }
 } 
