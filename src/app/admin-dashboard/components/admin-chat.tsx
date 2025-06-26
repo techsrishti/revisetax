@@ -253,7 +253,7 @@ export default function AdminChat() {
         setCurrentAdminId(admin.id)
 
         // Initialize socket connection
-        const socketInstance = io("http://18.60.99.199:3003")
+        const socketInstance = io("https://socket.alpha.revisetax.com")
         setSocket(socketInstance)
 
         // Set a timeout to stop loading if socket doesn't respond
