@@ -10,6 +10,7 @@ import {
   createOsTicket,
   createHubspotTicket,
 } from "../actions/chat-panel"
+import { refineMessageWithAI } from "../actions/ai-refine"
 import { format, isToday, isYesterday } from "date-fns"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -45,6 +46,7 @@ import {
   WifiOff,
   ToggleLeft,
   ToggleRight,
+  Sparkles,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
@@ -178,6 +180,9 @@ export default function AdminChat() {
   const [showWindowCloseDialog, setShowWindowCloseDialog] = useState(false)
   const [pendingUnloadEvent, setPendingUnloadEvent] = useState<BeforeUnloadEvent | null>(null)
 
+  // AI refinement state
+  const [isRefiningMessage, setIsRefiningMessage] = useState(false)
+
   useEffect(() => {
     selectedChatRef.current = selectedChat
   }, [selectedChat])
@@ -248,7 +253,7 @@ export default function AdminChat() {
         setCurrentAdminId(admin.id)
 
         // Initialize socket connection
-        const socketInstance = io("https://socket.alpha.revisetax.com")
+        const socketInstance = io("http://18.60.99.199:3003")
         setSocket(socketInstance)
 
         // Set a timeout to stop loading if socket doesn't respond
@@ -732,6 +737,40 @@ export default function AdminChat() {
     setIsArchivingChat(true)
     socket.emit("archive_chat", { chatId: selectedChat.id })
     setTimeout(() => setIsArchivingChat(false), 5000)
+  }
+
+  // AI refinement handler
+  const handleAIRefine = async () => {
+    if (!message.trim() || isRefiningMessage) return
+    
+    setIsRefiningMessage(true)
+    try {
+      const result = await refineMessageWithAI(message.trim())
+      
+      if (result.success && result.refinedText) {
+        setMessage(result.refinedText)
+        toast({
+          title: "Message Refined",
+          description: "Your message has been refined to be more professional.",
+          variant: "default"
+        })
+      } else {
+        toast({
+          title: "Refinement Failed",
+          description: result.error || "Failed to refine message. Please try again.",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error('Error refining message:', error)
+      toast({
+        title: "Error",
+        description: "Failed to refine message. Please try again.",
+        variant: "destructive"
+      })
+    } finally {
+      setIsRefiningMessage(false)
+    }
   }
 
   // Handle status toggle
@@ -1378,18 +1417,35 @@ export default function AdminChat() {
                       handleTyping()
                     }}
                     onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
-                    className="pr-12 bg-white/10 border-white/20 text-white placeholder:text-white/60 focus:border-primary"
+                    className="pr-24 bg-white/10 border-white/20 text-white placeholder:text-white/60 focus:border-primary"
                     disabled={selectedChat && (selectedChat.status === "CLOSED" || selectedChat.status === "ARCHIVED")}
                   />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-white hover:bg-white/10"
-                    onClick={handleSendMessage}
-                    disabled={!message.trim() || (selectedChat && (selectedChat.status === "CLOSED" || selectedChat.status === "ARCHIVED"))}
-                  >
-                    <Send className="h-4 w-4" />
-                  </Button>
+                  <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-white hover:bg-white/10"
+                      onClick={handleAIRefine}
+                      disabled={!message.trim() || isRefiningMessage || (selectedChat && (selectedChat.status === "CLOSED" || selectedChat.status === "ARCHIVED"))}
+                      title="Refine message with AI"
+                    >
+                      {isRefiningMessage ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-4 w-4" />
+                      )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-white hover:bg-white/10"
+                      onClick={handleSendMessage}
+                      disabled={!message.trim() || (selectedChat && (selectedChat.status === "CLOSED" || selectedChat.status === "ARCHIVED"))}
+                      title="Send message"
+                    >
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             </>
