@@ -316,7 +316,7 @@ export default function BillingModule() {
             We offer discounts in bulk when you invite your friends or family to file taxes via us
           </p>
         </div>
-        <button className={styles.letsTalkButton}>Let's Talk</button>
+        <button className={styles.letsTalkButton} onClick={() => window.open('https://book.revisetax.com/team/tax-experts/book-a-call', '_blank')}>Let's Talk</button>
       </div>
       <Toaster />
     </div>

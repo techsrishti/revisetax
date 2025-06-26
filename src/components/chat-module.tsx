@@ -36,9 +36,9 @@ const formatMessageDate = (date: Date) => {
   } else if (date.toDateString() === yesterday.toDateString()) {
     return "Yesterday"
   } else {
-    return date.toLocaleDateString('en-US', { 
-      month: 'long',
-      day: 'numeric',
+    return date.toLocaleDateString('en-IN', { 
+      day: '2-digit',
+      month: '2-digit',
       year: 'numeric'
     })
   }

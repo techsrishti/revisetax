@@ -9,7 +9,9 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "Revise Tax",
   description: "Tax revision and filing platform",
-    generator: 'v0.dev'
+  icons: {
+    icon: "logo-Avatar.svg",
+  },
 }
 
 export default function RootLayout({
