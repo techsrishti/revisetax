@@ -90,6 +90,7 @@ interface BaseChat {
     createdAt: Date
     isAdmin: boolean
   }[]
+  userName?: string
 }
 
 interface Chat extends BaseChat {
@@ -253,7 +254,7 @@ export default function AdminChat() {
         setCurrentAdminId(admin.id)
 
         // Initialize socket connection
-        const socketInstance = io("https://socket.alpha.revisetax.com")
+        const socketInstance = io("http://18.60.99.199:5000")
         setSocket(socketInstance)
 
         // Set a timeout to stop loading if socket doesn't respond
@@ -352,6 +353,7 @@ export default function AdminChat() {
               closeReason: null,
               isActive: true,
               messages: [],
+              userName: data.userName || '',
             }
             
             // Add to beginning of list and sort by most recent
@@ -993,8 +995,9 @@ export default function AdminChat() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-start justify-between mb-1">
                               <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-white truncate">{chat.chatName || 'Chat'}</p>
-                                <p className="text-sm text-white/70 truncate">{userName}</p>
+                                <p className="font-semibold text-white truncate">
+                                  {chat.userName || 'User'}
+                                </p>
                               </div>
                               <span className="text-xs text-white/60 whitespace-nowrap ml-2">
                                 {chat.lastMessageAt ? formatSidebarTimestamp(chat.lastMessageAt) : formatSidebarTimestamp(chat.createdAt)}
@@ -1083,8 +1086,9 @@ export default function AdminChat() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-start justify-between mb-1">
                               <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-white truncate">{chat.chatName || 'Chat'}</p>
-                                <p className="text-sm text-white/70 truncate">{userName}</p>
+                                <p className="font-semibold text-white truncate">
+                                  {chat.userName || 'User'}
+                                </p>
                               </div>
                               <span className="text-xs text-white/60 whitespace-nowrap ml-2">
                                 {chat.lastMessageAt ? formatSidebarTimestamp(chat.lastMessageAt) : formatSidebarTimestamp(chat.createdAt)}
@@ -1179,8 +1183,9 @@ export default function AdminChat() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-start justify-between mb-1">
                               <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-white truncate">{chat.chatName || 'Chat'}</p>
-                                <p className="text-sm text-white/70 truncate">{userName}</p>
+                                <p className="font-semibold text-white truncate">
+                                  {chat.userName || 'User'}
+                                </p>
                               </div>
                               <span className="text-xs text-white/60 whitespace-nowrap ml-2">
                                 {chat.lastMessageAt ? formatSidebarTimestamp(chat.lastMessageAt) : formatSidebarTimestamp(chat.createdAt)}
@@ -1257,8 +1262,9 @@ export default function AdminChat() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-start justify-between mb-1">
                               <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-white truncate">{chat.chatName || 'Chat'}</p>
-                                <p className="text-sm text-white/70 truncate">{userName}</p>
+                                <p className="font-semibold text-white truncate">
+                                  {chat.userName || 'User'}
+                                </p>
                               </div>
                               <span className="text-xs text-white/60 whitespace-nowrap ml-2">
                                 {chat.lastMessageAt ? formatSidebarTimestamp(chat.lastMessageAt) : formatSidebarTimestamp(chat.createdAt)}
