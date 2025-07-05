@@ -9,6 +9,7 @@ import {
   assignChatToAdmin,
   createOsTicket,
   createHubspotTicket,
+  getUserOsTickets,
 } from "../actions/chat-panel"
 import { refineMessageWithAI } from "../actions/ai-refine"
 import { format, isToday, isYesterday } from "date-fns"
@@ -51,6 +52,7 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
 import AdminFileViewer from '@/components/AdminFileViewer'
+import OsTicketDialog from './os-ticket-dialog'
 
 interface AdminDetails {
   id: string
@@ -123,6 +125,14 @@ interface DocumentFolder {
   File: DocumentFile[]
 }
 
+interface OsTicket {
+  id: string
+  osTicketId: string
+  details: any
+  createdAt: Date
+  updatedAt: Date
+}
+
 const formatTimestamp = (date: Date | string | undefined | null) => {
   if (!date) return "-"
   const d = new Date(date)
@@ -155,6 +165,7 @@ export default function AdminChat() {
   const [chats, setChats] = useState<Chat[]>([])
   const [selectedChat, setSelectedChat] = useState<ChatDetails | null>(null)
   const [userDocs, setUserDocs] = useState<DocumentFolder[]>([])
+  const [userOsTickets, setUserOsTickets] = useState<OsTicket[]>([])
   const [message, setMessage] = useState("")
   const [socket, setSocket] = useState<any>(null)
   const [isTyping, setIsTyping] = useState(false)
@@ -162,6 +173,8 @@ export default function AdminChat() {
   const [isLoading, setIsLoading] = useState(true)
   const [currentAdminId, setCurrentAdminId] = useState<string | null>(null)
   const [isLoadingChat, setIsLoadingChat] = useState(false)
+  const [isLoadingOsTickets, setIsLoadingOsTickets] = useState(false)
+  const [isLoadingDocuments, setIsLoadingDocuments] = useState(false)
   const [messages, setMessages] = useState<any[]>([])
   const [joinedRooms, setJoinedRooms] = useState<string[]>([])
   const [adminDetails, setAdminDetails] = useState<AdminDetails | null>(null)
@@ -172,6 +185,7 @@ export default function AdminChat() {
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true)
   const [isClosingChat, setIsClosingChat] = useState(false)
   const [isArchivingChat, setIsArchivingChat] = useState(false)
+  const [showOsTicketDialog, setShowOsTicketDialog] = useState(false)
   
   // New state for admin status
   const [adminIsOnline, setAdminIsOnline] = useState<boolean>(true)
@@ -558,14 +572,37 @@ export default function AdminChat() {
         const detailedChat = chatDetailsResult.chat as ChatDetails;
         setSelectedChat(detailedChat);
         
-        // Fetch user documents if user exists
+        // Fetch user documents and osTickets in parallel
         if (detailedChat.userId) {
-          const docsResult = await getUserDocuments(detailedChat.userId);
-          if (docsResult.success && docsResult.folders) {
-            setUserDocs(docsResult.folders as DocumentFolder[]);
-          } else {
+          setIsLoadingDocuments(true);
+          setIsLoadingOsTickets(true);
+          
+          // Fetch both simultaneously
+          Promise.allSettled([
+            getUserDocuments(detailedChat.userId),
+            getUserOsTickets(detailedChat.userId)
+          ]).then(([docsResult, ticketsResult]) => {
+            // Handle documents result
+            if (docsResult.status === 'fulfilled' && docsResult.value.success && docsResult.value.folders) {
+              setUserDocs(docsResult.value.folders as DocumentFolder[]);
+            } else {
+              setUserDocs([]);
+            }
+            
+            // Handle osTickets result
+            if (ticketsResult.status === 'fulfilled' && ticketsResult.value.success) {
+              setUserOsTickets(ticketsResult.value.tickets);
+            } else {
+              setUserOsTickets([]);
+            }
+          }).catch((error) => {
+            console.error('Error fetching user data:', error);
             setUserDocs([]);
-          }
+            setUserOsTickets([]);
+          }).finally(() => {
+            setIsLoadingDocuments(false);
+            setIsLoadingOsTickets(false);
+          });
         }
       } else {
         // Fallback to basic chat info if detailed fetch fails
@@ -616,14 +653,37 @@ export default function AdminChat() {
         const detailedChat = chatDetailsResult.chat as ChatDetails;
         setSelectedChat(detailedChat);
         
-        // Fetch user documents if user exists
+        // Fetch user documents and osTickets in parallel
         if (detailedChat.userId) {
-          const docsResult = await getUserDocuments(detailedChat.userId);
-          if (docsResult.success && docsResult.folders) {
-            setUserDocs(docsResult.folders as DocumentFolder[]);
-          } else {
+          setIsLoadingDocuments(true);
+          setIsLoadingOsTickets(true);
+          
+          // Fetch both simultaneously
+          Promise.allSettled([
+            getUserDocuments(detailedChat.userId),
+            getUserOsTickets(detailedChat.userId)
+          ]).then(([docsResult, ticketsResult]) => {
+            // Handle documents result
+            if (docsResult.status === 'fulfilled' && docsResult.value.success && docsResult.value.folders) {
+              setUserDocs(docsResult.value.folders as DocumentFolder[]);
+            } else {
+              setUserDocs([]);
+            }
+            
+            // Handle osTickets result
+            if (ticketsResult.status === 'fulfilled' && ticketsResult.value.success) {
+              setUserOsTickets(ticketsResult.value.tickets);
+            } else {
+              setUserOsTickets([]);
+            }
+          }).catch((error) => {
+            console.error('Error fetching user data:', error);
             setUserDocs([]);
-          }
+            setUserOsTickets([]);
+          }).finally(() => {
+            setIsLoadingDocuments(false);
+            setIsLoadingOsTickets(false);
+          });
         }
       } else {
         // Fallback to basic chat info if detailed fetch fails
@@ -646,22 +706,16 @@ export default function AdminChat() {
   const handleCreateTicket = (ticketingSystem: "osticket" | "hubspot") => {
     if (!selectedChat) return
     
-    const { user } = selectedChat
-    const subject = `Support request from ${user.name}`
-    const message = `User ${user.name} (${user.email}) requires assistance with tax drafting.`
-    const nameParts = user.name?.split(' ') || ['User']
+    if (ticketingSystem === 'osticket') {
+      setShowOsTicketDialog(true)
+    } else {
+      const { user } = selectedChat
+      const subject = `Support request from ${user.name}`
+      const message = `User ${user.name} (${user.email}) requires assistance with tax drafting.`
+      const nameParts = user.name?.split(' ') || ['User']
 
-    startTransition(async () => {
-      let res;
-      if (ticketingSystem === 'osticket') {
-        res = await createOsTicket({
-          name: user.name || "N/A",
-          email: user.email || "N/A",
-          subject,
-          message
-        })
-      } else {
-        res = await createHubspotTicket({
+      startTransition(async () => {
+        const res = await createHubspotTicket({
             firstname: nameParts[0],
             lastname: nameParts.length > 1 ? nameParts.slice(1).join(' ') : 'N/A',
             email: user.email || "N/A",
@@ -669,10 +723,49 @@ export default function AdminChat() {
             subject,
             message
         })
-      }
+
+        if (res.success) {
+          toast({ title: "Ticket Created", description: `Ticket #${res.ticketId} created in ${ticketingSystem}.`})
+        } else {
+          toast({ title: "Error", description: res.error })
+        }
+      })
+    }
+  }
+
+  const handleOsTicketSubmit = async (data: {
+    name: string
+    email: string
+    subject: string
+    message: string
+    attachments: { [key: string]: string }[]
+  }) => {
+    if (!selectedChat) return
+
+    startTransition(async () => {
+      const res = await createOsTicket({
+        name: data.name,
+        email: data.email,
+        subject: data.subject,
+        message: data.message,
+        userId: selectedChat.userId,
+        attachments: data.attachments
+      })
 
       if (res.success) {
-        toast({ title: "Ticket Created", description: `Ticket #${res.ticketId} created in ${ticketingSystem}.`})
+        toast({ title: "Ticket Created", description: `Ticket #${res.ticketId} created in osTicket.`})
+        // Refresh osTickets
+        setIsLoadingOsTickets(true);
+        try {
+          const ticketsResult = await getUserOsTickets(selectedChat.userId)
+          if (ticketsResult.success) {
+            setUserOsTickets(ticketsResult.tickets)
+          }
+        } catch (error) {
+          console.error('Error refreshing osTickets:', error);
+        } finally {
+          setIsLoadingOsTickets(false);
+        }
       } else {
         toast({ title: "Error", description: res.error })
       }
@@ -1548,14 +1641,22 @@ export default function AdminChat() {
                     <div className="space-y-2">
                       <h3 className="font-semibold text-white">Uploaded Documents</h3>
                       <div className="space-y-2">
-                          {userDocs.length > 0 ? userDocs.map(folder => (
+                        {isLoadingDocuments ? (
+                          <div className="flex items-center justify-center py-4">
+                            <Loader2 className="h-4 w-4 animate-spin text-primary mr-2" />
+                            <span className="text-sm text-white/60">Loading documents...</span>
+                          </div>
+                        ) : userDocs.length > 0 ? (
+                          userDocs.map(folder => (
                               <div key={folder.id}>
                                   <h4 className="font-medium text-sm text-white">{folder.name}</h4>
                                   {folder.File.length > 0 ? folder.File.map(file => (
                                       <a 
                                         key={file.id} 
-                                        href="#"
+                                        href={`/api/admin/files?fileId=${file.id}`}
                                         className="flex items-center text-sm text-primary hover:text-primary/80 transition-colors"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
                                         onClick={async (e) => {
                                           e.preventDefault();
                                           try {
@@ -1586,7 +1687,40 @@ export default function AdminChat() {
                                       </a>
                                   )) : <p className="text-sm text-white/60">No Files in this folder</p>}
                               </div>
-                          )) : <p className="text-sm text-white/60">No documents uploaded.</p>}
+                          ))
+                        ) : (
+                          <p className="text-sm text-white/60">No documents uploaded.</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* osTickets */}
+                    <div className="space-y-2">
+                      <h3 className="font-semibold text-white">osTicket Tickets</h3>
+                      <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
+                        {isLoadingOsTickets ? (
+                          <div className="flex items-center justify-center py-4">
+                            <Loader2 className="h-4 w-4 animate-spin text-primary mr-2" />
+                            <span className="text-sm text-white/60">Loading tickets...</span>
+                          </div>
+                        ) : userOsTickets.length > 0 ? (
+                          userOsTickets.map(ticket => (
+                            <div key={ticket.id} className="p-2 bg-white/10 border border-white/20 rounded">
+                              <div className="flex items-center justify-between">
+                                <span className="font-mono text-xs text-yellow-300">#{ticket.osTicketId}</span>
+                                <span className="text-xs text-white/60">{formatTimestamp(ticket.createdAt)}</span>
+                              </div>
+                              <div className="text-sm text-white/80 truncate">
+                                {ticket.details.subject || 'No subject'}
+                              </div>
+                              <div className="text-xs text-white/60 truncate">
+                                {ticket.details.status ? `Status: ${ticket.details.status}` : ''}
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-sm text-white/60">No osTicket tickets found.</p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1713,6 +1847,18 @@ export default function AdminChat() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* OsTicket Creation Dialog */}
+      {selectedChat && (
+        <OsTicketDialog
+          open={showOsTicketDialog}
+          onOpenChange={setShowOsTicketDialog}
+          user={selectedChat.user}
+          userDocs={userDocs}
+          onSubmit={handleOsTicketSubmit}
+        />
+      )}
+
       <Toaster />
     </div>
   )
