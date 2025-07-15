@@ -303,7 +303,7 @@ export default function AdminChat() {
         socketInstance.on("existing_admin_chats", (data: any) => {
           clearTimeout(loadingTimeout)
           if (data.chats && Array.isArray(data.chats)) {
-            const mappedChats = data.chats.map((c: any) => ({
+            const mappedChats: Chat[] = data.chats.map((c: any) => ({
               ...c,
               socketIORoomId: c.roomId || c.socketIORoomId, // Map roomId to socketIORoomId
               updatedAt: c.updatedAt ? new Date(c.updatedAt) : new Date(),
@@ -317,6 +317,14 @@ export default function AdminChat() {
             // Set current admin id from first chat with admin
             const adminChat = data.chats.find((chat: any) => chat.adminId && chat.admin)
             if (adminChat?.admin?.id) setCurrentAdminId(adminChat.admin.id)
+
+            // Pre-populate joinedRooms with all ACTIVE chats assigned to this admin
+            if (adminChat?.admin?.id) {
+              const activeAssignedRooms = uniqueChats
+                .filter((chat: Chat) => chat.status === "ACTIVE" && chat.adminId === adminChat.admin.id)
+                .map((chat: Chat) => chat.socketIORoomId)
+              setJoinedRooms(activeAssignedRooms)
+            }
           } else {
             setChats([])
           }
@@ -542,7 +550,7 @@ export default function AdminChat() {
     if (!socket || !isAuthenticated || !adminDetails) return
     setIsLoadingChat(true)
     socket.emit("admin_join_chat", { chatId: chat.id })
-    setJoinedRooms([chat.socketIORoomId]) // Only keep the current joined room
+    setJoinedRooms(prev => prev.includes(chat.socketIORoomId) ? prev : [...prev, chat.socketIORoomId]) // Accumulate joined rooms
 
     // Only update status to ACTIVE if chat was PENDING
     if (chat.status === "PENDING") {
@@ -1058,7 +1066,6 @@ export default function AdminChat() {
                     {chats.filter(chat => chat.status === "PENDING").map(chat => {
                       const isNewRequest = chat.status === 'PENDING' && !chat.adminId;
                       const isAssignedToMe = chat.adminId && currentAdminId && chat.adminId === currentAdminId;
-                      const isJoined = joinedRooms.includes(chat.socketIORoomId) && selectedChat?.id === chat.id;
                       const userName = chat.user && chat.user.name ? chat.user.name : (chat.user && chat.user.email ? chat.user.email : (chat.user && chat.user.phoneNumber ? chat.user.phoneNumber : 'User'));
                       const userInitial = userName[0] || 'U';
                       const lastMessage = chat.messages && chat.messages[0] ? chat.messages[0].content : '';
@@ -1067,11 +1074,7 @@ export default function AdminChat() {
                         <div
                           key={chat.id}
                           onClick={async () => {
-                            if (isJoined) {
-                              await handleSelectChat(chat)
-                            } else {
-                              await handleJoinRoom(chat)
-                            }
+                            await handleJoinRoom(chat)
                           }}
                           className={cn(
                             "p-3 border-b border-white/10 flex items-start gap-3 cursor-pointer hover:bg-white/10 transition-all duration-200",
@@ -1112,7 +1115,10 @@ export default function AdminChat() {
                                 )}
                               </div>
 
-                              {!isJoined && (
+                              {/* Show Join if not ACTIVE, else show Joined */}
+                              {chat.status === 'ACTIVE' ? (
+                                <span className="text-xs font-semibold text-green-400">Joined</span>
+                              ) : (
                                 <Button
                                   size="sm"
                                   variant="ghost"
@@ -1121,9 +1127,6 @@ export default function AdminChat() {
                                 >
                                   Join
                                 </Button>
-                              )}
-                              {isJoined && selectedChat?.id === chat.id && (
-                                <span className="text-xs font-semibold text-green-400">Joined</span>
                               )}
                             </div>
 
@@ -1148,7 +1151,6 @@ export default function AdminChat() {
                       const isReopened = chat.status === 'CLOSED' && chat.closedAt && 
                         (new Date().getTime() - new Date(chat.closedAt).getTime()) < 24 * 60 * 60 * 1000;
                       const isAssignedToMe = chat.adminId && currentAdminId && chat.adminId === currentAdminId;
-                      const isJoined = joinedRooms.includes(chat.socketIORoomId) && selectedChat?.id === chat.id;
                       const userName = chat.user && chat.user.name ? chat.user.name : (chat.user && chat.user.email ? chat.user.email : (chat.user && chat.user.phoneNumber ? chat.user.phoneNumber : 'User'));
                       const userInitial = userName[0] || 'U';
                       const lastMessage = chat.messages && chat.messages[0] ? chat.messages[0].content : '';
@@ -1157,11 +1159,7 @@ export default function AdminChat() {
                         <div
                           key={chat.id}
                           onClick={async () => {
-                            if (isJoined) {
-                              await handleSelectChat(chat)
-                            } else {
-                              await handleJoinRoom(chat)
-                            }
+                            await handleSelectChat(chat)
                           }}
                           className={cn(
                             "p-3 border-b border-white/10 flex items-start gap-3 cursor-pointer hover:bg-white/10 transition-all duration-200",
@@ -1216,19 +1214,8 @@ export default function AdminChat() {
                                 )}
                               </div>
 
-                              {!isJoined && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-auto px-3 py-1 text-sm bg-primary text-primary-foreground hover:bg-primary/90"
-                                  onClick={(e) => { e.stopPropagation(); handleJoinRoom(chat); }}
-                                >
-                                  Join
-                                </Button>
-                              )}
-                              {isJoined && selectedChat?.id === chat.id && (
-                                <span className="text-xs font-semibold text-green-400">Joined</span>
-                              )}
+                              {/* Always show Joined for ACTIVE */}
+                              <span className="text-xs font-semibold text-green-400">Joined</span>
                             </div>
 
                             {lastMessage && (
@@ -1248,7 +1235,6 @@ export default function AdminChat() {
                   <div className="mb-4">
                     <h3 className="text-sm font-semibold text-white/80 px-3 py-2 bg-white/5 border-b border-white/10">Closed Chats</h3>
                     {chats.filter(chat => chat.status === "CLOSED").map(chat => {
-                      const isJoined = joinedRooms.includes(chat.socketIORoomId) && selectedChat?.id === chat.id;
                       const userName = chat.user && chat.user.name ? chat.user.name : (chat.user && chat.user.email ? chat.user.email : (chat.user && chat.user.phoneNumber ? chat.user.phoneNumber : 'User'));
                       const userInitial = userName[0] || 'U';
                       const lastMessage = chat.messages && chat.messages[0] ? chat.messages[0].content : '';
@@ -1257,11 +1243,7 @@ export default function AdminChat() {
                         <div
                           key={chat.id}
                           onClick={async () => {
-                            if (isJoined) {
-                              await handleSelectChat(chat)
-                            } else {
-                              await handleJoinRoom(chat)
-                            }
+                            await handleJoinRoom(chat)
                           }}
                           className={cn(
                             "p-3 border-b border-white/10 flex items-start gap-3 cursor-pointer hover:bg-white/10 transition-all duration-200",
@@ -1295,19 +1277,15 @@ export default function AdminChat() {
                                 </span>
                               </div>
 
-                              {!isJoined && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-auto px-3 py-1 text-sm bg-primary text-primary-foreground hover:bg-primary/90"
-                                  onClick={(e) => { e.stopPropagation(); handleJoinRoom(chat); }}
-                                >
-                                  View
-                                </Button>
-                              )}
-                              {isJoined && selectedChat?.id === chat.id && (
-                                <span className="text-xs font-semibold text-green-400">Viewing</span>
-                              )}
+                              {/* Always show Join for CLOSED */}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-auto px-3 py-1 text-sm bg-primary text-primary-foreground hover:bg-primary/90"
+                                onClick={(e) => { e.stopPropagation(); handleJoinRoom(chat); }}
+                              >
+                                Join
+                              </Button>
                             </div>
 
                             {lastMessage && (
@@ -1327,7 +1305,6 @@ export default function AdminChat() {
                   <div className="mb-4">
                     <h3 className="text-sm font-semibold text-white/80 px-3 py-2 bg-white/5 border-b border-white/10">Archived Chats</h3>
                     {chats.filter(chat => chat.status === "ARCHIVED").map(chat => {
-                      const isJoined = joinedRooms.includes(chat.socketIORoomId) && selectedChat?.id === chat.id;
                       const userName = chat.user && chat.user.name ? chat.user.name : (chat.user && chat.user.email ? chat.user.email : (chat.user && chat.user.phoneNumber ? chat.user.phoneNumber : 'User'));
                       const userInitial = userName[0] || 'U';
                       const lastMessage = chat.messages && chat.messages[0] ? chat.messages[0].content : '';
@@ -1336,11 +1313,7 @@ export default function AdminChat() {
                         <div
                           key={chat.id}
                           onClick={async () => {
-                            if (isJoined) {
-                              await handleSelectChat(chat)
-                            } else {
-                              await handleJoinRoom(chat)
-                            }
+                            await handleJoinRoom(chat)
                           }}
                           className={cn(
                             "p-3 border-b border-white/10 flex items-start gap-3 cursor-pointer hover:bg-white/10 transition-all duration-200",
@@ -1374,19 +1347,15 @@ export default function AdminChat() {
                                 </span>
                               </div>
 
-                              {!isJoined && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-auto px-3 py-1 text-sm bg-primary text-primary-foreground hover:bg-primary/90"
-                                  onClick={(e) => { e.stopPropagation(); handleJoinRoom(chat); }}
-                                >
-                                  View
-                                </Button>
-                              )}
-                              {isJoined && selectedChat?.id === chat.id && (
-                                <span className="text-xs font-semibold text-green-400">Viewing</span>
-                              )}
+                              {/* Always show Join for ARCHIVED */}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-auto px-3 py-1 text-sm bg-primary text-primary-foreground hover:bg-primary/90"
+                                onClick={(e) => { e.stopPropagation(); handleJoinRoom(chat); }}
+                              >
+                                Join
+                              </Button>
                             </div>
 
                             {lastMessage && (
