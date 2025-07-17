@@ -9,7 +9,9 @@ import {
   assignChatToAdmin,
   createOsTicket,
   createHubspotTicket,
+  getUserOsTickets,
 } from "../actions/chat-panel"
+import { refineMessageWithAI } from "../actions/ai-refine"
 import { format, isToday, isYesterday } from "date-fns"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -45,10 +47,12 @@ import {
   WifiOff,
   ToggleLeft,
   ToggleRight,
+  Sparkles,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
 import AdminFileViewer from '@/components/AdminFileViewer'
+import OsTicketDialog from './os-ticket-dialog'
 
 interface AdminDetails {
   id: string
@@ -88,6 +92,7 @@ interface BaseChat {
     createdAt: Date
     isAdmin: boolean
   }[]
+  userName?: string
 }
 
 interface Chat extends BaseChat {
@@ -118,6 +123,14 @@ interface DocumentFolder {
   id:string
   name: string
   File: DocumentFile[]
+}
+
+interface OsTicket {
+  id: string
+  osTicketId: string
+  details: any
+  createdAt: Date
+  updatedAt: Date
 }
 
 const formatTimestamp = (date: Date | string | undefined | null) => {
@@ -152,6 +165,7 @@ export default function AdminChat() {
   const [chats, setChats] = useState<Chat[]>([])
   const [selectedChat, setSelectedChat] = useState<ChatDetails | null>(null)
   const [userDocs, setUserDocs] = useState<DocumentFolder[]>([])
+  const [userOsTickets, setUserOsTickets] = useState<OsTicket[]>([])
   const [message, setMessage] = useState("")
   const [socket, setSocket] = useState<any>(null)
   const [isTyping, setIsTyping] = useState(false)
@@ -159,6 +173,8 @@ export default function AdminChat() {
   const [isLoading, setIsLoading] = useState(true)
   const [currentAdminId, setCurrentAdminId] = useState<string | null>(null)
   const [isLoadingChat, setIsLoadingChat] = useState(false)
+  const [isLoadingOsTickets, setIsLoadingOsTickets] = useState(false)
+  const [isLoadingDocuments, setIsLoadingDocuments] = useState(false)
   const [messages, setMessages] = useState<any[]>([])
   const [joinedRooms, setJoinedRooms] = useState<string[]>([])
   const [adminDetails, setAdminDetails] = useState<AdminDetails | null>(null)
@@ -169,6 +185,7 @@ export default function AdminChat() {
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true)
   const [isClosingChat, setIsClosingChat] = useState(false)
   const [isArchivingChat, setIsArchivingChat] = useState(false)
+  const [showOsTicketDialog, setShowOsTicketDialog] = useState(false)
   
   // New state for admin status
   const [adminIsOnline, setAdminIsOnline] = useState<boolean>(true)
@@ -177,6 +194,9 @@ export default function AdminChat() {
   const [pendingStatusChange, setPendingStatusChange] = useState<boolean | null>(null)
   const [showWindowCloseDialog, setShowWindowCloseDialog] = useState(false)
   const [pendingUnloadEvent, setPendingUnloadEvent] = useState<BeforeUnloadEvent | null>(null)
+
+  // AI refinement state
+  const [isRefiningMessage, setIsRefiningMessage] = useState(false)
 
   useEffect(() => {
     selectedChatRef.current = selectedChat
@@ -283,7 +303,7 @@ export default function AdminChat() {
         socketInstance.on("existing_admin_chats", (data: any) => {
           clearTimeout(loadingTimeout)
           if (data.chats && Array.isArray(data.chats)) {
-            const mappedChats = data.chats.map((c: any) => ({
+            const mappedChats: Chat[] = data.chats.map((c: any) => ({
               ...c,
               socketIORoomId: c.roomId || c.socketIORoomId, // Map roomId to socketIORoomId
               updatedAt: c.updatedAt ? new Date(c.updatedAt) : new Date(),
@@ -297,6 +317,14 @@ export default function AdminChat() {
             // Set current admin id from first chat with admin
             const adminChat = data.chats.find((chat: any) => chat.adminId && chat.admin)
             if (adminChat?.admin?.id) setCurrentAdminId(adminChat.admin.id)
+
+            // Pre-populate joinedRooms with all ACTIVE chats assigned to this admin
+            if (adminChat?.admin?.id) {
+              const activeAssignedRooms = uniqueChats
+                .filter((chat: Chat) => chat.status === "ACTIVE" && chat.adminId === adminChat.admin.id)
+                .map((chat: Chat) => chat.socketIORoomId)
+              setJoinedRooms(activeAssignedRooms)
+            }
           } else {
             setChats([])
           }
@@ -347,6 +375,7 @@ export default function AdminChat() {
               closeReason: null,
               isActive: true,
               messages: [],
+              userName: data.userName || '',
             }
             
             // Add to beginning of list and sort by most recent
@@ -521,7 +550,7 @@ export default function AdminChat() {
     if (!socket || !isAuthenticated || !adminDetails) return
     setIsLoadingChat(true)
     socket.emit("admin_join_chat", { chatId: chat.id })
-    setJoinedRooms([chat.socketIORoomId]) // Only keep the current joined room
+    setJoinedRooms(prev => prev.includes(chat.socketIORoomId) ? prev : [...prev, chat.socketIORoomId]) // Accumulate joined rooms
 
     // Only update status to ACTIVE if chat was PENDING
     if (chat.status === "PENDING") {
@@ -551,14 +580,37 @@ export default function AdminChat() {
         const detailedChat = chatDetailsResult.chat as ChatDetails;
         setSelectedChat(detailedChat);
         
-        // Fetch user documents if user exists
+        // Fetch user documents and osTickets in parallel
         if (detailedChat.userId) {
-          const docsResult = await getUserDocuments(detailedChat.userId);
-          if (docsResult.success && docsResult.folders) {
-            setUserDocs(docsResult.folders as DocumentFolder[]);
-          } else {
+          setIsLoadingDocuments(true);
+          setIsLoadingOsTickets(true);
+          
+          // Fetch both simultaneously
+          Promise.allSettled([
+            getUserDocuments(detailedChat.userId),
+            getUserOsTickets(detailedChat.userId)
+          ]).then(([docsResult, ticketsResult]) => {
+            // Handle documents result
+            if (docsResult.status === 'fulfilled' && docsResult.value.success && docsResult.value.folders) {
+              setUserDocs(docsResult.value.folders as DocumentFolder[]);
+            } else {
+              setUserDocs([]);
+            }
+            
+            // Handle osTickets result
+            if (ticketsResult.status === 'fulfilled' && ticketsResult.value.success) {
+              setUserOsTickets(ticketsResult.value.tickets);
+            } else {
+              setUserOsTickets([]);
+            }
+          }).catch((error) => {
+            console.error('Error fetching user data:', error);
             setUserDocs([]);
-          }
+            setUserOsTickets([]);
+          }).finally(() => {
+            setIsLoadingDocuments(false);
+            setIsLoadingOsTickets(false);
+          });
         }
       } else {
         // Fallback to basic chat info if detailed fetch fails
@@ -609,14 +661,37 @@ export default function AdminChat() {
         const detailedChat = chatDetailsResult.chat as ChatDetails;
         setSelectedChat(detailedChat);
         
-        // Fetch user documents if user exists
+        // Fetch user documents and osTickets in parallel
         if (detailedChat.userId) {
-          const docsResult = await getUserDocuments(detailedChat.userId);
-          if (docsResult.success && docsResult.folders) {
-            setUserDocs(docsResult.folders as DocumentFolder[]);
-          } else {
+          setIsLoadingDocuments(true);
+          setIsLoadingOsTickets(true);
+          
+          // Fetch both simultaneously
+          Promise.allSettled([
+            getUserDocuments(detailedChat.userId),
+            getUserOsTickets(detailedChat.userId)
+          ]).then(([docsResult, ticketsResult]) => {
+            // Handle documents result
+            if (docsResult.status === 'fulfilled' && docsResult.value.success && docsResult.value.folders) {
+              setUserDocs(docsResult.value.folders as DocumentFolder[]);
+            } else {
+              setUserDocs([]);
+            }
+            
+            // Handle osTickets result
+            if (ticketsResult.status === 'fulfilled' && ticketsResult.value.success) {
+              setUserOsTickets(ticketsResult.value.tickets);
+            } else {
+              setUserOsTickets([]);
+            }
+          }).catch((error) => {
+            console.error('Error fetching user data:', error);
             setUserDocs([]);
-          }
+            setUserOsTickets([]);
+          }).finally(() => {
+            setIsLoadingDocuments(false);
+            setIsLoadingOsTickets(false);
+          });
         }
       } else {
         // Fallback to basic chat info if detailed fetch fails
@@ -639,22 +714,16 @@ export default function AdminChat() {
   const handleCreateTicket = (ticketingSystem: "osticket" | "hubspot") => {
     if (!selectedChat) return
     
-    const { user } = selectedChat
-    const subject = `Support request from ${user.name}`
-    const message = `User ${user.name} (${user.email}) requires assistance with tax drafting.`
-    const nameParts = user.name?.split(' ') || ['User']
+    if (ticketingSystem === 'osticket') {
+      setShowOsTicketDialog(true)
+    } else {
+      const { user } = selectedChat
+      const subject = `Support request from ${user.name}`
+      const message = `User ${user.name} (${user.email}) requires assistance with tax drafting.`
+      const nameParts = user.name?.split(' ') || ['User']
 
-    startTransition(async () => {
-      let res;
-      if (ticketingSystem === 'osticket') {
-        res = await createOsTicket({
-          name: user.name || "N/A",
-          email: user.email || "N/A",
-          subject,
-          message
-        })
-      } else {
-        res = await createHubspotTicket({
+      startTransition(async () => {
+        const res = await createHubspotTicket({
             firstname: nameParts[0],
             lastname: nameParts.length > 1 ? nameParts.slice(1).join(' ') : 'N/A',
             email: user.email || "N/A",
@@ -662,10 +731,49 @@ export default function AdminChat() {
             subject,
             message
         })
-      }
+
+        if (res.success) {
+          toast({ title: "Ticket Created", description: `Ticket #${res.ticketId} created in ${ticketingSystem}.`})
+        } else {
+          toast({ title: "Error", description: res.error })
+        }
+      })
+    }
+  }
+
+  const handleOsTicketSubmit = async (data: {
+    name: string
+    email: string
+    subject: string
+    message: string
+    attachments: { [key: string]: string }[]
+  }) => {
+    if (!selectedChat) return
+
+    startTransition(async () => {
+      const res = await createOsTicket({
+        name: data.name,
+        email: data.email,
+        subject: data.subject,
+        message: data.message,
+        userId: selectedChat.userId,
+        attachments: data.attachments
+      })
 
       if (res.success) {
-        toast({ title: "Ticket Created", description: `Ticket #${res.ticketId} created in ${ticketingSystem}.`})
+        toast({ title: "Ticket Created", description: `Ticket #${res.ticketId} created in osTicket.`})
+        // Refresh osTickets
+        setIsLoadingOsTickets(true);
+        try {
+          const ticketsResult = await getUserOsTickets(selectedChat.userId)
+          if (ticketsResult.success) {
+            setUserOsTickets(ticketsResult.tickets)
+          }
+        } catch (error) {
+          console.error('Error refreshing osTickets:', error);
+        } finally {
+          setIsLoadingOsTickets(false);
+        }
       } else {
         toast({ title: "Error", description: res.error })
       }
@@ -732,6 +840,40 @@ export default function AdminChat() {
     setIsArchivingChat(true)
     socket.emit("archive_chat", { chatId: selectedChat.id })
     setTimeout(() => setIsArchivingChat(false), 5000)
+  }
+
+  // AI refinement handler
+  const handleAIRefine = async () => {
+    if (!message.trim() || isRefiningMessage) return
+    
+    setIsRefiningMessage(true)
+    try {
+      const result = await refineMessageWithAI(message.trim())
+      
+      if (result.success && result.refinedText) {
+        setMessage(result.refinedText)
+        toast({
+          title: "Message Refined",
+          description: "Your message has been refined to be more professional.",
+          variant: "default"
+        })
+      } else {
+        toast({
+          title: "Refinement Failed",
+          description: result.error || "Failed to refine message. Please try again.",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error('Error refining message:', error)
+      toast({
+        title: "Error",
+        description: "Failed to refine message. Please try again.",
+        variant: "destructive"
+      })
+    } finally {
+      setIsRefiningMessage(false)
+    }
   }
 
   // Handle status toggle
@@ -924,7 +1066,6 @@ export default function AdminChat() {
                     {chats.filter(chat => chat.status === "PENDING").map(chat => {
                       const isNewRequest = chat.status === 'PENDING' && !chat.adminId;
                       const isAssignedToMe = chat.adminId && currentAdminId && chat.adminId === currentAdminId;
-                      const isJoined = joinedRooms.includes(chat.socketIORoomId) && selectedChat?.id === chat.id;
                       const userName = chat.user && chat.user.name ? chat.user.name : (chat.user && chat.user.email ? chat.user.email : (chat.user && chat.user.phoneNumber ? chat.user.phoneNumber : 'User'));
                       const userInitial = userName[0] || 'U';
                       const lastMessage = chat.messages && chat.messages[0] ? chat.messages[0].content : '';
@@ -933,11 +1074,7 @@ export default function AdminChat() {
                         <div
                           key={chat.id}
                           onClick={async () => {
-                            if (isJoined) {
-                              await handleSelectChat(chat)
-                            } else {
-                              await handleJoinRoom(chat)
-                            }
+                            await handleJoinRoom(chat)
                           }}
                           className={cn(
                             "p-3 border-b border-white/10 flex items-start gap-3 cursor-pointer hover:bg-white/10 transition-all duration-200",
@@ -954,8 +1091,9 @@ export default function AdminChat() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-start justify-between mb-1">
                               <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-white truncate">{chat.chatName || 'Chat'}</p>
-                                <p className="text-sm text-white/70 truncate">{userName}</p>
+                                <p className="font-semibold text-white truncate">
+                                  {chat.userName || 'User'}
+                                </p>
                               </div>
                               <span className="text-xs text-white/60 whitespace-nowrap ml-2">
                                 {chat.lastMessageAt ? formatSidebarTimestamp(chat.lastMessageAt) : formatSidebarTimestamp(chat.createdAt)}
@@ -977,7 +1115,10 @@ export default function AdminChat() {
                                 )}
                               </div>
 
-                              {!isJoined && (
+                              {/* Show Join if not ACTIVE, else show Joined */}
+                              {chat.status === 'ACTIVE' ? (
+                                <span className="text-xs font-semibold text-green-400">Joined</span>
+                              ) : (
                                 <Button
                                   size="sm"
                                   variant="ghost"
@@ -986,9 +1127,6 @@ export default function AdminChat() {
                                 >
                                   Join
                                 </Button>
-                              )}
-                              {isJoined && selectedChat?.id === chat.id && (
-                                <span className="text-xs font-semibold text-green-400">Joined</span>
                               )}
                             </div>
 
@@ -1013,7 +1151,6 @@ export default function AdminChat() {
                       const isReopened = chat.status === 'CLOSED' && chat.closedAt && 
                         (new Date().getTime() - new Date(chat.closedAt).getTime()) < 24 * 60 * 60 * 1000;
                       const isAssignedToMe = chat.adminId && currentAdminId && chat.adminId === currentAdminId;
-                      const isJoined = joinedRooms.includes(chat.socketIORoomId) && selectedChat?.id === chat.id;
                       const userName = chat.user && chat.user.name ? chat.user.name : (chat.user && chat.user.email ? chat.user.email : (chat.user && chat.user.phoneNumber ? chat.user.phoneNumber : 'User'));
                       const userInitial = userName[0] || 'U';
                       const lastMessage = chat.messages && chat.messages[0] ? chat.messages[0].content : '';
@@ -1022,11 +1159,7 @@ export default function AdminChat() {
                         <div
                           key={chat.id}
                           onClick={async () => {
-                            if (isJoined) {
-                              await handleSelectChat(chat)
-                            } else {
-                              await handleJoinRoom(chat)
-                            }
+                            await handleSelectChat(chat)
                           }}
                           className={cn(
                             "p-3 border-b border-white/10 flex items-start gap-3 cursor-pointer hover:bg-white/10 transition-all duration-200",
@@ -1044,8 +1177,9 @@ export default function AdminChat() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-start justify-between mb-1">
                               <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-white truncate">{chat.chatName || 'Chat'}</p>
-                                <p className="text-sm text-white/70 truncate">{userName}</p>
+                                <p className="font-semibold text-white truncate">
+                                  {chat.userName || 'User'}
+                                </p>
                               </div>
                               <span className="text-xs text-white/60 whitespace-nowrap ml-2">
                                 {chat.lastMessageAt ? formatSidebarTimestamp(chat.lastMessageAt) : formatSidebarTimestamp(chat.createdAt)}
@@ -1080,19 +1214,8 @@ export default function AdminChat() {
                                 )}
                               </div>
 
-                              {!isJoined && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-auto px-3 py-1 text-sm bg-primary text-primary-foreground hover:bg-primary/90"
-                                  onClick={(e) => { e.stopPropagation(); handleJoinRoom(chat); }}
-                                >
-                                  Join
-                                </Button>
-                              )}
-                              {isJoined && selectedChat?.id === chat.id && (
-                                <span className="text-xs font-semibold text-green-400">Joined</span>
-                              )}
+                              {/* Always show Joined for ACTIVE */}
+                              <span className="text-xs font-semibold text-green-400">Joined</span>
                             </div>
 
                             {lastMessage && (
@@ -1112,7 +1235,6 @@ export default function AdminChat() {
                   <div className="mb-4">
                     <h3 className="text-sm font-semibold text-white/80 px-3 py-2 bg-white/5 border-b border-white/10">Closed Chats</h3>
                     {chats.filter(chat => chat.status === "CLOSED").map(chat => {
-                      const isJoined = joinedRooms.includes(chat.socketIORoomId) && selectedChat?.id === chat.id;
                       const userName = chat.user && chat.user.name ? chat.user.name : (chat.user && chat.user.email ? chat.user.email : (chat.user && chat.user.phoneNumber ? chat.user.phoneNumber : 'User'));
                       const userInitial = userName[0] || 'U';
                       const lastMessage = chat.messages && chat.messages[0] ? chat.messages[0].content : '';
@@ -1121,11 +1243,7 @@ export default function AdminChat() {
                         <div
                           key={chat.id}
                           onClick={async () => {
-                            if (isJoined) {
-                              await handleSelectChat(chat)
-                            } else {
-                              await handleJoinRoom(chat)
-                            }
+                            await handleJoinRoom(chat)
                           }}
                           className={cn(
                             "p-3 border-b border-white/10 flex items-start gap-3 cursor-pointer hover:bg-white/10 transition-all duration-200",
@@ -1140,8 +1258,9 @@ export default function AdminChat() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-start justify-between mb-1">
                               <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-white truncate">{chat.chatName || 'Chat'}</p>
-                                <p className="text-sm text-white/70 truncate">{userName}</p>
+                                <p className="font-semibold text-white truncate">
+                                  {chat.userName || 'User'}
+                                </p>
                               </div>
                               <span className="text-xs text-white/60 whitespace-nowrap ml-2">
                                 {chat.lastMessageAt ? formatSidebarTimestamp(chat.lastMessageAt) : formatSidebarTimestamp(chat.createdAt)}
@@ -1158,19 +1277,15 @@ export default function AdminChat() {
                                 </span>
                               </div>
 
-                              {!isJoined && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-auto px-3 py-1 text-sm bg-primary text-primary-foreground hover:bg-primary/90"
-                                  onClick={(e) => { e.stopPropagation(); handleJoinRoom(chat); }}
-                                >
-                                  View
-                                </Button>
-                              )}
-                              {isJoined && selectedChat?.id === chat.id && (
-                                <span className="text-xs font-semibold text-green-400">Viewing</span>
-                              )}
+                              {/* Always show Join for CLOSED */}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-auto px-3 py-1 text-sm bg-primary text-primary-foreground hover:bg-primary/90"
+                                onClick={(e) => { e.stopPropagation(); handleJoinRoom(chat); }}
+                              >
+                                Join
+                              </Button>
                             </div>
 
                             {lastMessage && (
@@ -1190,7 +1305,6 @@ export default function AdminChat() {
                   <div className="mb-4">
                     <h3 className="text-sm font-semibold text-white/80 px-3 py-2 bg-white/5 border-b border-white/10">Archived Chats</h3>
                     {chats.filter(chat => chat.status === "ARCHIVED").map(chat => {
-                      const isJoined = joinedRooms.includes(chat.socketIORoomId) && selectedChat?.id === chat.id;
                       const userName = chat.user && chat.user.name ? chat.user.name : (chat.user && chat.user.email ? chat.user.email : (chat.user && chat.user.phoneNumber ? chat.user.phoneNumber : 'User'));
                       const userInitial = userName[0] || 'U';
                       const lastMessage = chat.messages && chat.messages[0] ? chat.messages[0].content : '';
@@ -1199,11 +1313,7 @@ export default function AdminChat() {
                         <div
                           key={chat.id}
                           onClick={async () => {
-                            if (isJoined) {
-                              await handleSelectChat(chat)
-                            } else {
-                              await handleJoinRoom(chat)
-                            }
+                            await handleJoinRoom(chat)
                           }}
                           className={cn(
                             "p-3 border-b border-white/10 flex items-start gap-3 cursor-pointer hover:bg-white/10 transition-all duration-200",
@@ -1218,8 +1328,9 @@ export default function AdminChat() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-start justify-between mb-1">
                               <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-white truncate">{chat.chatName || 'Chat'}</p>
-                                <p className="text-sm text-white/70 truncate">{userName}</p>
+                                <p className="font-semibold text-white truncate">
+                                  {chat.userName || 'User'}
+                                </p>
                               </div>
                               <span className="text-xs text-white/60 whitespace-nowrap ml-2">
                                 {chat.lastMessageAt ? formatSidebarTimestamp(chat.lastMessageAt) : formatSidebarTimestamp(chat.createdAt)}
@@ -1236,19 +1347,15 @@ export default function AdminChat() {
                                 </span>
                               </div>
 
-                              {!isJoined && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-auto px-3 py-1 text-sm bg-primary text-primary-foreground hover:bg-primary/90"
-                                  onClick={(e) => { e.stopPropagation(); handleJoinRoom(chat); }}
-                                >
-                                  View
-                                </Button>
-                              )}
-                              {isJoined && selectedChat?.id === chat.id && (
-                                <span className="text-xs font-semibold text-green-400">Viewing</span>
-                              )}
+                              {/* Always show Join for ARCHIVED */}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-auto px-3 py-1 text-sm bg-primary text-primary-foreground hover:bg-primary/90"
+                                onClick={(e) => { e.stopPropagation(); handleJoinRoom(chat); }}
+                              >
+                                Join
+                              </Button>
                             </div>
 
                             {lastMessage && (
@@ -1378,18 +1485,35 @@ export default function AdminChat() {
                       handleTyping()
                     }}
                     onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
-                    className="pr-12 bg-white/10 border-white/20 text-white placeholder:text-white/60 focus:border-primary"
+                    className="pr-24 bg-white/10 border-white/20 text-white placeholder:text-white/60 focus:border-primary"
                     disabled={selectedChat && (selectedChat.status === "CLOSED" || selectedChat.status === "ARCHIVED")}
                   />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-white hover:bg-white/10"
-                    onClick={handleSendMessage}
-                    disabled={!message.trim() || (selectedChat && (selectedChat.status === "CLOSED" || selectedChat.status === "ARCHIVED"))}
-                  >
-                    <Send className="h-4 w-4" />
-                  </Button>
+                  <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-white hover:bg-white/10"
+                      onClick={handleAIRefine}
+                      disabled={!message.trim() || isRefiningMessage || (selectedChat && (selectedChat.status === "CLOSED" || selectedChat.status === "ARCHIVED"))}
+                      title="Refine message with AI"
+                    >
+                      {isRefiningMessage ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-4 w-4" />
+                      )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-white hover:bg-white/10"
+                      onClick={handleSendMessage}
+                      disabled={!message.trim() || (selectedChat && (selectedChat.status === "CLOSED" || selectedChat.status === "ARCHIVED"))}
+                      title="Send message"
+                    >
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             </>
@@ -1486,14 +1610,22 @@ export default function AdminChat() {
                     <div className="space-y-2">
                       <h3 className="font-semibold text-white">Uploaded Documents</h3>
                       <div className="space-y-2">
-                          {userDocs.length > 0 ? userDocs.map(folder => (
+                        {isLoadingDocuments ? (
+                          <div className="flex items-center justify-center py-4">
+                            <Loader2 className="h-4 w-4 animate-spin text-primary mr-2" />
+                            <span className="text-sm text-white/60">Loading documents...</span>
+                          </div>
+                        ) : userDocs.length > 0 ? (
+                          userDocs.map(folder => (
                               <div key={folder.id}>
                                   <h4 className="font-medium text-sm text-white">{folder.name}</h4>
                                   {folder.File.length > 0 ? folder.File.map(file => (
                                       <a 
                                         key={file.id} 
-                                        href="#"
+                                        href={`/api/admin/files?fileId=${file.id}`}
                                         className="flex items-center text-sm text-primary hover:text-primary/80 transition-colors"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
                                         onClick={async (e) => {
                                           e.preventDefault();
                                           try {
@@ -1524,7 +1656,40 @@ export default function AdminChat() {
                                       </a>
                                   )) : <p className="text-sm text-white/60">No Files in this folder</p>}
                               </div>
-                          )) : <p className="text-sm text-white/60">No documents uploaded.</p>}
+                          ))
+                        ) : (
+                          <p className="text-sm text-white/60">No documents uploaded.</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* osTickets */}
+                    <div className="space-y-2">
+                      <h3 className="font-semibold text-white">osTicket Tickets</h3>
+                      <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
+                        {isLoadingOsTickets ? (
+                          <div className="flex items-center justify-center py-4">
+                            <Loader2 className="h-4 w-4 animate-spin text-primary mr-2" />
+                            <span className="text-sm text-white/60">Loading tickets...</span>
+                          </div>
+                        ) : userOsTickets.length > 0 ? (
+                          userOsTickets.map(ticket => (
+                            <div key={ticket.id} className="p-2 bg-white/10 border border-white/20 rounded">
+                              <div className="flex items-center justify-between">
+                                <span className="font-mono text-xs text-yellow-300">#{ticket.osTicketId}</span>
+                                <span className="text-xs text-white/60">{formatTimestamp(ticket.createdAt)}</span>
+                              </div>
+                              <div className="text-sm text-white/80 truncate">
+                                {ticket.details.subject || 'No subject'}
+                              </div>
+                              <div className="text-xs text-white/60 truncate">
+                                {ticket.details.status ? `Status: ${ticket.details.status}` : ''}
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-sm text-white/60">No osTicket tickets found.</p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1651,6 +1816,18 @@ export default function AdminChat() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* OsTicket Creation Dialog */}
+      {selectedChat && (
+        <OsTicketDialog
+          open={showOsTicketDialog}
+          onOpenChange={setShowOsTicketDialog}
+          user={selectedChat.user}
+          userDocs={userDocs}
+          onSubmit={handleOsTicketSubmit}
+        />
+      )}
+
       <Toaster />
     </div>
   )

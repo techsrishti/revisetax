@@ -57,31 +57,83 @@ export async function createOsTicket(params: {
   email: string
   subject: string
   message: string
+  userId: string
+  attachments?: { [key: string]: string }[]
 }) {
   try {
+    const requestBody: any = {
+      name: params.name,
+      email: params.email,
+      subject: params.subject,
+      message: `data:text/plain,${params.message}`,
+      ip: process.env.REVISE_TAX_INSTANCE_IP || "203.115.69.190", // Use environment variable with fallback
+      source: "API",
+    }
+
+    // Add attachments if provided
+    if (params.attachments && params.attachments.length > 0) {
+      requestBody.attachments = params.attachments
+    }
+
     const response = await fetch("https://support.revisetax.com/api/tickets.json", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "X-API-Key": process.env.OSTICKET_API_KEY!,
       },
-      body: JSON.stringify({
-        name: params.name,
-        email: params.email,
-        subject: params.subject,
-        message: `data:text/plain,${params.message}`,
-        ip: process.env.REVISE_TAX_INSTANCE_IP || "203.115.69.190", // Use environment variable with fallback
-        source: "API",
-      }),
+      body: JSON.stringify(requestBody),
     })
     if (!response.ok) {
       throw new Error(`osTicket API responded with status ${response.status}`)
     }
     const ticketId = await response.text()
+    
+    // Store ticket information in database
+    const ticketDetails = {
+      name: params.name,
+      email: params.email,
+      subject: params.subject,
+      message: params.message,
+      osTicketId: ticketId,
+      createdAt: new Date().toISOString(),
+      status: 'open', // Default status
+      attachments: params.attachments || []
+    }
+    
+    await prisma.osTicket.create({
+      data: {
+        userId: params.userId,
+        osTicketId: ticketId,
+        details: ticketDetails
+      }
+    })
+    
     return { success: true, ticketId }
   } catch (error) {
     console.error("Error in createOsTicket:", error)
     return { success: false, error: "Failed to create osTicket ticket." }
+  }
+}
+
+// Action to get user's osTickets
+export async function getUserOsTickets(userId: string) {
+  try {
+    const tickets = await prisma.osTicket.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' }, // Show highest number ID at top (most recent first)
+      select: {
+        id: true,
+        osTicketId: true,
+        details: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    })
+    
+    return { success: true, tickets: tickets || [] }
+  } catch (error) {
+    console.error("Error in getUserOsTickets:", error)
+    return { success: false, error: "Failed to fetch osTickets.", tickets: [] }
   }
 }
 

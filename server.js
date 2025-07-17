@@ -14,7 +14,7 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: { 
     origin: process.env.NODE_ENV === "production" 
-      ? ["https://yourdomain.com"] 
+      ? ["https://socket.alpha.revisetax.com"] 
       : ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000", "http://127.0.0.1:3001"],
     credentials: true 
   },

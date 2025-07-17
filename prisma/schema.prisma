@@ -23,6 +23,7 @@ model User {
   Subscription Subscription?
   Folder       Folder[]
   Chat         Chat[]
+  OsTickets    OsTicket[]
 
   @@index([supabaseUserId])
 }
@@ -212,4 +213,19 @@ enum ChatStatus {
   ACTIVE     // Admin has joined and chat is active
   CLOSED     // Chat has been closed
   ARCHIVED   // Chat archived after closure
+}
+
+model OsTicket {
+  id          String   @id @default(uuid())
+  userId      String
+  osTicketId  String   @unique // The actual osTicket ID from the external system
+  details     Json     // Store all osTicket details as JSON
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([osTicketId])
+  @@index([createdAt])
 }
