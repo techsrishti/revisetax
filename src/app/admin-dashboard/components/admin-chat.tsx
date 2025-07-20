@@ -48,6 +48,7 @@ import {
   ToggleLeft,
   ToggleRight,
   Sparkles,
+  Bot,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
@@ -197,6 +198,9 @@ export default function AdminChat() {
 
   // AI refinement state
   const [isRefiningMessage, setIsRefiningMessage] = useState(false)
+  
+  // AI conversation summary state
+  const [autoResponseSummary, setAutoResponseSummary] = useState<string | null>(null)
 
   useEffect(() => {
     selectedChatRef.current = selectedChat
@@ -268,7 +272,7 @@ export default function AdminChat() {
         setCurrentAdminId(admin.id)
 
         // Initialize socket connection
-        const socketInstance = io("https://socket.alpha.revisetax.com")
+        const socketInstance = io("http://18.60.99.199:5005")
         setSocket(socketInstance)
 
         // Set a timeout to stop loading if socket doesn't respond
@@ -318,13 +322,9 @@ export default function AdminChat() {
             const adminChat = data.chats.find((chat: any) => chat.adminId && chat.admin)
             if (adminChat?.admin?.id) setCurrentAdminId(adminChat.admin.id)
 
-            // Pre-populate joinedRooms with all ACTIVE chats assigned to this admin
-            if (adminChat?.admin?.id) {
-              const activeAssignedRooms = uniqueChats
-                .filter((chat: Chat) => chat.status === "ACTIVE" && chat.adminId === adminChat.admin.id)
-                .map((chat: Chat) => chat.socketIORoomId)
-              setJoinedRooms(activeAssignedRooms)
-            }
+            // Update joinedRooms with ALL chat rooms, not just active ones
+            const allRooms = uniqueChats.map((chat: Chat) => chat.socketIORoomId)
+            setJoinedRooms(allRooms)
           } else {
             setChats([])
           }
@@ -402,6 +402,7 @@ export default function AdminChat() {
               content: msg.content || msg.message || '',
               createdAt: msg.createdAt ? new Date(msg.createdAt) : new Date(),
               isAdmin: msg.isAdmin || false,
+              isBot: msg.isBot || false,
               chatId: msg.chatId || data.chatId
             }))
             
@@ -409,6 +410,14 @@ export default function AdminChat() {
           } else {
             setMessages([])
           }
+          
+          // Handle conversation summary if it exists
+          if (data.conversationSummary) {
+            setAutoResponseSummary(data.conversationSummary)
+          } else {
+            setAutoResponseSummary(null)
+          }
+          
           setIsLoadingChat(false)
         })
 
@@ -422,6 +431,7 @@ export default function AdminChat() {
             content: msg.content || msg.message || '',
             createdAt: msg.createdAt ? new Date(msg.createdAt) : new Date(),
             isAdmin: msg.isAdmin || false,
+            isBot: msg.isBot || false,
             chatId: msg.chatId
           }
 
@@ -628,7 +638,13 @@ export default function AdminChat() {
 
   // When a chat is selected (only if already joined)
   const handleSelectChat = async (chat: Chat) => {
-    if (!joinedRooms.includes(chat.socketIORoomId) || !isAuthenticated || !adminDetails) return;
+    if (!socket || !isAuthenticated || !adminDetails) return;
+    
+    // If not joined, join first
+    if (!joinedRooms.includes(chat.socketIORoomId)) {
+      await handleJoinRoom(chat);
+      return;
+    }
     
     setIsLoadingChat(true);
     setMessages([]);
@@ -1437,31 +1453,43 @@ export default function AdminChat() {
                     <div
                       key={msg.id}
                       className={cn("flex items-end gap-3", {
-                        "justify-end": msg.isAdmin,
+                        "justify-end": msg.isAdmin || msg.isBot,
                       })}
                     >
-                      {!msg.isAdmin && (
+                      {!msg.isAdmin && !msg.isBot && (
                         <Avatar className="h-8 w-8 flex-shrink-0">
                           <AvatarFallback className="bg-white/20 text-white">{(selectedChat.user && selectedChat.user.name ? selectedChat.user.name[0] : "U")}</AvatarFallback>
                         </Avatar>
                       )}
                       <div
                         className={cn(
-                          "max-w-xs md:max-w-md lg:max-w-lg p-3 rounded-lg",
+                          "max-w-xs md:max-w-md lg:max-w-lg p-3 rounded-lg relative",
                           {
                             "bg-primary text-white": msg.isAdmin,
-                            "bg-white/15 text-white border border-white/20": !msg.isAdmin,
+                            "bg-gradient-to-r from-blue-600 to-purple-600 text-white": msg.isBot,
+                            "bg-white/15 text-white border border-white/20": !msg.isAdmin && !msg.isBot,
                           }
                         )}
                       >
+                        {msg.isBot && (
+                          <div className="flex items-center gap-1 mb-1">
+                            <Bot className="h-3 w-3 text-white/80" />
+                            <span className="text-xs text-white/80 font-medium">AI Assistant</span>
+                          </div>
+                        )}
                         <p className="text-sm break-words">{msg.content}</p>
                         <span className="text-xs text-white/60 mt-1 block text-right">
                           {formatTimestamp(msg.createdAt)}
                         </span>
                       </div>
-                      {msg.isAdmin && (
+                      {(msg.isAdmin || msg.isBot) && (
                         <Avatar className="h-8 w-8 flex-shrink-0">
-                          <AvatarFallback className="bg-primary text-white">A</AvatarFallback>
+                          <AvatarFallback className={cn("text-white", {
+                            "bg-primary": msg.isAdmin,
+                            "bg-gradient-to-r from-blue-600 to-purple-600": msg.isBot
+                          })}>
+                            {msg.isBot ? "🤖" : "A"}
+                          </AvatarFallback>
                         </Avatar>
                       )}
                     </div>
@@ -1586,6 +1614,23 @@ export default function AdminChat() {
                         <p className="text-white/80"><strong className="text-white">Plan:</strong> {selectedChat.user?.Subscription?.planName || "No active plan"}</p>
                       </div>
                     </div>
+
+                    {/* AI Conversation Summary */}
+                    {autoResponseSummary && (
+                      <div className="space-y-2">
+                        <h3 className="font-semibold text-white flex items-center gap-2">
+                          <Bot className="h-4 w-4 text-primary" />
+                          AI Conversation Summary
+                        </h3>
+                        <div className="p-4 bg-white/5 rounded-lg border border-white/10 space-y-2">
+                          <div className="text-sm">
+                            <div className="text-white/70 text-xs bg-white/5 p-3 rounded border border-white/10 font-mono leading-relaxed whitespace-pre-wrap">
+                              {autoResponseSummary}
+                          </div>
+                                  </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Ticketing */}
                     <div className="space-y-2">

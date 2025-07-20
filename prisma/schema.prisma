@@ -153,11 +153,13 @@ model Chat {
   @@index([closedAt])
 }
 
+
 model Message { 
   id            String    @id @default(uuid())
   chatId        String    
   senderId      String
   isAdmin       Boolean
+  isBot         Boolean   @default(false)
   content       String?
   createdAt     DateTime  @default(now())
   readAt        DateTime?
@@ -229,3 +231,4 @@ model OsTicket {
   @@index([osTicketId])
   @@index([createdAt])
 }
+
