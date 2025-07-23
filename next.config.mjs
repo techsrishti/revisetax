@@ -13,6 +13,9 @@ const nextConfig = {
       ]
     }
   },
+  env: {
+    JWT_SECRET: process.env.JWT_SECRET,
+  },
   webpack: (config) => {
     config.resolve.alias = {
       ...config.resolve.alias,

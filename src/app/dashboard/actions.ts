@@ -1,5 +1,6 @@
 "use server"
 import { prisma } from "@/lib/prisma";
+import { ChatTypes } from "@prisma/client";
 import crypto from 'crypto'
 import { v4 as uuidv4 } from 'uuid';
 import { createClient } from '@/utils/supabase/server';
@@ -563,7 +564,7 @@ export async function getInvoice(invoiceId: string): Promise<GetInvoiceSuccessRe
             ResponseContentDisposition: `attachment; filename="revisetax-invoice-${invoiceId}.pdf"`
         });
 
-        const signedUrl = await getSignedUrl(s3, command, { expiresIn: 60 * 60  });
+        const signedUrl = await getSignedUrl(s3, command, { expiresIn: 12 * 60 * 60  });
 
         return { 
             success: true,
@@ -579,3 +580,168 @@ export async function getInvoice(invoiceId: string): Promise<GetInvoiceSuccessRe
         }
     }
 }
+
+
+export interface GetChatsSuccessResponse { 
+    success: true, 
+    chats: { 
+        id: string, 
+        chatName: string, 
+        socketIORoomId: string, 
+        adminId: string | null, 
+        updatedAt: Date, 
+        chatType: string,
+    }[]
+}
+
+// export async function getChats(): Promise<GetChatsSuccessResponse|ErrorResponse> { 
+//     try { 
+
+//         const supabase = await createClient()
+//         const { data: { user: supabaseUser } } = await supabase.auth.getUser()
+
+//         if (!supabaseUser) { 
+//             console.log("getChats: User not found.")
+//             return { 
+//                 success: false,
+//                 error: 'User not found',
+//                 errorMessage: 'The user you are trying to pay for does not exist',
+//                 errorCode: 'USER_NOT_FOUND',
+//             }
+//         }
+
+//         const user = await prisma.user.findUnique({
+//             where: { 
+//                 supabaseUserId: supabaseUser.id,
+//             },
+//             select: { 
+//                 id: true,
+//                 Chat: { 
+//                     select: { 
+//                         id: true, 
+//                         chatName: true, 
+//                         socketIORoomId: true, 
+//                         adminId: true, 
+//                         updatedAt: true, 
+//                         chatType: true,
+//                     }
+//                 }
+//             }
+//         })
+//         if (!user) { 
+//             console.log("getChats: User not found in the db")
+//             return { 
+//                 success: false,
+//                 error: 'User not found',
+//                 errorMessage: 'The user you are trying to pay for does not exist',
+//                 errorCode: 'USER_NOT_FOUND',
+//             }
+//         }
+        // }
+
+//     } catch (error) { 
+//         console.log("getChats: Error getting chats: ", error)
+//         return { 
+//             success: false,
+//             error: 'Failed to get chats',
+//             errorMessage: 'An unknown error occurred',
+//             errorCode: 'UNKNOWN_ERROR',
+//         }
+//     }
+// }
+
+export interface CreateChatSuccessResponse { 
+    success: true,
+    chat: { 
+        id: string,
+        socketIORoomId: string,
+        chatName: string,
+        chatType: ChatTypes,
+        senderId: string,
+        updatedAt: Date,
+    }
+}
+
+// export async function createChat(chatType: ChatTypes, chatName: string): Promise<CreateChatSuccessResponse|ErrorResponse> { 
+//     try { 
+//         const supabase = await createClient()
+//         const { data: { user: supabaseUser } } = await supabase.auth.getUser()
+
+//         if (!supabaseUser) { 
+//             console.log("createChat: User not found.")
+//             return { 
+//                 success: false,
+//                 error: 'User not found',
+//                 errorMessage: 'The user you are trying to pay for does not exist',
+//                 errorCode: 'USER_NOT_FOUND',
+//             }
+//         }
+
+//         const user = await prisma.user.findUnique({ 
+//             where: { 
+//                 supabaseUserId: supabaseUser.id,
+//             },
+//             select: { 
+//                 id: true,
+//                 Chat: { 
+//                     select: { 
+//                         chatType: true,
+//                     }
+//                 }
+//             }
+//         })
+
+//         if (!user) { 
+//             console.log("createChat: User not found in the db")
+//             return { 
+//                 success: false,
+//                 error: 'User not found',
+//                 errorMessage: 'The user you are trying to pay for does not exist',
+//                 errorCode: 'USER_NOT_FOUND',
+//             }
+//         }
+
+//         for (const chat of user.Chat) { 
+//             if (chat.chatType.toString() === chatType) { 
+//                 console.log("createChat: Similar chat type already exists")
+//                 return { 
+//                     success: false,
+//                     error: 'Chat type already exists',
+//                     errorMessage: 'A chat with this type already exists',
+//                     errorCode: 'CHAT_TYPE_ALREADY_EXISTS',
+//                 }
+//             }
+//         }
+        
+//         const socketIORoomId = chatType.toString() + "-" + user.id;
+//         const chat = await prisma.chat.create({ 
+//             data: { 
+//                 userId: user.id,
+//                 chatType: chatType,
+//                 chatName: chatName,
+//                 socketIORoomId: socketIORoomId,
+//             }
+//         })
+
+//         return { 
+//             success: true,
+//             chat: { 
+//                 id: chat.id,
+//                 socketIORoomId: socketIORoomId,
+//                 chatName: chatName,
+//                 chatType: chatType,
+//                 senderId: user.id,
+//                 updatedAt: new Date(),
+//             }
+//         }
+
+//     } catch (error) { 
+//         console.log("createChat: Error creating chat: ", error)
+//         return { 
+//             success: false,
+//             error: 'Failed to create chat',
+//             errorMessage: 'An unknown error occurred',
+//             errorCode: 'UNKNOWN_ERROR',
+//         }
+//     }
+// }

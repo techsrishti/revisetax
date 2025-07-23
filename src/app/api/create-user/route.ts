@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { createClient } from '@/utils/supabase/server';
+import { downloadAndUploadImageToS3 } from '@/utils/s3-client';
 
 export async function POST(request: Request) {
   try {
-    const { supabaseUserId, name, email, phoneNumber, provider, providerId } = await request.json();
+    const { supabaseUserId, name, email, phoneNumber, provider, providerId, profilePictureUrl } = await request.json();
 
     console.log("Supabase user ID: ", supabaseUserId)
 
@@ -33,6 +34,24 @@ export async function POST(request: Request) {
         { message: 'User not found' },
         { status: 400 }
       );
+    }
+
+    // Handle profile picture from any social provider if provided
+    let s3ProfileImagePath: string | null = null;
+    if (provider && profilePictureUrl) {
+      try {
+        console.log(`Downloading ${provider} profile picture for new user:`, profilePictureUrl);
+        s3ProfileImagePath = await downloadAndUploadImageToS3(profilePictureUrl, supabaseUserId, provider);
+        
+        if (s3ProfileImagePath) {
+          console.log(`Successfully stored ${provider} profile picture in S3:`, s3ProfileImagePath);
+        } else {
+          console.warn(`Failed to download/upload ${provider} profile picture`);
+        }
+      } catch (profileError) {
+        console.error(`Error handling ${provider} profile picture for new user:`, profileError);
+        // Continue without profile picture
+      }
     }
 
     // Check if user already exists by phone number or email
@@ -66,6 +85,11 @@ export async function POST(request: Request) {
         updateData.provider = provider;
         updateData.providerId = providerId;
       }
+
+      // Update profile image if we successfully downloaded it from any social provider
+      if (s3ProfileImagePath) {
+        updateData.profileImage = s3ProfileImagePath;
+      }
       
       const updatedUser = await prisma.user.update({
         where: {
@@ -93,6 +117,11 @@ export async function POST(request: Request) {
     if (provider && providerId) {
       userData.provider = provider;
       userData.providerId = providerId;
+    }
+
+    // Add profile image if we successfully downloaded it from any social provider
+    if (s3ProfileImagePath) {
+      userData.profileImage = s3ProfileImagePath;
     }
 
     // Create new user
