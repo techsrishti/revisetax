@@ -2,9 +2,30 @@
 
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
+import { createClient } from "@/utils/supabase/server"
+
+// Helper to require active admin session
+async function requireActiveAdminSession() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return { error: { success: false, error: "Not authenticated" } };
+  }
+  const admin = await prisma.admin.findUnique({ where: { authId: user.id } });
+  if (!admin) {
+    return { error: { success: false, error: "Admin not found" } };
+  }
+  const adminSession = await prisma.adminSession.findFirst({ where: { adminId: admin.id, isActive: true } });
+  if (!adminSession) {
+    return { error: { success: false, error: "No active admin session found" } };
+  }
+  return { admin, adminSession };
+}
 
 // Action to get detailed information for a specific chat
 export async function getChatDetails(chatId: string) {
+  const sessionCheck = await requireActiveAdminSession();
+  if ('error' in sessionCheck) return sessionCheck.error;
   try {
     const chat = await prisma.chat.findUnique({
       where: { id: chatId },
@@ -34,6 +55,8 @@ export async function getChatDetails(chatId: string) {
 
 // Action to fetch a user's uploaded documents
 export async function getUserDocuments(userId: string) {
+  const sessionCheck = await requireActiveAdminSession();
+  if ('error' in sessionCheck) return sessionCheck.error;
   try {
     const folders = await prisma.folder.findMany({
       where: { userId },
@@ -60,6 +83,8 @@ export async function createOsTicket(params: {
   userId: string
   attachments?: { [key: string]: string }[]
 }) {
+  const sessionCheck = await requireActiveAdminSession();
+  if ('error' in sessionCheck) return sessionCheck.error;
   try {
     const requestBody: any = {
       name: params.name,
@@ -117,6 +142,8 @@ export async function createOsTicket(params: {
 
 // Action to get user's osTickets
 export async function getUserOsTickets(userId: string) {
+  const sessionCheck = await requireActiveAdminSession();
+  if ('error' in sessionCheck) return sessionCheck.error;
   try {
     const tickets = await prisma.osTicket.findMany({
       where: { userId },
@@ -146,6 +173,8 @@ export async function createHubspotTicket(params: {
   subject: string
   message: string
 }) {
+  const sessionCheck = await requireActiveAdminSession();
+  if ('error' in sessionCheck) return sessionCheck.error;
   const hubspotApiUrl = "https://api.hubapi.com/crm/v3/objects"
   const headers = {
     "Content-Type": "application/json",
@@ -222,6 +251,8 @@ export async function createHubspotTicket(params: {
 
 // Action to assign a chat to an admin
 export async function assignChatToAdmin(chatId: string, adminId: string) {
+  const sessionCheck = await requireActiveAdminSession();
+  if ('error' in sessionCheck) return sessionCheck.error;
   try {
     const chat = await prisma.chat.update({
       where: { id: chatId },
