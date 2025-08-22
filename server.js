@@ -5,17 +5,23 @@ const cors = require("cors");
 const { createClient } = require("redis");
 const { createAdapter } = require("@socket.io/redis-adapter");
 const { PrismaClient } = require("@prisma/client");
+const OpenAI = require("openai");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Initialize OpenAI
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: { 
     origin: process.env.NODE_ENV === "production" 
-      ? ["https://socket.alpha.revisetax.com"] 
-      : ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000", "http://127.0.0.1:3001"],
+      ? ["http://18.60.99.199:5005"] 
+      : ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000", "http://127.0.0.1:3001","http://18.60.99.199"],
     credentials: true 
   },
   transports: ["websocket", "polling"],
@@ -148,7 +154,7 @@ class ChatService {
     }
   }
 
-  static async saveMessage(chatId, senderId, content, isAdmin) {
+  static async saveMessage(chatId, senderId, content, isAdmin, isBot = false) {
     try {
       const message = await prisma.message.create({
         data: {
@@ -156,6 +162,7 @@ class ChatService {
           senderId,
           content,
           isAdmin,
+          isBot,
         }
       });
 
@@ -199,6 +206,351 @@ class ChatService {
     } catch (error) {
       console.error("Error getting chat:", error);
       throw error;
+    }
+  }
+}
+
+// Simple Auto Response Context (minimal tracking)
+class SimpleAutoResponse {
+  static messageCount = new Map(); // chatId -> count of messages
+  static lastUserMessages = new Map(); // chatId -> last user message
+
+  static getMessageCount(chatId) {
+    return this.messageCount.get(chatId) || 0;
+  }
+
+  static incrementMessageCount(chatId) {
+    const count = this.getMessageCount(chatId) + 1;
+    this.messageCount.set(chatId, count);
+    return count;
+  }
+
+  static setLastMessage(chatId, message) {
+    this.lastUserMessages.set(chatId, message);
+  }
+
+  static getLastMessage(chatId) {
+    return this.lastUserMessages.get(chatId) || '';
+  }
+
+  static clearContext(chatId) {
+    this.messageCount.delete(chatId);
+    this.lastUserMessages.delete(chatId);
+  }
+}
+
+// Intelligent Auto Response Service using ChatGPT
+class SimpleAutoResponseService {
+  static async generateSimpleResponse(chatId, userMessage, chatType, chatName, userProfile = null) {
+    // Get conversation history for context
+    const messageCount = SimpleAutoResponse.incrementMessageCount(chatId);
+    
+    // Store current user message for context
+    if (userMessage) {
+      SimpleAutoResponse.setLastMessage(chatId, userMessage);
+    }
+    
+    try {
+      // Get recent conversation context
+      let conversationContext = "";
+      try {
+        const chat = await prisma.chat.findUnique({
+          where: { id: chatId },
+          include: {
+            messages: {
+              orderBy: { createdAt: 'desc' },
+              take: 10, // Last 10 messages for context
+              select: {
+                content: true,
+                isAdmin: true,
+                isBot: true,
+                createdAt: true
+              }
+            }
+          }
+        });
+        
+        if (chat && chat.messages.length > 0) {
+          conversationContext = chat.messages
+            .reverse() // Oldest first
+            .map(msg => `${msg.isBot ? 'AI' : msg.isAdmin ? 'Admin' : 'User'}: ${msg.content}`)
+            .join('\n');
+          
+          // Check if files have been ACTUALLY shared (not just mentioned)
+          const hasActualFileSharing = chat.messages.some(msg => 
+            !msg.isBot && msg.content && (
+              msg.content.includes('📎 Shared file:') ||
+              msg.content.includes('📎 Shared ') && msg.content.includes('files:')
+            )
+          ) || (userMessage && (
+            userMessage.includes('📎 Shared file:') ||
+            (userMessage.includes('📎 Shared ') && userMessage.includes('files:'))
+          ));
+          
+          if (hasActualFileSharing) {
+            conversationContext += `\n\nIMPORTANT CONTEXT: User has actually shared files/documents in this conversation. Provide appropriate acknowledgment and closure.`;
+          }
+        }
+      } catch (error) {
+        console.log("Could not fetch conversation context:", error);
+      }
+
+                 const systemPrompt = `You are a helpful tax assistant for ReviseTax. Be natural, conversational, and focus on helping users with their tax needs without being overly promotional.
+
+**About ReviseTax (www.revisetax.com):**
+- Founded in 2019, based in Hyderabad, India
+- Specializes in personalized strategic tax saving solutions for Indian taxpayers
+- Served 250+ clients with ₹75L+ in total tax savings achieved
+- 90% repeat engagement rate with 100% client satisfaction
+- Expert team of professional accountants and tax consultants
+- Contact: +91 9133 78 77 22 | contact@revisetax.com
+- Address: No 304A, Rd Number 78, Jubilee Hills, Hyderabad - 500033
+- We offer ITR filing, loans, and financial advisory services
+- We have expert tax consultants and financial advisors
+- We provide end-to-end support for all financial needs
+
+**Our Comprehensive Services:**
+1. **ITR Filing & Tax Planning:**
+- ITR filing for salaried, self-employed, NRIs, capital gains
+- Personalized tax saving strategies and optimization
+- Old vs New tax regime analysis and recommendation
+
+2. **Financial Advisory Services:**
+- Investment planning (SIP, mutual funds, NPS)
+- Wealth management and retirement planning
+- Insurance advisory and portfolio optimization
+
+3. **Business & Legal Services:**
+- TDS compliance (26QB for property sales)
+- GST filing and compliance
+- Startup legal services (incorporation, documentation)
+- Government registrations (PAN, FSSAI, shop licenses)
+- Trademark registration and digital signatures
+
+4. **Specialized Services:**
+- Property transaction support
+- Legal document drafting (agreements, contracts)
+- Business setup and compliance
+
+**STRICT SERVICE BOUNDARIES - CRITICAL:**
+You can ONLY discuss ReviseTax services listed above. DO NOT answer questions about:
+- General knowledge, weather, sports, entertainment, technology, cooking, travel
+- Unrelated financial advice not connected to our services
+- Other companies' services or comparisons
+- Personal opinions on non-tax matters
+
+**HOW TO HANDLE OFF-TOPIC QUESTIONS:**
+Respond with: "I'm here to help you with ReviseTax services only - ITR filing, tax planning, financial advisory, and business services. How can I assist you with any of these services today?"
+
+**Your Role:**
+1. **Helpful Greeting**: Welcome users naturally
+2. **Understand Needs**: Find out what they need help with:
+- ITR filing and tax questions
+- Financial planning queries  
+- Business compliance help
+- Document guidance
+3. **Ask Relevant Questions**: Based on their specific situation
+4. **Provide Document Guidance**: Tell them what documents they'll need
+5. **Natural Handoff**: After they share documents or provide enough info, let them know our team will help
+
+**Document Requirements by Service:**
+- **ITR-1 (Salaried)**: Form 16, salary slips, 80C/80D investments, bank statements
+- **ITR-2 (Multiple Income)**: All ITR-1 docs + rental agreements, capital gains statements
+- **ITR-3 (Business)**: P&L, balance sheet, GST returns, business bank statements
+- **ITR-4 (Person with business or profession)**: Bank statements, GST returns
+- **Property TDS**: Sale deed, property documents, buyer/seller details
+- **Business Setup**: Identity proofs, address proofs, business plan
+
+**ReviseTax Advantages:**
+- Personalized consultation approach (not generic advice)
+- Outcome-based pricing model
+- Expert accountants with years of experience
+- Comprehensive service portfolio under one roof
+- Strong track record with 500+ client portfolio
+- Free initial consultation available
+
+**Conversation Guidelines:**
+- Be natural, helpful, and conversational (NOT promotional or sales-heavy)
+- Focus on solving user's immediate tax needs
+- Ask specific questions to understand their situation
+- Don't ask for sensitive information (PAN, Aadhaar numbers)
+- Be concise and avoid repetitive promotional language
+- **CRITICAL FILE HANDLING RULES**: When user shares files/documents:
+1. Simply acknowledge: "Got it, thanks for sharing that!"
+2. Confirm what they shared: "I can see you've shared [document type]"
+3. Provide closure: "Our team will review this and get back to you soon."
+4. **STOP** - Do NOT ask for more documents or repeat promotional content
+5. **NEVER** say promotional phrases like "At ReviseTax, we specialize..." after file sharing
+- After file sharing, conversations should naturally wind down with expert handoff
+
+**Current conversation context:**
+${conversationContext || 'This is the start of the conversation'}
+
+**User's current message:** ${userMessage || 'User has just joined the chat'}
+
+Be natural, helpful, and conversational. Focus on their specific tax needs without being promotional. After file sharing, provide simple closure and expert handoff.`;
+
+      const messages = [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage || "Hello, I need help from ReviseTax" }
+      ];
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-3.5-turbo",
+        messages,
+        max_tokens: 300,
+        temperature: 0.3,  
+      });
+
+      return completion.choices[0].message.content.trim();
+      
+    } catch (error) {
+      console.error("Error generating ChatGPT response:", error);
+      
+      // Intelligent fallback based on message count and file sharing
+      const hasFileSharing = userMessage?.toLowerCase().includes('shared file') || 
+                             userMessage?.toLowerCase().includes('uploaded') ||
+                             userMessage?.toLowerCase().includes('document') ||
+                             userMessage?.toLowerCase().includes('attachment') ||
+                             userMessage?.toLowerCase().includes('form 16') ||
+                             userMessage?.toLowerCase().includes('salary slip');
+      
+      if (hasFileSharing || messageCount > 4) {
+        return "Got it, thanks for sharing that! Our team will review this and get back to you soon.";
+      } else if (messageCount === 1) {
+        return "Hi! I'm here to help with your tax questions. What do you need assistance with?";
+      } else if (messageCount <= 3) {
+        return "Thanks for that info. What specific tax help do you need today?";
+      } else {
+        return "Thanks for the details. Our team will review this and get back to you shortly.";
+      }
+    }
+  }
+
+  static async sendAutoResponse(chatId, chatType, chatName, socketIORoomId, userMessage = null, userProfile = null) {
+    try {
+      const response = await this.generateSimpleResponse(chatId, userMessage, chatType, chatName, userProfile);
+      
+      // Save the response message to database
+      const message = await ChatService.saveMessage(
+        chatId, 
+        "system", 
+        response, 
+        false, // isAdmin = false
+        true   // isBot = true
+      );
+
+      const messagePayload = {
+        id: message.id,
+        chatId,
+        senderId: "system",
+        content: response,
+        isAdmin: false,
+        isBot: true,
+        timestamp: message.createdAt,
+        senderName: "AI Assistant",
+      };
+
+      return messagePayload;
+    } catch (error) {
+      console.error("Error sending simple auto response:", error);
+      throw error;
+    }
+  }
+
+  static async generateConversationSummary(chatId) {
+    try {
+      // Get conversation history
+      const chat = await prisma.chat.findUnique({
+        where: { id: chatId },
+        include: {
+          messages: {
+            orderBy: { createdAt: 'asc' },
+            select: {
+              content: true,
+              isAdmin: true,
+              isBot: true,
+              createdAt: true
+            }
+          },
+          user: {
+            select: {
+              name: true,
+              email: true
+            }
+          }
+        }
+      });
+
+      if (!chat) {
+        return "## Conversation Summary\n\nChat not found.";
+      }
+
+    const messageCount = SimpleAutoResponse.getMessageCount(chatId);
+      const userMessages = chat.messages.filter(msg => !msg.isAdmin && !msg.isBot);
+      const aiMessages = chat.messages.filter(msg => msg.isBot);
+
+      // Use ChatGPT to generate intelligent summary
+      const conversationText = chat.messages
+        .map(msg => `${msg.isBot ? 'AI Assistant' : msg.isAdmin ? 'Admin' : 'User'}: ${msg.content}`)
+        .join('\n');
+
+      const summaryPrompt = `Analyze this customer service conversation and provide a professional summary for the admin taking over:
+
+**Conversation:**
+${conversationText}
+
+**User Profile:**
+- Name: ${chat.user?.name || 'Not provided'}
+- Email: ${chat.user?.email || 'Not provided'}
+
+Please provide a concise summary covering:
+1. What service the user is interested in (ITR/Loans/Financial Advisory)
+2. Key information gathered from the user
+3. Documents requested or next steps discussed
+4. Current status and what the admin should focus on
+5. Any specific user concerns or requirements
+
+Keep it professional and actionable for the admin.`;
+
+      try {
+        const completion = await openai.chat.completions.create({
+          model: "gpt-3.5-turbo",
+          messages: [
+            { role: "system", content: "You are a helpful assistant that creates professional summaries for customer service handovers." },
+            { role: "user", content: summaryPrompt }
+          ],
+          max_tokens: 400,
+          temperature: 0.3,
+        });
+
+        return `## AI-Generated Conversation Summary\n\n${completion.choices[0].message.content.trim()}`;
+      } catch (error) {
+        console.error("Error generating AI summary:", error);
+        
+        // Fallback summary
+        return `## Conversation Summary
+
+**User:** ${chat.user?.name || 'Unknown'} (${chat.user?.email || 'No email'})
+**Messages Exchanged:** ${messageCount} (${userMessages.length} from user, ${aiMessages.length} AI responses)
+**Chat Duration:** ${chat.messages.length > 0 ? 'Started ' + new Date(chat.messages[0].createdAt).toLocaleString() : 'Just started'}
+
+**Status:** AI assistant has been handling the conversation. User needs human expert assistance.
+**Next Steps:** Admin should review the conversation above and continue helping the user with their requirements.
+
+**Recent User Messages:**
+${userMessages.slice(-3).map(msg => `- "${msg.content}"`).join('\n') || 'No user messages yet'}`;
+      }
+    } catch (error) {
+      console.error("Error generating conversation summary:", error);
+      const messageCount = SimpleAutoResponse.getMessageCount(chatId);
+      return `## Conversation Summary
+
+**Messages exchanged:** ${messageCount}
+**Status:** AI assistant conversation completed, ready for expert consultation
+**Next Steps:** Human expert should take over the conversation
+
+Error generating detailed summary. Please review the conversation history above.`;
     }
   }
 }
@@ -335,15 +687,32 @@ async function init() {
           adminSessions.set(socket.id, adminId);
           socket.emit("admin_authenticated", { adminId, adminName: admin.name });
           
-          // Get admin's existing active chats
+          // Get admin's existing chats of all relevant statuses
           const existingChats = await prisma.chat.findMany({
             where: {
+              OR: [
+                // Chats assigned to this admin
+                {
               adminId,
               isActive: true,
-              status: 'ACTIVE'
+                  status: { in: ['PENDING', 'ACTIVE', 'CLOSED'] }
+                },
+                // Unassigned pending chats that this admin can take
+                {
+                  adminId: null,
+                  isActive: true,
+                  status: 'PENDING'
+                }
+              ]
             },
             include: {
               user: {
+                select: {
+                  name: true,
+                  email: true,
+                }
+              },
+              admin: {
                 select: {
                   name: true,
                   email: true,
@@ -375,9 +744,21 @@ async function init() {
                 chatType: chat.chatType,
                 status: chat.status,
                 roomId: chat.socketIORoomId,
+                socketIORoomId: chat.socketIORoomId,
                 userName: chat.user?.name,
                 userEmail: chat.user?.email,
                 lastMessageAt: chat.lastMessageAt,
+                createdAt: chat.createdAt,
+                updatedAt: chat.updatedAt,
+                adminId: chat.adminId,
+                userId: chat.userId,
+                user: chat.user,
+                admin: chat.admin,
+                closedAt: chat.closedAt,
+                closedBy: chat.closedBy,
+                closeReason: chat.closeReason,
+                isActive: chat.isActive,
+                messages: [] // Will be loaded when chat is selected
               }))
             });
           }
@@ -576,7 +957,7 @@ async function init() {
       });
 
       // Start new chat
-      socket.on("start_chat", async ({ chatType, chatName }) => {
+      socket.on("start_chat", async ({ chatType, chatName, initialMessage }) => {
         try {
           const userId = userSessions.get(socket.id);
           if (!userId) {
@@ -590,6 +971,49 @@ async function init() {
           // Join the room
           socket.join(chat.socketIORoomId);
           roomParticipants.set(chat.socketIORoomId, new Set([socket.id]));
+
+          // If user provided an initial message, save it
+          if (initialMessage && initialMessage.trim()) {
+            try {
+              const userMessage = await ChatService.saveMessage(chat.id, userId, initialMessage.trim(), false, false);
+              
+              const userMessagePayload = {
+                id: userMessage.id,
+                chatId: chat.id,
+                senderId: userId,
+                content: initialMessage.trim(),
+                isAdmin: false,
+                isBot: false,
+                timestamp: userMessage.createdAt,
+                senderName: chat.user.name,
+              };
+
+              // Send user message to room
+              io.to(chat.socketIORoomId).emit("new_message", userMessagePayload);
+            } catch (error) {
+              console.error("Error saving initial message:", error);
+            }
+          }
+
+          // Always send AI response first to provide immediate user engagement
+          try {
+            const userProfile = { name: chat.user.name, email: chat.user.email };
+            const autoResponseMessage = await SimpleAutoResponseService.sendAutoResponse(
+              chat.id, 
+              chatType, 
+              chatName, 
+              chat.socketIORoomId,
+              initialMessage,
+              userProfile
+            );
+
+            // Send auto-response to user immediately
+            io.to(chat.socketIORoomId).emit("new_message", autoResponseMessage);
+
+            console.log(`🤖 Initial AI response sent for chat: ${chat.id}`);
+          } catch (error) {
+            console.error("Error sending AI response:", error);
+          }
 
           // Try to find available admin
           const availableAdmin = await AdminAllocationService.findAvailableAdmin(chatType);
@@ -622,10 +1046,10 @@ async function init() {
               roomId: chat.socketIORoomId,
               chatName: chat.chatName,
               chatType: chat.chatType,
-              status: "PENDING_ADMIN_JOIN"
+              status: "ACTIVE_WITH_AI"
             });
 
-            console.log(`💬 Chat started: ${chat.id} - Admin assigned: ${availableAdmin.name}`);
+            console.log(`💬 Chat started: ${chat.id} - AI responding, admin ${availableAdmin.name} notified`);
           } else {
             // No admin available - notify offline admins
             await NotificationService.notifyOfflineAdmins(chat);
@@ -635,10 +1059,10 @@ async function init() {
               roomId: chat.socketIORoomId,
               chatName: chat.chatName,
               chatType: chat.chatType,
-              status: "PENDING_ADMIN_AVAILABLE"
+              status: "ACTIVE_WITH_AI"
             });
 
-            console.log(`⏳ Chat started: ${chat.id} - No admin available`);
+            console.log(`⏳ Chat started: ${chat.id} - AI responding, no admin available`);
           }
         } catch (error) {
           console.error("Error starting chat:", error);
@@ -678,11 +1102,15 @@ async function init() {
             adminName: chat.admin?.name || "Admin",
           });
 
+          // Generate conversation summary if AI was involved
+          const conversationSummary = await SimpleAutoResponseService.generateConversationSummary(chatId);
+
           // Send chat history to admin
           socket.emit("chat_history", {
             chatId,
             messages: chat.messages,
             user: chat.user,
+            conversationSummary,
           });
 
           console.log(`👨‍💼 Admin joined chat: ${chatId}`);
@@ -717,7 +1145,7 @@ async function init() {
           const senderId = isAdmin ? adminId : userId;
 
           // Save message to database
-          const message = await ChatService.saveMessage(chatId, senderId, content, isAdmin);
+          const message = await ChatService.saveMessage(chatId, senderId, content, isAdmin, false);
 
           const messagePayload = {
             id: message.id,
@@ -725,12 +1153,160 @@ async function init() {
             senderId,
             content,
             isAdmin,
+            isBot: false,
             timestamp: message.createdAt,
             senderName: isAdmin ? chat.admin?.name : chat.user?.name,
           };
 
           // Broadcast to room
           io.to(chat.socketIORoomId).emit("new_message", messagePayload);
+
+          // If user message and no admin is actively available, generate AI response
+          if (!isAdmin) {
+            let shouldSendAIResponse = false;
+            let shouldSendOfflineNotification = false;
+
+            if (!chat.adminId || chat.status === "PENDING") {
+              // No admin assigned or chat is pending
+              shouldSendAIResponse = true;
+            } else if (chat.adminId && chat.status === "ACTIVE") {
+              // Check if assigned admin is actually online and available
+              const assignedAdmin = await prisma.admin.findUnique({
+                where: { id: chat.adminId }
+              });
+              
+              if (!assignedAdmin || !assignedAdmin.isOnline || !assignedAdmin.isActive) {
+                // Admin is offline or inactive, AI should respond
+                shouldSendAIResponse = true;
+                shouldSendOfflineNotification = true;
+                console.log(`🤖 Admin ${chat.adminId} is offline, AI taking over chat ${chatId}`);
+              } else {
+                // Check if admin has active socket connections AND is actually in this chat room
+                const adminSocketIds = Array.from(adminSessions.entries())
+                  .filter(([_, adminId]) => adminId === chat.adminId)
+                  .map(([socketId, _]) => socketId);
+                
+                if (adminSocketIds.length === 0) {
+                  // Admin has no active socket connections
+                  shouldSendAIResponse = true;
+                  shouldSendOfflineNotification = true;
+                  console.log(`🤖 Admin ${chat.adminId} has no active connections, AI taking over chat ${chatId}`);
+                } else {
+                  // Check if admin is actually present in this specific chat room
+                  const participants = roomParticipants.get(chat.socketIORoomId) || new Set();
+                  const adminInRoom = adminSocketIds.some(socketId => participants.has(socketId));
+                  
+                  if (!adminInRoom) {
+                    // Admin is online but hasn't joined this chat room yet
+                    shouldSendAIResponse = true;
+                    console.log(`🤖 Admin ${chat.adminId} is online but hasn't joined chat room ${chat.socketIORoomId}, AI responding`);
+                  }
+                }
+              }
+            }
+
+            // Send offline notification only once if needed
+            if (shouldSendOfflineNotification) {
+              // Check if we already sent an offline notification recently (within last 5 minutes)
+              const recentOfflineMessage = await prisma.message.findFirst({
+                where: {
+                  chatId,
+                  isBot: true,
+                  content: {
+                    contains: "Our tax expert is currently offline"
+                  },
+                  createdAt: {
+                    gte: new Date(Date.now() - 5 * 60 * 1000) // Last 5 minutes
+                  }
+                },
+                orderBy: {
+                  createdAt: 'desc'
+                }
+              });
+
+              if (!recentOfflineMessage) {
+                // Send admin offline notification to user
+                const offlineMessage = await ChatService.saveMessage(
+                  chatId, 
+                  "system", 
+                  "Our tax expert is currently offline. Our team will get back to you soon! In the meantime, I'm here to help with any tax-related questions you might have. 😊", 
+                  false, // isAdmin = false
+                  true   // isBot = true
+                );
+
+                const offlineMessagePayload = {
+                  id: offlineMessage.id,
+                  chatId,
+                  senderId: "system",
+                  content: "Our tax expert is currently offline. Our team will get back to you soon! In the meantime, I'm here to help with any tax-related questions you might have. 😊",
+                  isAdmin: false,
+                  isBot: true,
+                  timestamp: offlineMessage.createdAt,
+                  senderName: "AI Assistant",
+                };
+
+                // Send offline notification to room
+                io.to(chat.socketIORoomId).emit("new_message", offlineMessagePayload);
+              }
+            }
+
+            if (shouldSendAIResponse) {
+              try {
+                // Check if this is the first AI interaction in this chat
+                const existingAIMessages = await prisma.message.count({
+                  where: {
+                    chatId,
+                    isBot: true
+                  }
+                });
+
+                // Send greeting if this is the first AI message in the chat
+                if (existingAIMessages === 0) {
+                  const greetingMessage = await ChatService.saveMessage(
+                    chatId, 
+                    "system", 
+                    "Hi! I'm here to help with your tax questions. What do you need assistance with today?", 
+                    false, // isAdmin = false
+                    true   // isBot = true
+                  );
+
+                  const greetingPayload = {
+                    id: greetingMessage.id,
+                    chatId,
+                    senderId: "system",
+                    content: "Hi! I'm here to help with your tax questions. What do you need assistance with today?",
+                    isAdmin: false,
+                    isBot: true,
+                    timestamp: greetingMessage.createdAt,
+                    senderName: "AI Assistant",
+                  };
+
+                  // Send greeting to room first
+                  io.to(chat.socketIORoomId).emit("new_message", greetingPayload);
+                  
+                  // Add small delay before the actual response
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+
+              const userProfile = { name: chat.user?.name, email: chat.user?.email };
+              const aiResponse = await SimpleAutoResponseService.sendAutoResponse(
+                chatId,
+                chat.chatType,
+                chat.chatName,
+                chat.socketIORoomId,
+                content,
+                userProfile
+              );
+
+              // Send AI response to room
+              io.to(chat.socketIORoomId).emit("new_message", aiResponse);
+              
+              console.log(`🤖 AI response sent for chat: ${chatId}`);
+            } catch (error) {
+              console.error("Error sending AI response:", error);
+              }
+            }
+          }
 
           console.log(`💬 Message sent in ${chatId}: ${content.substring(0, 50)}...`);
         } catch (error) {
@@ -773,8 +1349,25 @@ async function init() {
         }
 
         const pendingChats = await prisma.chat.findMany({
-          where: { status: "PENDING" },
-          include: { id: true, chatName: true, chatType: true, status: true, socketIORoomId: true, user: true, admin: true, createdAt: true }
+          where: { 
+            status: "PENDING",
+            isActive: true 
+          },
+          include: {
+            user: {
+              select: {
+                name: true,
+                email: true,
+                phoneNumber: true,
+              }
+            },
+            admin: {
+              select: {
+                name: true,
+                email: true,
+              }
+            }
+          }
           });
           socket.emit("pending_chats", pendingChats);
         } catch (error) {
@@ -830,6 +1423,9 @@ async function init() {
 
           // Remove participants from room tracking
           roomParticipants.delete(chat.socketIORoomId);
+
+          // Clear simple auto response context
+          SimpleAutoResponse.clearContext(chatId);
 
           console.log(`🔒 Chat ${chatId} closed by admin ${adminId}`);
 

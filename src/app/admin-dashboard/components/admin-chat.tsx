@@ -6,6 +6,7 @@ import { getAdminStatus, updateAdminStatus } from "../actions"
 import {
   getChatDetails,
   getUserDocuments,
+  assignChatToAdmin,
   createOsTicket,
   createHubspotTicket,
   getUserOsTickets,
@@ -47,6 +48,7 @@ import {
   ToggleLeft,
   ToggleRight,
   Sparkles,
+  Bot,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
@@ -158,21 +160,11 @@ const formatSidebarTimestamp = (date: Date | string | undefined | null) => {
   return format(d, "d MMM") // 21 Jun
 }
 
-// Utility function for robust user initial
-function getUserInitial(user: { name?: string | null; email?: string | null; phoneNumber?: string | null }) {
-  if (user?.name && user.name.trim().length > 0) return user.name.trim()[0].toUpperCase();
-  if (user?.email && user.email.trim().length > 0) return user.email.trim()[0].toUpperCase();
-  if (user?.phoneNumber && user.phoneNumber.trim().length > 0) return user.phoneNumber.trim()[0];
-  return 'U';
-}
-
 export default function AdminChat() {
   const { toast } = useToast()
   const [isPending, startTransition] = useTransition()
   const [chats, setChats] = useState<Chat[]>([])
   const [selectedChat, setSelectedChat] = useState<ChatDetails | null>(null)
-  const [userDocsByUserId, setUserDocsByUserId] = useState<{ [userId: string]: DocumentFolder[] }>({})
-  const [userOsTicketsByUserId, setUserOsTicketsByUserId] = useState<{ [userId: string]: OsTicket[] }>({})
   const [userDocs, setUserDocs] = useState<DocumentFolder[]>([])
   const [userOsTickets, setUserOsTickets] = useState<OsTicket[]>([])
   const [message, setMessage] = useState("")
@@ -190,6 +182,8 @@ export default function AdminChat() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const selectedChatRef = useRef(selectedChat)
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null)
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(true)
   const [isClosingChat, setIsClosingChat] = useState(false)
   const [isArchivingChat, setIsArchivingChat] = useState(false)
   const [showOsTicketDialog, setShowOsTicketDialog] = useState(false)
@@ -204,6 +198,47 @@ export default function AdminChat() {
 
   // AI refinement state
   const [isRefiningMessage, setIsRefiningMessage] = useState(false)
+  
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("")
+  const [filteredChats, setFilteredChats] = useState<Chat[]>([])
+   
+  // AI conversation summary state
+  const [autoResponseSummary, setAutoResponseSummary] = useState<string | null>(null)
+
+  // Filter and sort chats based on search query and recent messages
+  useEffect(() => {
+    let processedChats = [...chats]
+
+    // Sort all chats by most recent activity first
+    processedChats.sort((a, b) => {
+      const aTime = a.lastMessageAt || a.updatedAt || a.createdAt
+      const bTime = b.lastMessageAt || b.updatedAt || b.createdAt
+      return new Date(bTime).getTime() - new Date(aTime).getTime()
+    })
+
+    if (!searchQuery.trim()) {
+      setFilteredChats(processedChats)
+      return
+    }
+
+    const query = searchQuery.toLowerCase().trim()
+    const filtered = processedChats.filter(chat => {
+      const userName = (chat.user?.name || '').toLowerCase()
+      const userEmail = (chat.user?.email || '').toLowerCase()
+      const userPhone = (chat.user?.phoneNumber || '').toLowerCase()
+      const chatName = (chat.chatName || '').toLowerCase()
+      const lastMessage = chat.messages?.[0]?.content?.toLowerCase() || ''
+
+      return userName.includes(query) ||
+        userEmail.includes(query) ||
+        userPhone.includes(query) ||
+        chatName.includes(query) ||
+        lastMessage.includes(query)
+    })
+
+    setFilteredChats(filtered)
+  }, [searchQuery, chats])
 
   useEffect(() => {
     selectedChatRef.current = selectedChat
@@ -275,7 +310,7 @@ export default function AdminChat() {
         setCurrentAdminId(admin.id)
 
         // Initialize socket connection
-        const socketInstance = io("https://socket.alpha.revisetax.com")
+        const socketInstance = io("http://18.60.99.199:5005")
         setSocket(socketInstance)
 
         // Set a timeout to stop loading if socket doesn't respond
@@ -320,36 +355,24 @@ export default function AdminChat() {
             const uniqueChats = mappedChats.filter((chat: any, index: number, self: any[]) => 
               index === self.findIndex((c: any) => c.id === chat.id)
             )
-            setChats(uniqueChats)
+            
+            // Sort chats by most recent activity
+            const sortedChats = uniqueChats.sort((a: any, b: any) => {
+              const aTime = a.lastMessageAt || a.updatedAt || a.createdAt
+              const bTime = b.lastMessageAt || b.updatedAt || b.createdAt
+              return new Date(bTime).getTime() - new Date(aTime).getTime()
+            })
+            
+            setChats(sortedChats)
             // Set current admin id from first chat with admin
             const adminChat = data.chats.find((chat: any) => chat.adminId && chat.admin)
             if (adminChat?.admin?.id) setCurrentAdminId(adminChat.admin.id)
 
-            // --- Updated logic: Always set joinedRooms to all ACTIVE chats assigned to this admin ---
-            let adminIdToUse = null;
-            if (adminChat?.admin?.id) {
-              adminIdToUse = adminChat.admin.id;
-            } else if (uniqueChats.length > 0) {
-              // Fallback: try to get adminId from any chat assigned to this admin
-              const anyAssigned = uniqueChats.find((chat: Chat) => chat.adminId);
-              if (anyAssigned) adminIdToUse = anyAssigned.adminId;
-            }
-            console.log('[DEBUG] adminIdToUse:', adminIdToUse);
-            if (adminIdToUse) {
-              const activeAssignedRooms = uniqueChats
-                .filter((chat: Chat) => chat.status === "ACTIVE" && chat.adminId === adminIdToUse)
-                .map((chat: Chat) => chat.socketIORoomId)
-              setJoinedRooms(activeAssignedRooms)
-              console.log('[DEBUG] joinedRooms set to:', activeAssignedRooms)
-            } else {
-              setJoinedRooms([])
-              console.log('[DEBUG] joinedRooms set to: []')
-            }
-            // --- End updated logic ---
+            // Update joinedRooms with ALL chat rooms, not just active ones
+            const allRooms = uniqueChats.map((chat: Chat) => chat.socketIORoomId)
+            setJoinedRooms(allRooms)
           } else {
             setChats([])
-            setJoinedRooms([])
-            console.log('[DEBUG] No chats found, joinedRooms set to: []')
           }
           setIsLoading(false)
         })
@@ -401,9 +424,13 @@ export default function AdminChat() {
               userName: data.userName || '',
             }
             
-            // Add to beginning of list and sort by most recent
+            // Add to list and sort by most recent activity
             const updatedChats = [newChat, ...prev];
-            const sortedChats = updatedChats.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+            const sortedChats = updatedChats.sort((a, b) => {
+              const aTime = a.lastMessageAt || a.updatedAt || a.createdAt
+              const bTime = b.lastMessageAt || b.updatedAt || b.createdAt
+              return new Date(bTime).getTime() - new Date(aTime).getTime()
+            });
             
             return sortedChats;
           })
@@ -425,6 +452,7 @@ export default function AdminChat() {
               content: msg.content || msg.message || '',
               createdAt: msg.createdAt ? new Date(msg.createdAt) : new Date(),
               isAdmin: msg.isAdmin || false,
+              isBot: msg.isBot || false,
               chatId: msg.chatId || data.chatId
             }))
             
@@ -432,6 +460,14 @@ export default function AdminChat() {
           } else {
             setMessages([])
           }
+          
+          // Handle conversation summary if it exists
+          if (data.conversationSummary) {
+            setAutoResponseSummary(data.conversationSummary)
+          } else {
+            setAutoResponseSummary(null)
+          }
+          
           setIsLoadingChat(false)
         })
 
@@ -445,6 +481,7 @@ export default function AdminChat() {
             content: msg.content || msg.message || '',
             createdAt: msg.createdAt ? new Date(msg.createdAt) : new Date(),
             isAdmin: msg.isAdmin || false,
+            isBot: msg.isBot || false,
             chatId: msg.chatId
           }
 
@@ -470,6 +507,7 @@ export default function AdminChat() {
                 
                 return {
                   ...chat,
+                  lastMessageAt: new Date(formattedMsg.createdAt),
                   updatedAt: new Date(formattedMsg.createdAt),
                   messages: messageExists ? chat.messages : [formattedMsg, ...(Array.isArray(chat.messages) ? chat.messages : [])],
                 }
@@ -481,7 +519,11 @@ export default function AdminChat() {
               index === self.findIndex(c => c.id === chat.id)
             )
             // Sort chats to bring the most recent to the top
-            return uniqueChats.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+            return uniqueChats.sort((a, b) => {
+              const aTime = a.lastMessageAt || a.updatedAt || a.createdAt
+              const bTime = b.lastMessageAt || b.updatedAt || b.createdAt
+              return new Date(bTime).getTime() - new Date(aTime).getTime()
+            })
           })
         })
 
@@ -570,133 +612,175 @@ export default function AdminChat() {
 
   // Join room handler
   const handleJoinRoom = async (chat: Chat) => {
-    console.log('[DEBUG] handleJoinRoom called for chat:', chat.id, chat.chatName, chat.status)
     if (!socket || !isAuthenticated || !adminDetails) return
-    // Set selectedChat immediately for instant highlight
-    setSelectedChat({ id: chat.id, chatName: chat.chatName, userName: chat.userName, status: chat.status } as any);
     setIsLoadingChat(true)
     socket.emit("admin_join_chat", { chatId: chat.id })
-    setMessages([])
-    let chatDetailsResult: any = null;
-    let chatHistoryResult: any = null;
-    let chatHistoryTimeout: NodeJS.Timeout | null = null;
-
-    // Fetch chat details (API)
-    const chatDetailsPromise = getChatDetails(chat.id).then(result => {
-      chatDetailsResult = result;
-    });
-
-    // Listen for chat_history (socket)
-    const chatHistoryPromise = new Promise(resolve => {
-      chatHistoryTimeout = setTimeout(() => {
-        resolve(null);
-      }, 8000);
-      socket.once("chat_history", (data: any) => {
-        if (chatHistoryTimeout) clearTimeout(chatHistoryTimeout);
-        chatHistoryResult = data;
-        resolve(data);
-      });
-    });
-
-    // Emit join and request history
-    socket.emit("admin_join_chat", { chatId: chat.id })
-    setJoinedRooms(prev => prev.includes(chat.socketIORoomId) ? prev : [...prev, chat.socketIORoomId])
-    socket.emit("get_chat_history", { chatId: chat.id })
+    setJoinedRooms(prev => prev.includes(chat.socketIORoomId) ? prev : [...prev, chat.socketIORoomId]) // Accumulate joined rooms
 
     // Only update status to ACTIVE if chat was PENDING
     if (chat.status === "PENDING") {
       setChats(prevChats => prevChats.map(c =>
         c.id === chat.id ? { ...c, status: "ACTIVE" } : c
       ))
+      setSelectedChat(prev => prev ? { ...prev, status: "ACTIVE" } : prev)
     }
-    // Ensure chat is assigned to current admin locally
-    setChats(prevChats => prevChats.map(c =>
-      c.id === chat.id && c.adminId !== currentAdminId ? { ...c, adminId: currentAdminId } : c
-    ))
 
-    // Wait for both chat details and chat history
-    await Promise.all([chatDetailsPromise, chatHistoryPromise]);
+    const loadingTimeout = setTimeout(() => {
+      setIsLoadingChat(false);
+      toast({
+        title: "Error",
+        description: "Could not join chat. Please try again.",
+        variant: "destructive"
+      });
+    }, 8000); // 8-second timeout
 
-    // Set selectedChat and messages together
-    if (
-      chatDetailsResult &&
-      chatDetailsResult.success &&
-      'chat' in chatDetailsResult &&
-      (chatDetailsResult as any).chat &&
-      chatHistoryResult &&
-      Array.isArray(chatHistoryResult.messages)
-    ) {
-      const detailedChat = (chatDetailsResult as { chat: ChatDetails }).chat;
-      setSelectedChat(detailedChat);
-      // Format messages
-      const formattedMessages = chatHistoryResult.messages.map((msg: any) => ({
-        id: msg.id,
-        content: msg.content || msg.message || '',
-        createdAt: msg.createdAt ? new Date(msg.createdAt) : new Date(),
-        isAdmin: msg.isAdmin || false,
-        chatId: msg.chatId || chat.id
-      }));
-      setMessages(formattedMessages);
-      // Fetch user documents and osTickets in parallel, but use cache if available
-      if (detailedChat.userId) {
-        // Documents
-        if (userDocsByUserId[detailedChat.userId]) {
-          setUserDocs(userDocsByUserId[detailedChat.userId]);
-        } else {
+    socket.once("chat_history", () => {
+      clearTimeout(loadingTimeout);
+    });
+    
+    // Fetch detailed chat information including user details
+    try {
+      const chatDetailsResult = await getChatDetails(chat.id);
+      if (chatDetailsResult.success && chatDetailsResult.chat) {
+        const detailedChat = chatDetailsResult.chat as ChatDetails;
+        setSelectedChat(detailedChat);
+        
+        // Fetch user documents and osTickets in parallel
+        if (detailedChat.userId) {
           setIsLoadingDocuments(true);
-          getUserDocuments(detailedChat.userId).then((docsResult) => {
-            if (
-              docsResult &&
-              docsResult.success &&
-              'folders' in docsResult &&
-              (docsResult as any).folders
-            ) {
-              setUserDocsByUserId(prev => ({
-                ...prev,
-                [detailedChat.userId]: (docsResult as { folders: DocumentFolder[] }).folders
-              }));
-              setUserDocs((docsResult as { folders: DocumentFolder[] }).folders);
+          setIsLoadingOsTickets(true);
+          
+          // Fetch both simultaneously
+          Promise.allSettled([
+            getUserDocuments(detailedChat.userId),
+            getUserOsTickets(detailedChat.userId)
+          ]).then(([docsResult, ticketsResult]) => {
+            // Handle documents result
+            if (docsResult.status === 'fulfilled' && docsResult.value.success && docsResult.value.folders) {
+              setUserDocs(docsResult.value.folders as DocumentFolder[]);
             } else {
               setUserDocs([]);
             }
-          }).catch(() => setUserDocs([])).finally(() => setIsLoadingDocuments(false));
-        }
-        // osTickets
-        if (userOsTicketsByUserId[detailedChat.userId]) {
-          setUserOsTickets(userOsTicketsByUserId[detailedChat.userId]);
-        } else {
-          setIsLoadingOsTickets(true);
-          getUserOsTickets(detailedChat.userId).then((ticketsResult) => {
-            if (
-              ticketsResult &&
-              ticketsResult.success &&
-              'tickets' in ticketsResult &&
-              (ticketsResult as any).tickets
-            ) {
-              setUserOsTicketsByUserId(prev => ({
-                ...prev,
-                [detailedChat.userId]: Array.isArray((ticketsResult as { tickets: OsTicket[] }).tickets) ? (ticketsResult as { tickets: OsTicket[] }).tickets : []
-              }));
-              setUserOsTickets(Array.isArray((ticketsResult as { tickets: OsTicket[] }).tickets) ? (ticketsResult as { tickets: OsTicket[] }).tickets : [])
+            
+            // Handle osTickets result
+            if (ticketsResult.status === 'fulfilled' && ticketsResult.value.success) {
+              setUserOsTickets(ticketsResult.value.tickets);
             } else {
-              setUserOsTickets([])
+              setUserOsTickets([]);
             }
-          }).catch(() => setUserOsTickets([])).finally(() => setIsLoadingOsTickets(false));
+          }).catch((error) => {
+            console.error('Error fetching user data:', error);
+            setUserDocs([]);
+            setUserOsTickets([]);
+          }).finally(() => {
+            setIsLoadingDocuments(false);
+            setIsLoadingOsTickets(false);
+          });
         }
+      } else {
+        // Fallback to basic chat info if detailed fetch fails
+        setSelectedChat(chat as any);
       }
-    } else if (chatDetailsResult && chatDetailsResult.success && 'chat' in chatDetailsResult && (chatDetailsResult as any).chat) {
-      // Fallback: set chat details, empty messages
-      setSelectedChat((chatDetailsResult as { chat: ChatDetails }).chat);
-      setMessages([]);
-    } else {
+    } catch (error) {
+      console.error("Error fetching chat details:", error);
+      // Fallback to basic chat info
       setSelectedChat(chat as any);
-      setMessages([]);
     }
-    setIsLoadingChat(false);
+    
+    // After joining, request chat history
+    socket.emit("get_chat_history", { chatId: chat.id })
   }
 
   // When a chat is selected (only if already joined)
-  const handleSelectChat = handleJoinRoom;
+  const handleSelectChat = async (chat: Chat) => {
+    if (!socket || !isAuthenticated || !adminDetails) return;
+    
+    // If not joined, join first
+    if (!joinedRooms.includes(chat.socketIORoomId)) {
+      await handleJoinRoom(chat);
+      return;
+    }
+    
+    setIsLoadingChat(true);
+    setMessages([]);
+
+    // Only update status to ACTIVE if chat was PENDING
+    if (chat.status === "PENDING") {
+      setChats(prevChats => prevChats.map(c =>
+        c.id === chat.id ? { ...c, status: "ACTIVE" } : c
+      ))
+      setSelectedChat(prev => prev ? { ...prev, status: "ACTIVE" } : prev)
+    }
+
+    const loadingTimeout = setTimeout(() => {
+      setIsLoadingChat(false);
+      toast({
+        title: "Error",
+        description: "Could not load chat history. Please try again.",
+        variant: "destructive"
+      });
+    }, 8000); // 8-second timeout
+
+    socket.once("chat_history", () => {
+      clearTimeout(loadingTimeout);
+    });
+    
+    try {
+      // Fetch detailed chat information including user details
+      const chatDetailsResult = await getChatDetails(chat.id);
+      if (chatDetailsResult.success && chatDetailsResult.chat) {
+        const detailedChat = chatDetailsResult.chat as ChatDetails;
+      setSelectedChat(detailedChat);
+        
+        // Fetch user documents and osTickets in parallel
+      if (detailedChat.userId) {
+          setIsLoadingDocuments(true);
+          setIsLoadingOsTickets(true);
+          
+          // Fetch both simultaneously
+          Promise.allSettled([
+            getUserDocuments(detailedChat.userId),
+            getUserOsTickets(detailedChat.userId)
+          ]).then(([docsResult, ticketsResult]) => {
+            // Handle documents result
+            if (docsResult.status === 'fulfilled' && docsResult.value.success && docsResult.value.folders) {
+              setUserDocs(docsResult.value.folders as DocumentFolder[]);
+            } else {
+              setUserDocs([]);
+            }
+            
+            // Handle osTickets result
+            if (ticketsResult.status === 'fulfilled' && ticketsResult.value.success) {
+              setUserOsTickets(ticketsResult.value.tickets);
+        } else {
+              setUserOsTickets([]);
+            }
+          }).catch((error) => {
+            console.error('Error fetching user data:', error);
+            setUserDocs([]);
+            setUserOsTickets([]);
+          }).finally(() => {
+            setIsLoadingDocuments(false);
+            setIsLoadingOsTickets(false);
+          });
+        }
+    } else {
+        // Fallback to basic chat info if detailed fetch fails
+      setSelectedChat(chat as any);
+      }
+    } catch (error) {
+      console.error("Error fetching chat details:", error);
+      // Fallback to basic chat info
+      setSelectedChat(chat as any);
+    }
+    
+    if (socket) {
+      socket.emit("get_chat_history", { chatId: chat.id });
+    } else {
+       clearTimeout(loadingTimeout);
+    setIsLoadingChat(false);
+    }
+  }
 
   const handleCreateTicket = (ticketingSystem: "osticket" | "hubspot") => {
     if (!selectedChat) return
@@ -719,9 +803,9 @@ export default function AdminChat() {
             message
         })
 
-        if (res && res.success && 'ticketId' in res) {
-          toast({ title: "Ticket Created", description: `Ticket #${res.ticketId} created in HubSpot.`})
-        } else if (res && 'error' in res) {
+        if (res.success) {
+          toast({ title: "Ticket Created", description: `Ticket #${res.ticketId} created in ${ticketingSystem}.`})
+        } else {
           toast({ title: "Error", description: res.error })
         }
       })
@@ -747,31 +831,21 @@ export default function AdminChat() {
         attachments: data.attachments
       })
 
-      if (res && res.success && 'ticketId' in res) {
+      if (res.success) {
         toast({ title: "Ticket Created", description: `Ticket #${res.ticketId} created in osTicket.`})
         // Refresh osTickets
         setIsLoadingOsTickets(true);
         try {
           const ticketsResult = await getUserOsTickets(selectedChat.userId)
-          if (
-            ticketsResult &&
-            ticketsResult.success &&
-            'tickets' in ticketsResult &&
-            (ticketsResult as any).tickets
-          ) {
-            const ticketsArr = Array.isArray((ticketsResult as { tickets: OsTicket[] }).tickets) ? (ticketsResult as { tickets: OsTicket[] }).tickets : [];
-            setUserOsTickets(ticketsArr)
-            setUserOsTicketsByUserId(prev => ({
-              ...prev,
-              [selectedChat.userId]: ticketsArr
-            }));
+          if (ticketsResult.success) {
+            setUserOsTickets(ticketsResult.tickets)
           }
         } catch (error) {
           console.error('Error refreshing osTickets:', error);
         } finally {
           setIsLoadingOsTickets(false);
         }
-      } else if (res && 'error' in res) {
+      } else {
         toast({ title: "Error", description: res.error })
       }
     })
@@ -998,13 +1072,15 @@ export default function AdminChat() {
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-white/60" />
               <Input 
-                placeholder="Search chats..." 
+                 placeholder="Search by name, email, phone or message..." 
                 className="pl-8 bg-white/10 border-white/20 text-white placeholder:text-white/60 focus:border-primary" 
+                 value={searchQuery}
+                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
           </div>
           <div className="flex-1 h-full min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
-            {chats.length === 0 ? (
+            {filteredChats.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full py-8 px-4">
                 <div className="text-center space-y-3">
                   <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-white/10 border border-white/20">
@@ -1057,14 +1133,14 @@ export default function AdminChat() {
                 )}
 
                 {/* Pending Chats */}
-                {chats.filter(chat => chat.status === "PENDING").length > 0 && (
+                {filteredChats.filter(chat => chat.status === "PENDING").length > 0 && (
                   <div className="mb-4">
                     <h3 className="text-sm font-semibold text-white/80 px-3 py-2 bg-white/5 border-b border-white/10">Pending Chats</h3>
-                    {chats.filter(chat => chat.status === "PENDING").map(chat => {
+                    {filteredChats.filter(chat => chat.status === "PENDING").map(chat => {
                       const isNewRequest = chat.status === 'PENDING' && !chat.adminId;
                       const isAssignedToMe = chat.adminId && currentAdminId && chat.adminId === currentAdminId;
                       const userName = chat.user && chat.user.name ? chat.user.name : (chat.user && chat.user.email ? chat.user.email : (chat.user && chat.user.phoneNumber ? chat.user.phoneNumber : 'User'));
-                      const userInitial = (chat.userName || 'User')[0];
+                      const userInitial = userName[0] || 'U';
                       const lastMessage = chat.messages && chat.messages[0] ? chat.messages[0].content : '';
                       
                       return (
@@ -1076,9 +1152,9 @@ export default function AdminChat() {
                           className={cn(
                             "p-3 border-b border-white/10 flex items-start gap-3 cursor-pointer hover:bg-white/10 transition-all duration-200",
                             {
-                              "border-l-4 border-l-green-500 bg-green-500/10": selectedChat?.id === chat.id,
-                              "border-l-4 border-l-orange-500 bg-orange-500/10": isNewRequest,
-                              "border-l-4 border-l-blue-500 bg-blue-500/10": isAssignedToMe
+                              "bg-blue-600/20 border-l-4 border-l-blue-500": selectedChat?.id === chat.id,
+                              "border-l-4 border-l-orange-500 bg-orange-500/10": isNewRequest && selectedChat?.id !== chat.id,
+                              "border-l-4 border-l-green-500 bg-green-500/10": isAssignedToMe && selectedChat?.id !== chat.id
                             }
                           )}
                         >
@@ -1140,30 +1216,31 @@ export default function AdminChat() {
                 )}
 
                 {/* Active Chats */}
-                {chats.filter(chat => chat.status === "ACTIVE").length > 0 && (
+                {filteredChats.filter(chat => chat.status === "ACTIVE").length > 0 && (
                   <div className="mb-4">
                     <h3 className="text-sm font-semibold text-white/80 px-3 py-2 bg-white/5 border-b border-white/10">Active Chats</h3>
-                    {chats.filter(chat => chat.status === "ACTIVE").map(chat => {
+                    {filteredChats.filter(chat => chat.status === "ACTIVE").map(chat => {
                       const isNewRequest = chat.status === 'PENDING' && !chat.adminId;
                       const isReopened = chat.status === 'CLOSED' && chat.closedAt && 
                         (new Date().getTime() - new Date(chat.closedAt).getTime()) < 24 * 60 * 60 * 1000;
-                      // More robust assignment check
-                      const isAssignedToMe = !!chat.adminId && !!currentAdminId && chat.adminId === currentAdminId;
-                      const userInitial = (chat.userName || 'User')[0];
+                      const isAssignedToMe = chat.adminId && currentAdminId && chat.adminId === currentAdminId;
+                      const userName = chat.user && chat.user.name ? chat.user.name : (chat.user && chat.user.email ? chat.user.email : (chat.user && chat.user.phoneNumber ? chat.user.phoneNumber : 'User'));
+                      const userInitial = userName[0] || 'U';
                       const lastMessage = chat.messages && chat.messages[0] ? chat.messages[0].content : '';
                       
                       return (
                         <div
                           key={chat.id}
                           onClick={async () => {
-                            await handleJoinRoom(chat)
+                            await handleSelectChat(chat)
                           }}
                           className={cn(
                             "p-3 border-b border-white/10 flex items-start gap-3 cursor-pointer hover:bg-white/10 transition-all duration-200",
                             {
-                              "border-l-4 border-l-green-500 bg-green-500/10": selectedChat?.id === chat.id,
-                              "border-l-4 border-l-orange-500 bg-orange-500/10": isNewRequest,
-                              "border-l-4 border-l-blue-500 bg-blue-500/10": isReopened
+                              "bg-blue-600/20 border-l-4 border-l-blue-500": selectedChat?.id === chat.id,
+                              "border-l-4 border-l-orange-500 bg-orange-500/10": isNewRequest && selectedChat?.id !== chat.id,
+                              "border-l-4 border-l-purple-500 bg-purple-500/10": isReopened && selectedChat?.id !== chat.id,
+                              "border-l-4 border-l-green-500 bg-green-500/10": isAssignedToMe && chat.status === 'ACTIVE' && selectedChat?.id !== chat.id
                             }
                           )}
                         >
@@ -1227,15 +1304,12 @@ export default function AdminChat() {
                 )}
 
                 {/* Closed Chats */}
-                {chats.filter(chat => chat.status === "CLOSED").length > 0 && (
+                {filteredChats.filter(chat => chat.status === "CLOSED").length > 0 && (
                   <div className="mb-4">
                     <h3 className="text-sm font-semibold text-white/80 px-3 py-2 bg-white/5 border-b border-white/10">Closed Chats</h3>
-                    {chats.filter(chat => chat.status === "CLOSED").map(chat => {
-                      // Define isNewRequest and isReopened for closed chats
-                      const isNewRequest = chat.status === 'PENDING' && !chat.adminId;
-                      const isReopened = chat.status === 'CLOSED' && chat.closedAt && 
-                        (new Date().getTime() - new Date(chat.closedAt).getTime()) < 24 * 60 * 60 * 1000;
-                      const userInitial = (chat.userName || 'User')[0];
+                    {filteredChats.filter(chat => chat.status === "CLOSED").map(chat => {
+                      const userName = chat.user && chat.user.name ? chat.user.name : (chat.user && chat.user.email ? chat.user.email : (chat.user && chat.user.phoneNumber ? chat.user.phoneNumber : 'User'));
+                      const userInitial = userName[0] || 'U';
                       const lastMessage = chat.messages && chat.messages[0] ? chat.messages[0].content : '';
                       
                       return (
@@ -1247,9 +1321,7 @@ export default function AdminChat() {
                           className={cn(
                             "p-3 border-b border-white/10 flex items-start gap-3 cursor-pointer hover:bg-white/10 transition-all duration-200",
                             {
-                              "border-l-4 border-l-green-500 bg-green-500/10": selectedChat?.id === chat.id,
-                              "border-l-4 border-l-orange-500 bg-orange-500/10": isNewRequest,
-                              "border-l-4 border-l-blue-500 bg-blue-500/10": isReopened
+                              "bg-blue-600/20 border-l-4 border-l-blue-500": selectedChat?.id === chat.id,
                             }
                           )}
                         >
@@ -1302,15 +1374,12 @@ export default function AdminChat() {
                 )}
 
                 {/* Archived Chats */}
-                {chats.filter(chat => chat.status === "ARCHIVED").length > 0 && (
+                {filteredChats.filter(chat => chat.status === "ARCHIVED").length > 0 && (
                   <div className="mb-4">
                     <h3 className="text-sm font-semibold text-white/80 px-3 py-2 bg-white/5 border-b border-white/10">Archived Chats</h3>
-                    {chats.filter(chat => chat.status === "ARCHIVED").map(chat => {
-                      // Define isNewRequest and isReopened for archived chats
-                      const isNewRequest = chat.status === 'PENDING' && !chat.adminId;
-                      const isReopened = chat.status === 'CLOSED' && chat.closedAt && 
-                        (new Date().getTime() - new Date(chat.closedAt).getTime()) < 24 * 60 * 60 * 1000;
-                      const userInitial = (chat.userName || 'User')[0];
+                    {filteredChats.filter(chat => chat.status === "ARCHIVED").map(chat => {
+                      const userName = chat.user && chat.user.name ? chat.user.name : (chat.user && chat.user.email ? chat.user.email : (chat.user && chat.user.phoneNumber ? chat.user.phoneNumber : 'User'));
+                      const userInitial = userName[0] || 'U';
                       const lastMessage = chat.messages && chat.messages[0] ? chat.messages[0].content : '';
                       
                       return (
@@ -1322,9 +1391,7 @@ export default function AdminChat() {
                           className={cn(
                             "p-3 border-b border-white/10 flex items-start gap-3 cursor-pointer hover:bg-white/10 transition-all duration-200",
                             {
-                              "border-l-4 border-l-green-500 bg-green-500/10": selectedChat?.id === chat.id,
-                              "border-l-4 border-l-orange-500 bg-orange-500/10": isNewRequest,
-                              "border-l-4 border-l-blue-500 bg-blue-500/10": isReopened
+                              "bg-blue-600/20 border-l-4 border-l-blue-500": selectedChat?.id === chat.id,
                             }
                           )}
                         >
@@ -1440,37 +1507,49 @@ export default function AdminChat() {
                   </div>
                 ) : (
                   messages.map(msg => (
-                    <div
-                      key={msg.id}
+                                          <div
+                        key={msg.id}
                       className={cn("flex items-end gap-3", {
-                        "justify-end": msg.isAdmin,
+                        "justify-end": msg.isAdmin || msg.isBot,
                       })}
                     >
-                      {!msg.isAdmin && (
+                      {!msg.isAdmin && !msg.isBot && (
                         <Avatar className="h-8 w-8 flex-shrink-0">
                           <AvatarFallback className="bg-white/20 text-white">{(selectedChat.user && selectedChat.user.name ? selectedChat.user.name[0] : "U")}</AvatarFallback>
                         </Avatar>
                       )}
-                      <div
-                        className={cn(
-                          "max-w-xs md:max-w-md lg:max-w-lg p-3 rounded-lg",
-                          {
+                        <div
+                          className={cn(
+                          "max-w-xs md:max-w-md lg:max-w-lg p-3 rounded-lg relative",
+                            {
                             "bg-primary text-white": msg.isAdmin,
-                            "bg-white/15 text-white border border-white/20": !msg.isAdmin,
-                          }
+                            "bg-gradient-to-r from-blue-600 to-purple-600 text-white": msg.isBot,
+                            "bg-white/15 text-white border border-white/20": !msg.isAdmin && !msg.isBot,
+                            }
+                          )}
+                        >
+                        {msg.isBot && (
+                          <div className="flex items-center gap-1 mb-1">
+                            <Bot className="h-3 w-3 text-white/80" />
+                            <span className="text-xs text-white/80 font-medium">AI Assistant</span>
+                        </div>
                         )}
-                      >
                         <p className="text-sm break-words">{msg.content}</p>
                         <span className="text-xs text-white/60 mt-1 block text-right">
                           {formatTimestamp(msg.createdAt)}
                         </span>
                       </div>
-                      {msg.isAdmin && (
+                      {(msg.isAdmin || msg.isBot) && (
                         <Avatar className="h-8 w-8 flex-shrink-0">
-                          <AvatarFallback className="bg-primary text-white">A</AvatarFallback>
+                          <AvatarFallback className={cn("text-white", {
+                            "bg-primary": msg.isAdmin,
+                            "bg-gradient-to-r from-blue-600 to-purple-600": msg.isBot
+                          })}>
+                            {msg.isBot ? "🤖" : "A"}
+                          </AvatarFallback>
                         </Avatar>
                       )}
-                    </div>
+                      </div>
                   ))
                 )}
                 <div ref={messagesEndRef} />
@@ -1483,17 +1562,17 @@ export default function AdminChat() {
                   </div>
                 )}
                 <div className="relative">
-                  <Input
-                    placeholder={selectedChat && (selectedChat.status === "CLOSED" || selectedChat.status === "ARCHIVED") ? "Chat is closed/archived" : "Type your message..."}
-                    value={message}
-                    onChange={(e) => {
-                      setMessage(e.target.value)
-                      handleTyping()
-                    }}
-                    onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+                                      <Input
+                      placeholder={selectedChat && (selectedChat.status === "CLOSED" || selectedChat.status === "ARCHIVED") ? "Chat is closed/archived" : "Type your message..."}
+                      value={message}
+                      onChange={(e) => {
+                        setMessage(e.target.value)
+                        handleTyping()
+                      }}
+                      onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
                     className="pr-24 bg-white/10 border-white/20 text-white placeholder:text-white/60 focus:border-primary"
-                    disabled={selectedChat && (selectedChat.status === "CLOSED" || selectedChat.status === "ARCHIVED")}
-                  />
+                      disabled={selectedChat && (selectedChat.status === "CLOSED" || selectedChat.status === "ARCHIVED")}
+                    />
                   <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1">
                     <Button
                       variant="ghost"
@@ -1592,6 +1671,23 @@ export default function AdminChat() {
                         <p className="text-white/80"><strong className="text-white">Plan:</strong> {selectedChat.user?.Subscription?.planName || "No active plan"}</p>
                       </div>
                     </div>
+
+                    {/* AI Conversation Summary */}
+                    {autoResponseSummary && (
+                      <div className="space-y-2">
+                        <h3 className="font-semibold text-white flex items-center gap-2">
+                          <Bot className="h-4 w-4 text-primary" />
+                          AI Conversation Summary
+                        </h3>
+                        <div className="p-4 bg-white/5 rounded-lg border border-white/10 space-y-2">
+                          <div className="text-sm">
+                            <div className="text-white/70 text-xs bg-white/5 p-3 rounded border border-white/10 font-mono leading-relaxed whitespace-pre-wrap">
+                              {autoResponseSummary}
+                          </div>
+                                  </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Ticketing */}
                     <div className="space-y-2">
@@ -1824,7 +1920,7 @@ export default function AdminChat() {
       </Dialog>
 
       {/* OsTicket Creation Dialog */}
-      {selectedChat && selectedChat.user && (
+      {selectedChat && (
         <OsTicketDialog
           open={showOsTicketDialog}
           onOpenChange={setShowOsTicketDialog}

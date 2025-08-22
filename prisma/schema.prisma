@@ -158,6 +158,7 @@ model Message {
   chatId        String    
   senderId      String
   isAdmin       Boolean
+  isBot         Boolean   @default(false)
   content       String?
   createdAt     DateTime  @default(now())
   readAt        DateTime?

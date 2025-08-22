@@ -237,10 +237,13 @@ import styles from '@/app/auth/styles.module.css';
 
       toast({
         title: "Success",
-        description: "Your account has been created successfully!",
+        description: "Account created! Redirecting to dashboard...",
         duration: 2000,
       });
 
+      // Add a small delay to show the loading state
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
       router.push('/dashboard');
       return;
 
@@ -546,17 +549,18 @@ import styles from '@/app/auth/styles.module.css';
               </div>
             </>
           ) : (
-            <OTPInput
-              otpValue={otp}
-              onChange={setOTP}
-              phoneNumber={phoneNumber}
-              onVerify={handleVerifyOTP}
-              onCancel={() => { setShowOTP(false); setOTP(''); }}
-              onResendOTP={handleResendOTP}
-              isVerifying={loading}
-              resendOTPTimer={resendOTPTimer}
-              resendOTPDisabled={resendOTPDisabled}
-            />
+                            <OTPInput
+                otpValue={otp}
+                onChange={setOTP}
+                phoneNumber={phoneNumber}
+                onVerify={handleVerifyOTP}
+                onCancel={() => { setShowOTP(false); setOTP(''); }}
+                onResendOTP={handleResendOTP}
+                isVerifying={loading}
+                resendOTPTimer={resendOTPTimer}
+                resendOTPDisabled={resendOTPDisabled}
+                isSignUp={true}
+              />
           )}
         </div>
       </div>

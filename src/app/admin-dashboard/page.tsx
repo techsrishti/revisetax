@@ -47,14 +47,12 @@ export default function AdminDashboard() {
 
         // Check if user is admin
         const adminCheckResponse = await fetch('/api/admin/check')
-        if (!adminCheckResponse.ok) {
-          router.push("/admin/login")
-          return
-        }
-        
         const adminCheck = await adminCheckResponse.json()
-        if (!adminCheck.isAdmin) {
-          router.push("/admin/login")
+        
+        if (!adminCheckResponse.ok || !adminCheck.isAdmin) {
+          console.error('Admin check failed:', adminCheck.error || 'Not authorized')
+          setIsLoading(false)
+          router.push("/admin/login?error=" + encodeURIComponent(adminCheck.error || 'Not authorized'))
           return
         }
 
@@ -89,12 +87,13 @@ export default function AdminDashboard() {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-800 to-slate-900 flex items-center justify-center">
         <div className="text-center space-y-4">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-orange-100">
-            <Shield className="h-6 w-6 text-primary animate-pulse" />
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-orange-100">
+            <Shield className="h-8 w-8 text-primary animate-pulse" />
           </div>
-          <div className="space-y-2">
-            <div className="h-4 w-4 mx-auto animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-            <p className="text-white/80 text-sm">Loading admin dashboard...</p>
+          <div className="space-y-4">
+            <div className="h-6 w-6 mx-auto animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+            <p className="text-white/80 text-base">Loading admin dashboard...</p>
+            <p className="text-white/60 text-sm">Please wait while we verify your credentials</p>
           </div>
         </div>
       </div>

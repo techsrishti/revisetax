@@ -253,8 +253,51 @@
   }
 }
 
-.primaryButton:hover {
+.primaryButton:hover:not(:disabled) {
   background-color: hsl(var(--brand-primary) / 0.9);
+}
+
+.primaryButton:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  background-color: #E9420C;
+}
+
+.primaryButton .loadingSpinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid transparent;
+  border-top: 2px solid #FFFFFF;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-right: 8px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.primaryButton .loadingSpinnerSmall,
+.sendButton .loadingSpinnerSmall {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid transparent;
+  border-top: 2px solid #FFFFFF;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.loadingSpinnerSmall {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid transparent;
+  border-top: 2px solid #FFFFFF;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
 }
 
 .callTitle {
@@ -1695,4 +1738,3 @@
 .fileAttachmentPreview .closeButton:hover {
   background-color: #E4E4E7;
 }
-

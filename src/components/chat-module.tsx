@@ -21,6 +21,7 @@ interface Message {
   id: string
   content: string
   isAdmin: boolean
+  isBot?: boolean
   timestamp: Date
   senderName?: string
 }
@@ -36,9 +37,9 @@ const formatMessageDate = (date: Date) => {
   } else if (date.toDateString() === yesterday.toDateString()) {
     return "Yesterday"
   } else {
-    return date.toLocaleDateString('en-US', { 
-      month: 'long',
-      day: 'numeric',
+    return date.toLocaleDateString('en-IN', { 
+      day: '2-digit',
+      month: '2-digit',
       year: 'numeric'
     })
   }
@@ -65,6 +66,7 @@ export default function ChatModule({ selectedChatId, onBackToChats, socket, onJo
   const [chatStatus, setChatStatus] = useState<string>('ACTIVE')
   const [isTyping, setIsTyping] = useState(false)
   const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null)
+  const [isSendingMessage, setIsSendingMessage] = useState(false)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -146,8 +148,9 @@ export default function ChatModule({ selectedChatId, onBackToChats, socket, onJo
         id: msg.id,
         content: msg.content,
         isAdmin: msg.isAdmin,
+        isBot: msg.isBot || false,
         timestamp: new Date(msg.createdAt),
-        senderName: msg.isAdmin ? data.admin?.name : data.user?.name
+        senderName: msg.isBot ? "AI Assistant" : (msg.isAdmin ? data.admin?.name : data.user?.name)
       })))
     })
 
@@ -157,6 +160,7 @@ export default function ChatModule({ selectedChatId, onBackToChats, socket, onJo
         id: message.id,
         content: message.content,
         isAdmin: message.isAdmin,
+        isBot: message.isBot || false,
         timestamp: new Date(message.timestamp),
         senderName: message.senderName
       }])
@@ -237,22 +241,59 @@ export default function ChatModule({ selectedChatId, onBackToChats, socket, onJo
         chatType, 
         chatName 
       })
+      
+      // Set timeout to prevent infinite loading (30 seconds)
+      const timeoutId = setTimeout(() => {
+        setIsConnecting(false)
+        console.error("Chat start timeout")
+      }, 30000)
+      
+      // Clear timeout when chat starts (this will be handled in the socket listener)
+      socket.once("chat_started", () => {
+        clearTimeout(timeoutId)
+        setIsConnecting(false)
+      })
+      
+      // Handle potential errors
+      socket.once("error", (error: any) => {
+        clearTimeout(timeoutId)
+        setIsConnecting(false)
+        console.error("Error starting chat:", error)
+      })
+      
     } catch (error) {
       console.error("Error starting chat:", error)
-    } finally {
       setIsConnecting(false)
     }
   }
 
   const handleSendMessage = () => {
-    if (!newMessage.trim() || !socket || !selectedChatId || chatStatus === 'CLOSED') return
+    if (!newMessage.trim() || !socket || !selectedChatId || chatStatus === 'CLOSED' || isSendingMessage) return
+
+    setIsSendingMessage(true)
+    const messageContent = newMessage.trim()
+    setNewMessage("") // Clear immediately for better UX
 
     socket.emit("send_message", {
       chatId: selectedChatId,
-      content: newMessage.trim()
+      content: messageContent
     })
 
-    setNewMessage("")
+    // Reset sending state after message is sent (or timeout)
+    const timeoutId = setTimeout(() => {
+      setIsSendingMessage(false)
+    }, 3000) // 3 second timeout
+
+    // Listen for the message to be confirmed
+    const handleNewMessage = (message: any) => {
+      if (message.content === messageContent && !message.isAdmin && !message.isBot) {
+        clearTimeout(timeoutId)
+        setIsSendingMessage(false)
+        socket.off("new_message", handleNewMessage)
+      }
+    }
+
+    socket.on("new_message", handleNewMessage)
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -340,13 +381,15 @@ export default function ChatModule({ selectedChatId, onBackToChats, socket, onJo
               <div className={styles.dateSeparatorLine} />
             </div>
           )}
-          <div className={`${styles.message} ${message.isAdmin ? styles.adminMessage : styles.userMessage}`}>
-            {message.isAdmin ? (
+          <div className={`${styles.message} ${(message.isAdmin || message.isBot) ? styles.adminMessage : styles.userMessage}`}>
+            {(message.isAdmin || message.isBot) ? (
               <>
                 <div className={styles.messageContent}>
                   <div className={styles.messageHeader}>
                     <div className={styles.adminMessageHeader}>
-                      <span className={styles.messageSender}>ReviseTax</span>
+                      <span className={styles.messageSender}>
+                        {message.isBot ? "AI Assistant" : "ReviseTax"}
+                      </span>
                       <span className={styles.messageTime}>
                         {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
@@ -355,8 +398,8 @@ export default function ChatModule({ selectedChatId, onBackToChats, socket, onJo
                   <div className={styles.messageText}>{message.content}</div>
                 </div>
                 <Avatar className={styles.messageAvatar}>
-                  <AvatarImage src="/chatlogo.png" alt="ReviseTax" />
-                  <AvatarFallback>RT</AvatarFallback>
+                  <AvatarImage src="/chatlogo.png" alt={message.isBot ? "AI Assistant" : "ReviseTax"} />
+                  <AvatarFallback>{message.isBot ? "AI" : "RT"}</AvatarFallback>
                 </Avatar>
               </>
             ) : (
@@ -488,10 +531,14 @@ export default function ChatModule({ selectedChatId, onBackToChats, socket, onJo
               />
               <button
                 onClick={handleSendMessage}
-                disabled={!newMessage.trim() || chatStatus === 'CLOSED'}
+                disabled={!newMessage.trim() || chatStatus === 'CLOSED' || isSendingMessage}
                 className={styles.sendButton}
               >
-                <Send size={20} />
+                {isSendingMessage ? (
+                  <div className={styles.loadingSpinnerSmall}></div>
+                ) : (
+                  <Send size={20} />
+                )}
               </button>
             </div>
           )}
@@ -564,7 +611,14 @@ export default function ChatModule({ selectedChatId, onBackToChats, socket, onJo
             onClick={handleStartChat}
             disabled={isConnecting || selectedChatTypes.length === 0}
           >
-            {isConnecting ? "Starting Chat..." : "Start a Chat"}
+            {isConnecting ? (
+              <>
+                <div className={styles.loadingSpinner}></div>
+                Starting Chat...
+              </>
+            ) : (
+              "Start a Chat"
+            )}
           </Button>
         </div>
 

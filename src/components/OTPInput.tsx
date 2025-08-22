@@ -11,6 +11,7 @@ interface OTPInputProps {
   isVerifying?: boolean;
   resendOTPTimer?: number; // seconds left for resend
   resendOTPDisabled?: boolean;
+  isSignUp?: boolean; // to differentiate between signup and signin
 }
 
 export default function OTPInput({ 
@@ -22,7 +23,8 @@ export default function OTPInput({
   onCancel,
   isVerifying = false,
   resendOTPTimer = 0,
-  resendOTPDisabled = false
+  resendOTPDisabled = false,
+  isSignUp = false
 }: OTPInputProps) {
   const isComplete = otpValue.length === 6;
 
@@ -90,7 +92,10 @@ export default function OTPInput({
           {isVerifying ? (
             <span className="flex items-center justify-center gap-2">
               <Image src="/Loading3Quarters%20(1).svg" alt="Loading" width={20} height={20} className="animate-spin" />
-              Verifying...
+              {otpValue.length === 6 ? 
+                (isSignUp ? 'Creating account...' : 'Logging in...') : 
+                'Verifying...'
+              }
             </span>
           ) : 'Verify OTP and Continue'}
         </button>

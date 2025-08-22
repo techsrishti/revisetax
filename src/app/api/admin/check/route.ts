@@ -17,9 +17,15 @@ export async function GET(request: NextRequest) {
       const supabase = await createClient()
       const { data: { user: sessionUser }, error: authError } = await supabase.auth.getUser()
 
-      if (authError || !sessionUser) {
-        return NextResponse.json({ isAdmin: false, error: 'Unauthorized' }, { status: 401 })
+      if (authError) {
+        console.error('Auth error:', authError)
+        return NextResponse.json({ isAdmin: false, error: 'Authentication failed' }, { status: 401 })
       }
+      
+      if (!sessionUser) {
+        return NextResponse.json({ isAdmin: false, error: 'No user session found' }, { status: 401 })
+      }
+      
       user = sessionUser
     }
 

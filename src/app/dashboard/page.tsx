@@ -43,7 +43,12 @@ export default function Dashboard() {
     if (!user) return
 
     // Initialize socket connection
-    const socketInstance = io("https://socket.alpha.revisetax.com")
+    const socketInstance = io(process.env.NEXT_PUBLIC_SOCKET_URL || "http://18.60.99.199:5005", {
+      transports: ["websocket"],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000
+    })
     console.log("socketInstance in dashboard")
     setSocket(socketInstance)
 

@@ -123,6 +123,17 @@ function SignInContent() {
       });
 
       if (verifyError) throw verifyError;
+      
+      // Show loading toast before redirect
+      toast({
+        title: "Success!",
+        description: "Login successful! Redirecting to dashboard...",
+        duration: 2000,
+      });
+
+      // Add a small delay to show the loading state
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
       router.push('/dashboard');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to verify OTP. Please try again.';
@@ -365,6 +376,7 @@ function SignInContent() {
                 isVerifying={loading}
                 resendOTPTimer={resendOTPTimer}
                 resendOTPDisabled={resendOTPDisabled}
+                isSignUp={false}
               />
             </>
           )}
