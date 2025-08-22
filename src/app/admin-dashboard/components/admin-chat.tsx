@@ -10,6 +10,7 @@ import {
   createOsTicket,
   createHubspotTicket,
   getUserOsTickets,
+  updateUserTags,
 } from "../actions/chat-panel"
 import { refineMessageWithAI } from "../actions/ai-refine"
 import { format, isToday, isYesterday } from "date-fns"
@@ -49,6 +50,8 @@ import {
   ToggleRight,
   Sparkles,
   Bot,
+  Tag,
+  Save,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
@@ -104,6 +107,7 @@ interface ChatDetails extends Chat {
     name: string | null
     email: string | null
     phoneNumber: string
+    tags: string | null
     Subscription: {
       planName: string
       Plan: {
@@ -205,6 +209,10 @@ export default function AdminChat() {
    
   // AI conversation summary state
   const [autoResponseSummary, setAutoResponseSummary] = useState<string | null>(null)
+  
+  // User tags state
+  const [userTags, setUserTags] = useState<string>("")
+  const [isUpdatingTags, setIsUpdatingTags] = useState(false)
 
   // Filter and sort chats based on search query and recent messages
   useEffect(() => {
@@ -641,9 +649,11 @@ export default function AdminChat() {
     // Fetch detailed chat information including user details
     try {
       const chatDetailsResult = await getChatDetails(chat.id);
-      if (chatDetailsResult.success && chatDetailsResult.chat) {
+      if (chatDetailsResult?.success && 'chat' in chatDetailsResult && chatDetailsResult.chat) {
         const detailedChat = chatDetailsResult.chat as ChatDetails;
         setSelectedChat(detailedChat);
+        // Load user tags
+        setUserTags((detailedChat.user as any)?.tags || "");
         
         // Fetch user documents and osTickets in parallel
         if (detailedChat.userId) {
@@ -728,9 +738,11 @@ export default function AdminChat() {
     try {
       // Fetch detailed chat information including user details
       const chatDetailsResult = await getChatDetails(chat.id);
-      if (chatDetailsResult.success && chatDetailsResult.chat) {
+      if (chatDetailsResult?.success && 'chat' in chatDetailsResult && chatDetailsResult.chat) {
         const detailedChat = chatDetailsResult.chat as ChatDetails;
-      setSelectedChat(detailedChat);
+        setSelectedChat(detailedChat);
+        // Load user tags
+        setUserTags((detailedChat.user as any)?.tags || "");
         
         // Fetch user documents and osTickets in parallel
       if (detailedChat.userId) {
@@ -951,6 +963,47 @@ export default function AdminChat() {
   const handleStatusToggle = (newStatus: boolean) => {
     setPendingStatusChange(newStatus)
     setShowStatusDialog(true)
+  }
+
+  // Handle tag updates
+  const handleUpdateTags = async () => {
+    if (!selectedChat?.userId || isUpdatingTags) return
+    
+    setIsUpdatingTags(true)
+    try {
+      const result = await updateUserTags(selectedChat.userId, userTags.trim())
+      if (result.success) {
+        // Update the selected chat with new tags
+        setSelectedChat(prev => prev ? {
+          ...prev,
+          user: {
+            ...prev.user,
+            tags: userTags.trim() || null
+          } as any
+        } : prev)
+        
+        toast({
+          title: "Tags Updated",
+          description: "User tags have been saved successfully",
+          variant: "default"
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to update tags",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error('Error updating tags:', error)
+      toast({
+        title: "Error",
+        description: "Failed to update tags",
+        variant: "destructive"
+      })
+    } finally {
+      setIsUpdatingTags(false)
+    }
   }
 
   const confirmStatusChange = async () => {
@@ -1669,6 +1722,49 @@ export default function AdminChat() {
                         <p className="text-white/80"><strong className="text-white">Email:</strong> {selectedChat.user?.email || "Not provided"}</p>
                         <p className="text-white/80"><strong className="text-white">Phone:</strong> {selectedChat.user?.phoneNumber || "Not provided"}</p>
                         <p className="text-white/80"><strong className="text-white">Plan:</strong> {selectedChat.user?.Subscription?.planName || "No active plan"}</p>
+                      </div>
+                    </div>
+
+                    {/* User Tags */}
+                    <div className="space-y-2">
+                      <h3 className="font-semibold text-white flex items-center gap-2">
+                        <Tag className="h-4 w-4 text-primary" />
+                        User Tags
+                      </h3>
+                      <div className="space-y-2">
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Enter tags (comma separated)"
+                            value={userTags}
+                            onChange={(e) => setUserTags(e.target.value)}
+                            className="flex-1 bg-white/10 border-white/20 text-white placeholder:text-white/60 focus:border-primary"
+                            disabled={isUpdatingTags}
+                          />
+                          <Button
+                            onClick={handleUpdateTags}
+                            disabled={isUpdatingTags || userTags === ((selectedChat.user as any)?.tags || "")}
+                            className="bg-primary hover:bg-primary/90 text-white"
+                            size="sm"
+                          >
+                            {isUpdatingTags ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Save className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
+                        {(selectedChat.user as any)?.tags && (
+                          <div className="flex flex-wrap gap-1">
+                            {(selectedChat.user as any).tags.split(',').map((tag: string, index: number) => (
+                              <span
+                                key={index}
+                                className="px-2 py-1 text-xs bg-primary/20 text-primary rounded-full border border-primary/30"
+                              >
+                                {tag.trim()}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
 

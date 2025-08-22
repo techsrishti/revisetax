@@ -343,7 +343,7 @@ You can ONLY discuss ReviseTax services listed above. DO NOT answer questions ab
 Respond with: "I'm here to help you with ReviseTax services only - ITR filing, tax planning, financial advisory, and business services. How can I assist you with any of these services today?"
 
 **Your Role:**
-1. **Helpful Greeting**: Welcome users naturally
+1. **NEVER send welcome messages** - the system handles initial greetings
 2. **Understand Needs**: Find out what they need help with:
 - ITR filing and tax questions
 - Financial planning queries  
@@ -388,7 +388,7 @@ ${conversationContext || 'This is the start of the conversation'}
 
 **User's current message:** ${userMessage || 'User has just joined the chat'}
 
-Be natural, helpful, and conversational. Focus on their specific tax needs without being promotional. After file sharing, provide simple closure and expert handoff.`;
+Be natural, helpful, and conversational. Focus on their specific tax needs without being promotional. After file sharing, provide simple closure and expert handoff. DO NOT send welcome/greeting messages as the system handles those.`;
 
       const messages = [
         { role: "system", content: systemPrompt },
@@ -417,10 +417,10 @@ Be natural, helpful, and conversational. Focus on their specific tax needs witho
       
       if (hasFileSharing || messageCount > 4) {
         return "Got it, thanks for sharing that! Our team will review this and get back to you soon.";
-      } else if (messageCount === 1) {
-        return "Hi! I'm here to help with your tax questions. What do you need assistance with?";
+      } else if (messageCount <= 2) {
+        return "What specific tax help do you need today?";
       } else if (messageCount <= 3) {
-        return "Thanks for that info. What specific tax help do you need today?";
+        return "Thanks for that info. What other details can I help you with?";
       } else {
         return "Thanks for the details. Our team will review this and get back to you shortly.";
       }
@@ -1260,12 +1260,16 @@ async function init() {
                   }
                 });
 
-                // Send greeting if this is the first AI message in the chat
+                const userProfile = { name: chat.user?.name, email: chat.user?.email };
+                
+                // For first message, send welcome with consultant info
                 if (existingAIMessages === 0) {
+                  const welcomeMessage = "Hello! Welcome to ReviseTax. I'm here to assist you with any tax-related questions or help you might need. Our tax consultant will be connecting soon to provide personalized assistance. How can I help you today with our services like ITR filing, tax planning, financial advisory, or business compliance?";
+                  
                   const greetingMessage = await ChatService.saveMessage(
                     chatId, 
                     "system", 
-                    "Hi! I'm here to help with your tax questions. What do you need assistance with today?", 
+                    welcomeMessage, 
                     false, // isAdmin = false
                     true   // isBot = true
                   );
@@ -1274,32 +1278,29 @@ async function init() {
                     id: greetingMessage.id,
                     chatId,
                     senderId: "system",
-                    content: "Hi! I'm here to help with your tax questions. What do you need assistance with today?",
+                    content: welcomeMessage,
                     isAdmin: false,
                     isBot: true,
                     timestamp: greetingMessage.createdAt,
                     senderName: "AI Assistant",
                   };
 
-                  // Send greeting to room first
+                  // Send greeting to room - no additional AI response for first message
                   io.to(chat.socketIORoomId).emit("new_message", greetingPayload);
-                  
-                  // Add small delay before the actual response
-                  await new Promise(resolve => setTimeout(resolve, 1000));
+                } else {
+                  // For subsequent messages, generate AI response
+                  const aiResponse = await SimpleAutoResponseService.sendAutoResponse(
+                    chatId,
+                    chat.chatType,
+                    chat.chatName,
+                    chat.socketIORoomId,
+                    content,
+                    userProfile
+                  );
+
+                  // Send AI response to room
+                  io.to(chat.socketIORoomId).emit("new_message", aiResponse);
                 }
-
-              const userProfile = { name: chat.user?.name, email: chat.user?.email };
-              const aiResponse = await SimpleAutoResponseService.sendAutoResponse(
-                chatId,
-                chat.chatType,
-                chat.chatName,
-                chat.socketIORoomId,
-                content,
-                userProfile
-              );
-
-              // Send AI response to room
-              io.to(chat.socketIORoomId).emit("new_message", aiResponse);
               
               console.log(`🤖 AI response sent for chat: ${chatId}`);
             } catch (error) {

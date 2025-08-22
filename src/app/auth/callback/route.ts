@@ -7,10 +7,14 @@ export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
   // if "next" is in param, use it as the redirect URL
- 
+
   if (code) {
     try {
       const supabase = await createClient()
+      
+      // For PKCE flow, we need to ensure the code verifier is available
+      // The @supabase/ssr package should handle this automatically via cookies
+      console.log('Attempting to exchange code for session:', code.substring(0, 10) + '...')
       const { data: { user }, error } = await supabase.auth.exchangeCodeForSession(code)
       
       if (!error && user) {
@@ -89,7 +93,19 @@ export async function GET(request: Request) {
         }
       }
       
-      console.error('Auth error:', error)
+      console.error('Auth error details:', {
+        message: error?.message,
+        status: error?.status,
+        code: error?.code,
+        details: error
+      })
+      
+      // Handle specific PKCE error
+      if (error?.message?.includes('code verifier')) {
+        console.error('PKCE code verifier issue detected. This usually means the OAuth flow was interrupted or cookies were cleared.')
+        return NextResponse.redirect(`${origin}/auth/signin?error=Authentication session expired. Please try signing in again.`)
+      }
+      
       return NextResponse.redirect(`${origin}/auth/signin?error=${encodeURIComponent(error?.message || 'Authentication failed')}`)
     } catch (error) {
       console.error('Callback error:', error)

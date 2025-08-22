@@ -14,6 +14,7 @@ model User {
   email       String?  @unique
   phoneNumber String   @unique
   profileImage String? @db.Text  // URL to the user's profile image in S3 storage
+  tags        String?  @db.Text  // Admin-assigned tags for the user
 
   provider    String?  // The auth provider (google, linkedin, etc)
   providerId  String?  // The provider's user ID

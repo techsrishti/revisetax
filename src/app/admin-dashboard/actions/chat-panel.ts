@@ -285,4 +285,26 @@ export async function assignChatToAdmin(chatId: string, adminId: string) {
     console.error("Error in assignChatToAdmin:", error)
     return { success: false, error: "Failed to assign chat to admin." }
   }
+}
+
+// Action to update user tags
+export async function updateUserTags(userId: string, tags: string) {
+  const sessionCheck = await requireActiveAdminSession();
+  if ('error' in sessionCheck) return sessionCheck.error;
+  try {
+    const updatedUser = await (prisma.user as any).update({
+      where: { id: userId },
+      data: { tags: tags || null },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        tags: true
+      }
+    });
+    return { success: true, user: updatedUser };
+  } catch (error) {
+    console.error("Error updating user tags:", error);
+    return { success: false, error: "Failed to update user tags" };
+  }
 } 
