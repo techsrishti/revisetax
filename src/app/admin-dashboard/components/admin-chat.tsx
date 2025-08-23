@@ -666,14 +666,14 @@ export default function AdminChat() {
             getUserOsTickets(detailedChat.userId)
           ]).then(([docsResult, ticketsResult]) => {
             // Handle documents result
-            if (docsResult.status === 'fulfilled' && docsResult.value.success && docsResult.value.folders) {
+            if (docsResult.status === 'fulfilled' && docsResult.value && docsResult.value.success && 'folders' in docsResult.value) {
               setUserDocs(docsResult.value.folders as DocumentFolder[]);
             } else {
               setUserDocs([]);
             }
             
             // Handle osTickets result
-            if (ticketsResult.status === 'fulfilled' && ticketsResult.value.success) {
+            if (ticketsResult.status === 'fulfilled' && ticketsResult.value && ticketsResult.value.success && 'tickets' in ticketsResult.value) {
               setUserOsTickets(ticketsResult.value.tickets);
             } else {
               setUserOsTickets([]);
@@ -755,14 +755,14 @@ export default function AdminChat() {
             getUserOsTickets(detailedChat.userId)
           ]).then(([docsResult, ticketsResult]) => {
             // Handle documents result
-            if (docsResult.status === 'fulfilled' && docsResult.value.success && docsResult.value.folders) {
+            if (docsResult.status === 'fulfilled' && docsResult.value && docsResult.value.success && 'folders' in docsResult.value) {
               setUserDocs(docsResult.value.folders as DocumentFolder[]);
             } else {
               setUserDocs([]);
             }
             
             // Handle osTickets result
-            if (ticketsResult.status === 'fulfilled' && ticketsResult.value.success) {
+            if (ticketsResult.status === 'fulfilled' && ticketsResult.value && ticketsResult.value.success && 'tickets' in ticketsResult.value) {
               setUserOsTickets(ticketsResult.value.tickets);
         } else {
               setUserOsTickets([]);
@@ -815,10 +815,10 @@ export default function AdminChat() {
             message
         })
 
-        if (res.success) {
+        if (res && res.success && 'ticketId' in res) {
           toast({ title: "Ticket Created", description: `Ticket #${res.ticketId} created in ${ticketingSystem}.`})
         } else {
-          toast({ title: "Error", description: res.error })
+          toast({ title: "Error", description: res && 'error' in res ? res.error : 'Failed to create ticket' })
         }
       })
     }
@@ -843,13 +843,13 @@ export default function AdminChat() {
         attachments: data.attachments
       })
 
-      if (res.success) {
+      if (res && res.success && 'ticketId' in res) {
         toast({ title: "Ticket Created", description: `Ticket #${res.ticketId} created in osTicket.`})
         // Refresh osTickets
         setIsLoadingOsTickets(true);
         try {
           const ticketsResult = await getUserOsTickets(selectedChat.userId)
-          if (ticketsResult.success) {
+          if (ticketsResult && ticketsResult.success && 'tickets' in ticketsResult) {
             setUserOsTickets(ticketsResult.tickets)
           }
         } catch (error) {
@@ -858,7 +858,7 @@ export default function AdminChat() {
           setIsLoadingOsTickets(false);
         }
       } else {
-        toast({ title: "Error", description: res.error })
+        toast({ title: "Error", description: res && 'error' in res ? res.error : 'Failed to create ticket' })
       }
     })
   }
@@ -972,7 +972,7 @@ export default function AdminChat() {
     setIsUpdatingTags(true)
     try {
       const result = await updateUserTags(selectedChat.userId, userTags.trim())
-      if (result.success) {
+      if (result && result.success) {
         // Update the selected chat with new tags
         setSelectedChat(prev => prev ? {
           ...prev,
@@ -990,7 +990,7 @@ export default function AdminChat() {
       } else {
         toast({
           title: "Error",
-          description: result.error || "Failed to update tags",
+          description: result && 'error' in result ? result.error : "Failed to update tags",
           variant: "destructive"
         })
       }
@@ -1012,7 +1012,7 @@ export default function AdminChat() {
     setIsUpdatingStatus(true)
     try {
       const result = await updateAdminStatus(pendingStatusChange)
-      if (result.success) {
+      if (result && result.success) {
         setAdminIsOnline(result.isOnline)
         toast({
           title: "Status Updated",
@@ -1022,7 +1022,7 @@ export default function AdminChat() {
       } else {
         toast({
           title: "Error",
-          description: result.error || "Failed to update status",
+          description: result && 'error' in result ? result.error : "Failed to update status",
           variant: "destructive"
         })
       }
