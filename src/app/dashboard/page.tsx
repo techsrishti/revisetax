@@ -102,6 +102,19 @@ export default function Dashboard() {
       })
     })
 
+    socketInstance.on("chat_name_updated", (data) => {
+      console.log("Chat name updated:", data)
+      // Update the chat name in the sidebar
+      setChats(prevChats => {
+        const updatedChats = prevChats.map(chat => 
+          chat.id === data.chatId 
+            ? { ...chat, name: data.newChatName }
+            : chat
+        )
+        return updatedChats
+      })
+    })
+
     return () => {
       socketInstance.disconnect()
     }

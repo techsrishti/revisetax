@@ -800,28 +800,48 @@ async function init() {
 
             // Send existing chats to admin (always send, even if empty)
             socket.emit("existing_admin_chats", {
-              chats: existingChats.map(chat => ({
-                id: chat.id,
-                chatName: chat.chatName,
-                chatType: chat.chatType,
-                status: chat.status,
-                roomId: chat.socketIORoomId,
-                socketIORoomId: chat.socketIORoomId,
-                userName: chat.user?.name,
-                userEmail: chat.user?.email,
-                lastMessageAt: chat.lastMessageAt,
-                createdAt: chat.createdAt,
-                updatedAt: chat.updatedAt,
-                adminId: chat.adminId,
-                userId: chat.userId,
-                user: chat.user,
-                admin: chat.admin,
-                closedAt: chat.closedAt,
-                closedBy: chat.closedBy,
-                closeReason: chat.closeReason,
-                isActive: chat.isActive,
-                messages: [] // Will be loaded when chat is selected
-              }))
+              chats: existingChats.map(chat => {
+                // Generate timestamp-based chat name if not provided
+                let chatName = chat.chatName;
+                if (!chatName) {
+                  const timestamp = new Date(chat.createdAt);
+                  const formattedDate = timestamp.toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric', 
+                    year: 'numeric' 
+                  });
+                  const formattedTime = timestamp.toLocaleTimeString('en-US', { 
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    hour12: true 
+                  });
+                  
+                  chatName = `${chat.chatType.replace(/([A-Z])/g, ' $1').trim()} - ${formattedDate} ${formattedTime}`;
+                }
+
+                return {
+                  id: chat.id,
+                  chatName: chatName,
+                  chatType: chat.chatType,
+                  status: chat.status,
+                  roomId: chat.socketIORoomId,
+                  socketIORoomId: chat.socketIORoomId,
+                  userName: chat.user?.name,
+                  userEmail: chat.user?.email,
+                  lastMessageAt: chat.lastMessageAt,
+                  createdAt: chat.createdAt,
+                  updatedAt: chat.updatedAt,
+                  adminId: chat.adminId,
+                  userId: chat.userId,
+                  user: chat.user,
+                  admin: chat.admin,
+                  closedAt: chat.closedAt,
+                  closedBy: chat.closedBy,
+                  closeReason: chat.closeReason,
+                  isActive: chat.isActive,
+                  messages: [] // Will be loaded when chat is selected
+                };
+              })
             });
           }
           
@@ -890,15 +910,35 @@ async function init() {
 
             // Send existing chats to user
             socket.emit("existing_chats", {
-              chats: existingChats.map(chat => ({
-                id: chat.id,
-                chatName: chat.chatName,
-                chatType: chat.chatType,
-                status: chat.status,
-                roomId: chat.socketIORoomId,
-                adminName: chat.admin?.name,
-                lastMessageAt: chat.lastMessageAt,
-              }))
+              chats: existingChats.map(chat => {
+                // Generate timestamp-based chat name if not provided
+                let chatName = chat.chatName;
+                if (!chatName) {
+                  const timestamp = new Date(chat.createdAt);
+                  const formattedDate = timestamp.toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric', 
+                    year: 'numeric' 
+                  });
+                  const formattedTime = timestamp.toLocaleTimeString('en-US', { 
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    hour12: true 
+                  });
+                  
+                  chatName = `${chat.chatType.replace(/([A-Z])/g, ' $1').trim()} - ${formattedDate} ${formattedTime}`;
+                }
+
+                return {
+                  id: chat.id,
+                  chatName: chatName,
+                  chatType: chat.chatType,
+                  status: chat.status,
+                  roomId: chat.socketIORoomId,
+                  adminName: chat.admin?.name,
+                  lastMessageAt: chat.lastMessageAt,
+                };
+              })
             });
           }
           

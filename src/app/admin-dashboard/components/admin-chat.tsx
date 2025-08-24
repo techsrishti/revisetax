@@ -574,12 +574,24 @@ export default function AdminChat() {
           toast({ title: "Chat Reopened", description: "This chat has been reopened by the user.", variant: "default" });
         });
 
+        // Listen for chat name updates
+        socketInstance.on("chat_name_updated", (data: any) => {
+          console.log("Chat name updated in admin:", data);
+          setChats(prevChats => prevChats.map(chat =>
+            chat.id === data.chatId ? { ...chat, chatName: data.newChatName } : chat
+          ));
+          if (selectedChatRef.current?.id === data.chatId) {
+            setSelectedChat(prev => prev ? { ...prev, chatName: data.newChatName } : prev);
+          }
+        });
+
         return () => {
           clearTimeout(loadingTimeout)
           socketInstance.disconnect()
           socketInstance.off("chat_closed")
           socketInstance.off("chat_archived")
           socketInstance.off("chat_reopened_admin")
+          socketInstance.off("chat_name_updated")
           socketInstance.off("new_chat_request")
           socketInstance.off("new_message")
           socketInstance.off("chat_history")

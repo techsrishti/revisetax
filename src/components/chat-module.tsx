@@ -220,6 +220,7 @@ export default function ChatModule({ selectedChatId, onBackToChats, socket, onJo
       socket.off("chat_reopened")
       socket.off("user_typing")
       socket.off("user_stopped_typing")
+      socket.off("chat_name_updated")
     }
   }, [socket, getSelectedChatName, onChatStarted, selectedChatId])
 
