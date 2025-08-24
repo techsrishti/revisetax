@@ -20,7 +20,7 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: { 
     origin: process.env.NODE_ENV === "production" 
-      ? [process.env.NEXT_PUBLIC_SOCKET_URL] 
+      ? [process.env.NEXT_PUBLIC_URL] 
       : ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000", "http://127.0.0.1:3001","http://18.60.99.199"],
     credentials: true 
   },
