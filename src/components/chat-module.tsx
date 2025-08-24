@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { ExternalLink, Send, ArrowLeft, Paperclip } from "lucide-react"
+import { ExternalLink, Send, ArrowLeft, Paperclip, Edit3 } from "lucide-react"
 import { createClient } from "@/utils/supabase/client"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import ChatAttachments from "./chatattachments"
@@ -537,13 +537,19 @@ export default function ChatModule({ selectedChatId, onBackToChats, socket, onJo
                       </div>
                     </div>
                   ) : (
-                    <h2 
-                      className={styles.chatTitle}
-                      onClick={handleEditChatName}
-                      title="Click to edit chat name"
-                    >
-                      {currentChatName || getSelectedChatName()}
-                    </h2>
+                      <div className={styles.chatTitleWrapper}>
+                       <h2 
+                         className={styles.chatTitle}
+                         onClick={handleEditChatName}
+                         title="Click to edit chat name"
+                       >
+                         {currentChatName || getSelectedChatName()}
+                       </h2>
+                       <Edit3 
+                         className={styles.editIcon}
+                         onClick={handleEditChatName}
+                       />
+                     </div>
                   )}
                 </div>
                 <div className={styles.lastActivity}>
