@@ -318,7 +318,7 @@ export default function AdminChat() {
         setCurrentAdminId(admin.id)
 
         // Initialize socket connection
-        const socketInstance = io("http://18.60.99.199:5005")
+        const socketInstance = io(process.env.NEXT_PUBLIC_SOCKET_URL)
         setSocket(socketInstance)
 
         // Set a timeout to stop loading if socket doesn't respond

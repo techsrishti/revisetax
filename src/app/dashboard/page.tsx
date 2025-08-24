@@ -43,7 +43,7 @@ export default function Dashboard() {
     if (!user) return
 
     // Initialize socket connection
-    const socketInstance = io(process.env.NEXT_PUBLIC_SOCKET_URL || "http://18.60.99.199:5005", {
+    const socketInstance = io(process.env.NEXT_PUBLIC_SOCKET_URL, {
       transports: ["websocket"],
       reconnection: true,
       reconnectionAttempts: 5,

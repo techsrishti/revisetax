@@ -8,6 +8,11 @@ export async function GET(request: Request) {
   const code = searchParams.get('code')
   // if "next" is in param, use it as the redirect URL
 
+  // Use environment variable for production redirects, fallback to origin for development
+  const baseUrl = process.env.NODE_ENV === 'production' 
+    ? process.env.NEXT_PUBLIC_URL 
+    : origin;
+
   if (code) {
     try {
       const supabase = await createClient()
@@ -68,7 +73,7 @@ export async function GET(request: Request) {
               where: { id: existingUser.id },
               data: updateData
             })
-            return NextResponse.redirect(`${origin}/dashboard`)
+            return NextResponse.redirect(`${baseUrl}/dashboard`)
           }
 
           // If user doesn't exist, redirect to signup with social info including profile picture
@@ -86,10 +91,10 @@ export async function GET(request: Request) {
           }
 
           const signupParams = new URLSearchParams(params)
-          return NextResponse.redirect(`${origin}/auth/signup?${signupParams.toString()}`)
+          return NextResponse.redirect(`${baseUrl}/auth/signup?${signupParams.toString()}`)
         } catch (dbError) {
           console.error('Database error:', dbError)
-          return NextResponse.redirect(`${origin}/auth/signin?error=Database error occurred`)
+          return NextResponse.redirect(`${baseUrl}/auth/signin?error=Database error occurred`)
         }
       }
       
@@ -103,17 +108,17 @@ export async function GET(request: Request) {
       // Handle specific PKCE error
       if (error?.message?.includes('code verifier')) {
         console.error('PKCE code verifier issue detected. This usually means the OAuth flow was interrupted or cookies were cleared.')
-        return NextResponse.redirect(`${origin}/auth/signin?error=Authentication session expired. Please try signing in again.`)
+        return NextResponse.redirect(`${baseUrl}/auth/signin?error=Authentication session expired. Please try signing in again.`)
       }
       
-      return NextResponse.redirect(`${origin}/auth/signin?error=${encodeURIComponent(error?.message || 'Authentication failed')}`)
+      return NextResponse.redirect(`${baseUrl}/auth/signin?error=${encodeURIComponent(error?.message || 'Authentication failed')}`)
     } catch (error) {
       console.error('Callback error:', error)
-      return NextResponse.redirect(`${origin}/auth/signin?error=An unexpected error occurred`)
+      return NextResponse.redirect(`${baseUrl}/auth/signin?error=An unexpected error occurred`)
     }
   }
 
-  return NextResponse.redirect(`${origin}/auth/signin?error=No code provided`)
+  return NextResponse.redirect(`${baseUrl}/auth/signin?error=No code provided`)
 }
 
 // Helper function to extract profile image URL from different social providers

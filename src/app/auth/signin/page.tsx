@@ -152,10 +152,16 @@ function SignInContent() {
     try {
       setLoading(true);
       const supabase = createClient();
+      
+      // Use environment variable for production, fallback to current origin for development
+      const redirectUrl = process.env.NODE_ENV === 'production' 
+        ? `${process.env.NEXT_PUBLIC_URL}/auth/callback`
+        : `${window.location.origin}/auth/callback`;
+        
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: redirectUrl,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent'
@@ -181,10 +187,16 @@ function SignInContent() {
     try {
       setLoading(true);
       const supabase = createClient();
+      
+      // Use environment variable for production, fallback to current origin for development
+      const redirectUrl = process.env.NODE_ENV === 'production' 
+        ? `${process.env.NEXT_PUBLIC_URL}/auth/callback`
+        : `${window.location.origin}/auth/callback`;
+        
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'linkedin_oidc',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: redirectUrl,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent'
