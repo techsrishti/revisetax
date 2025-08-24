@@ -390,6 +390,79 @@
   color: #18181B;
   margin: 0;
   font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.chatTitle:hover {
+  color: #E9420C;
+}
+
+.chatTitleContainer {
+  display: flex;
+  align-items: center;
+}
+
+.chatNameEditContainer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chatNameInput {
+  font-family: "Cabinet Grotesk Variable";
+  font-size: 18px;
+  font-weight: 600;
+  color: #18181B;
+  background: transparent;
+  border: 2px solid #E9420C;
+  border-radius: 4px;
+  padding: 4px 8px;
+  outline: none;
+  min-width: 200px;
+}
+
+.chatNameInput:focus {
+  border-color: #E9420C;
+  box-shadow: 0 0 0 2px rgba(233, 66, 12, 0.1);
+}
+
+.chatNameEditActions {
+  display: flex;
+  gap: 4px;
+}
+
+.chatNameSaveButton,
+.chatNameCancelButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: bold;
+  transition: all 0.2s ease;
+}
+
+.chatNameSaveButton {
+  background: #10B981;
+  color: white;
+}
+
+.chatNameSaveButton:hover {
+  background: #059669;
+}
+
+.chatNameCancelButton {
+  background: #EF4444;
+  color: white;
+}
+
+.chatNameCancelButton:hover {
+  background: #DC2626;
 }
 
 .lastActivity {

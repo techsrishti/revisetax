@@ -67,6 +67,9 @@ export default function ChatModule({ selectedChatId, onBackToChats, socket, onJo
   const [isTyping, setIsTyping] = useState(false)
   const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null)
   const [isSendingMessage, setIsSendingMessage] = useState(false)
+  const [currentChatName, setCurrentChatName] = useState<string>("")
+  const [isEditingChatName, setIsEditingChatName] = useState(false)
+  const [editingChatName, setEditingChatName] = useState("")
   const messagesContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -144,6 +147,10 @@ export default function ChatModule({ selectedChatId, onBackToChats, socket, onJo
       console.log("Chat history:", data)
       setIsLoadingMessages(false)
       setChatStatus(data.status || 'ACTIVE')
+      // Set the current chat name from the chat data
+      if (data.chatName) {
+        setCurrentChatName(data.chatName)
+      }
       setMessages(data.messages.map((msg: any) => ({
         id: msg.id,
         content: msg.content,
@@ -190,6 +197,18 @@ export default function ChatModule({ selectedChatId, onBackToChats, socket, onJo
       if (data.chatId === selectedChatId) {
         console.log("Setting typing indicator to false for chat:", selectedChatId)
         setIsTyping(false)
+      }
+    })
+
+    socket.on("chat_name_updated", (data: any) => {
+      console.log("Chat name updated:", data)
+      if (data.chatId === selectedChatId) {
+        setCurrentChatName(data.newChatName)
+        // Notify parent component about the name change
+        if (onChatStarted) {
+          // We need to update the chat name in the parent component
+          // This will be handled by the dashboard component
+        }
       }
     })
 
@@ -302,6 +321,43 @@ export default function ChatModule({ selectedChatId, onBackToChats, socket, onJo
       if (chatStatus !== 'CLOSED') {
         handleSendMessage()
       }
+    }
+  }
+
+  const handleEditChatName = () => {
+    setIsEditingChatName(true)
+    setEditingChatName(currentChatName)
+  }
+
+  const handleSaveChatName = () => {
+    if (!socket || !selectedChatId || !editingChatName.trim()) return
+
+    const newName = editingChatName.trim()
+    if (newName === currentChatName) {
+      setIsEditingChatName(false)
+      return
+    }
+
+    socket.emit("update_chat_name", {
+      chatId: selectedChatId,
+      newChatName: newName
+    })
+
+    setIsEditingChatName(false)
+  }
+
+  const handleCancelEditChatName = () => {
+    setIsEditingChatName(false)
+    setEditingChatName(currentChatName)
+  }
+
+  const handleChatNameKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleSaveChatName()
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      handleCancelEditChatName()
     }
   }
 
@@ -452,9 +508,43 @@ export default function ChatModule({ selectedChatId, onBackToChats, socket, onJo
           <div className={styles.chatHeader}>
             <div className={styles.headerLeft}>
               <div className={styles.headerInfo}>
-                <h2 className={styles.chatTitle}>
-                  {getSelectedChatName()}
-                </h2>
+                <div className={styles.chatTitleContainer}>
+                  {isEditingChatName ? (
+                    <div className={styles.chatNameEditContainer}>
+                      <input
+                        type="text"
+                        value={editingChatName}
+                        onChange={(e) => setEditingChatName(e.target.value)}
+                        onKeyDown={handleChatNameKeyPress}
+                        onBlur={handleSaveChatName}
+                        className={styles.chatNameInput}
+                        autoFocus
+                      />
+                      <div className={styles.chatNameEditActions}>
+                        <button 
+                          onClick={handleSaveChatName}
+                          className={styles.chatNameSaveButton}
+                        >
+                          ✓
+                        </button>
+                        <button 
+                          onClick={handleCancelEditChatName}
+                          className={styles.chatNameCancelButton}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <h2 
+                      className={styles.chatTitle}
+                      onClick={handleEditChatName}
+                      title="Click to edit chat name"
+                    >
+                      {currentChatName || getSelectedChatName()}
+                    </h2>
+                  )}
+                </div>
                 <div className={styles.lastActivity}>
                   Last activity {messages.length > 0 
                     ? formatLastActivityTime(messages[messages.length - 1].timestamp) 

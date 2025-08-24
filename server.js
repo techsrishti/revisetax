@@ -129,11 +129,27 @@ class ChatService {
     try {
       const socketIORoomId = `chat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
+      // Generate timestamp-based chat name if not provided
+      const timestamp = new Date();
+      const formattedDate = timestamp.toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric', 
+        year: 'numeric' 
+      });
+      const formattedTime = timestamp.toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: true 
+      });
+      
+      const defaultChatName = `${chatType.replace(/([A-Z])/g, ' $1').trim()} - ${formattedDate} ${formattedTime}`;
+      const finalChatName = chatName || defaultChatName;
+      
       const chat = await prisma.chat.create({
         data: {
           userId,
           chatType,
-          chatName,
+          chatName: finalChatName,
           socketIORoomId,
           status: "PENDING",
         },
@@ -183,7 +199,7 @@ class ChatService {
 
   static async getChatWithMessages(chatId) {
     try {
-      return await prisma.chat.findUnique({
+      const chat = await prisma.chat.findUnique({
         where: { id: chatId },
         include: {
           messages: {
@@ -203,8 +219,54 @@ class ChatService {
           }
         }
       });
+
+      if (chat) {
+        // Add chat name to the response
+        chat.chatName = chat.chatName || `${chat.chatType.replace(/([A-Z])/g, ' $1').trim()} - ${new Date(chat.createdAt).toLocaleDateString('en-US', { 
+          month: 'short', 
+          day: 'numeric', 
+          year: 'numeric' 
+        })} ${new Date(chat.createdAt).toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          hour12: true 
+        })}`;
+      }
+
+      return chat;
     } catch (error) {
       console.error("Error getting chat:", error);
+      throw error;
+    }
+  }
+
+  static async updateChatName(chatId, newChatName) {
+    try {
+      const chat = await prisma.chat.update({
+        where: { id: chatId },
+        data: {
+          chatName: newChatName,
+          updatedAt: new Date(),
+        },
+        include: {
+          user: {
+            select: {
+              name: true,
+              email: true,
+            }
+          },
+          admin: {
+            select: {
+              name: true,
+              email: true,
+            }
+          }
+        }
+      });
+
+      return chat;
+    } catch (error) {
+      console.error("Error updating chat name:", error);
       throw error;
     }
   }
@@ -882,6 +944,7 @@ async function init() {
             admin: chat.admin,
             chatType: chat.chatType,
             status: chat.status,
+            chatName: chat.chatName,
           });
 
           console.log(`📜 Chat history sent for ${chatId}`);
@@ -1435,6 +1498,54 @@ async function init() {
         } catch (error) {
           console.error("Error closing chat:", error);
           socket.emit("error", { message: "Failed to close chat" });
+        }
+      });
+
+      // Update chat name
+      socket.on("update_chat_name", async ({ chatId, newChatName }) => {
+        try {
+          const userId = userSessions.get(socket.id);
+          const adminId = adminSessions.get(socket.id);
+          
+          if (!userId && !adminId) {
+            socket.emit("error", { message: "Not authenticated" });
+            return;
+          }
+
+          const chat = await prisma.chat.findUnique({
+            where: { id: chatId }
+          });
+
+          if (!chat) {
+            socket.emit("error", { message: "Chat not found" });
+            return;
+          }
+
+          // Verify user has access to this chat
+          if (userId && chat.userId !== userId) {
+            socket.emit("error", { message: "Access denied" });
+            return;
+          }
+
+          if (adminId && chat.adminId !== adminId) {
+            socket.emit("error", { message: "Access denied" });
+            return;
+          }
+
+          // Update chat name
+          const updatedChat = await ChatService.updateChatName(chatId, newChatName);
+
+          // Notify all participants in the room about the name change
+          io.to(chat.socketIORoomId).emit("chat_name_updated", {
+            chatId,
+            newChatName,
+            updatedAt: updatedChat.updatedAt
+          });
+
+          console.log(`✏️ Chat name updated: ${chatId} -> "${newChatName}"`);
+        } catch (error) {
+          console.error("Error updating chat name:", error);
+          socket.emit("error", { message: "Failed to update chat name" });
         }
       });
 
