@@ -31,13 +31,15 @@ function isPayuCallbackPayload(obj: any): obj is PayuCallbackPayload {
 }
 
 export async function POST(request: NextRequest) {
+    const baseUrl = process.env.NEXT_PUBLIC_URL;
+    console.log("base url", baseUrl)
     try {
         const rawBody = await request.text();
         const formData = new URLSearchParams(rawBody);
         const payloadRaw = Object.fromEntries(formData.entries());
 
         if (!isPayuCallbackPayload(payloadRaw)) {
-            const response = NextResponse.redirect(new URL('/dashboard', request.url), {
+            const response = NextResponse.redirect(new URL(`${baseUrl}/dashboard`, baseUrl), {
                 status: 302
             });
             response.cookies.set('showPopup', '1');
@@ -52,7 +54,7 @@ export async function POST(request: NextRequest) {
         const hash = crypto.createHash('sha512').update(hashString).digest('hex');
 
         if (payload.hash !== hash) {
-            const response = NextResponse.redirect(new URL('/dashboard', request.url), {
+            const response = NextResponse.redirect(new URL(`${baseUrl}/dashboard`, baseUrl), {
                 status: 302
             });
             response.cookies.set('showPopup', '1');
@@ -64,7 +66,7 @@ export async function POST(request: NextRequest) {
         const popupStatus = payload.status === "success" ? 0 : 1;
         
         // Create response with redirect
-        const response = NextResponse.redirect(new URL('/dashboard', request.url), {
+        const response = NextResponse.redirect(new URL(`${baseUrl}/dashboard`, baseUrl), {
             status: 302
         });
 
@@ -89,7 +91,7 @@ export async function POST(request: NextRequest) {
 
     } catch (error) {
         console.error("Error processing payu callback:", error);
-        const response = NextResponse.redirect(new URL('/dashboard', request.url), {
+        const response = NextResponse.redirect(new URL(`${baseUrl}/dashboard`, baseUrl), {
             status: 302
         });
         response.cookies.set('showPopup', '1');
