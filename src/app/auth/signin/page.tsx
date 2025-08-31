@@ -279,7 +279,8 @@ function SignInContent() {
             width={92}
             height={24}
             priority
-            className="mb-6"
+            className="mb-6 cursor-pointer"
+            onClick={() => router.push('/dashboard')}
           />
           <h1 className="text-[#111827] text-2xl font-bold mb-2" style={{
             fontFamily: 'Cabinet Grotesk Variable',

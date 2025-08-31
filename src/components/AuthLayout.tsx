@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import styles from '@/app/auth/styles.module.css';
 
 interface AuthLayoutProps {
@@ -6,6 +7,12 @@ interface AuthLayoutProps {
 }
 
 export default function AuthLayout({ children }: AuthLayoutProps) {
+  const router = useRouter();
+
+  const handleLogoClick = () => {
+    router.push('/dashboard');
+  };
+
   return (
     <div className="relative min-h-screen w-full bg-[#0F172A] overflow-y-auto">
       {/* Background Elements */}
@@ -28,14 +35,15 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
                 width={140}
                 height={40}
                 priority
-                className="h-8 w-auto"
+                className="h-8 w-auto cursor-pointer"
+                onClick={handleLogoClick}
               />
             </div>
 
             {/* Contact Information - Stacked Vertically */}
             <div className="flex flex-col items-center sm:items-end gap-2 text-center sm:text-right">
               <a 
-                href="tel:+919555394443" 
+                href="tel:+919133787722" 
                 className="flex items-center gap-2 text-[#C1D2E1] hover:text-[#FF4400] transition-colors duration-200 whitespace-nowrap"
               >
                 <Image
@@ -46,7 +54,7 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
                   className="w-5 h-5 opacity-80"
                 />
                 <span className="font-inter text-[14px] leading-[20px] font-normal tracking-[0%]">
-                  Call directly at <strong>+919555394443</strong>
+                  Call directly at <strong>+919133787722</strong>
                 </span>
               </a>
               <a 

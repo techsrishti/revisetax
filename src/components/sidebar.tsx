@@ -328,6 +328,10 @@ export default function Sidebar({ activeModule, setActiveModule, children, chats
       }
     }
   };
+
+  const handleLogoClick = () => {
+    router.push('/dashboard');
+  };
   
   return (
     <>
@@ -344,7 +348,13 @@ export default function Sidebar({ activeModule, setActiveModule, children, chats
             <path d="M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
           </svg>
         </button>
-        <img src="/revise-tax-logo.svg" alt="Revise Tax" className={styles.mobileLogo} />
+        <img 
+          src="/revise-tax-logo.svg" 
+          alt="Revise Tax" 
+          className={styles.mobileLogo} 
+          onClick={handleLogoClick}
+          style={{ cursor: 'pointer' }}
+        />
       </div>
 
       {/* Content Wrapper - Starts below header */}
@@ -612,7 +622,13 @@ export default function Sidebar({ activeModule, setActiveModule, children, chats
 
           <div className={styles.footer}>
             <div className={styles.logoContainer}>
-              <img src="/revise-tax-logo.svg" alt="Revise Tax" className={styles.logo} />
+              <img 
+                src="/revise-tax-logo.svg" 
+                alt="Revise Tax" 
+                className={styles.logo} 
+                onClick={handleLogoClick}
+                style={{ cursor: 'pointer' }}
+              />
             </div>
             <p className={styles.copyright}>© 2025, All rights reserved.</p>
           </div>
