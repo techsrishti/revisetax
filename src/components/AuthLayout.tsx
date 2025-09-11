@@ -10,7 +10,7 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
   const router = useRouter();
 
   const handleLogoClick = () => {
-    router.push('/dashboard');
+    router.push('https://revisetax.com');
   };
 
   return (
